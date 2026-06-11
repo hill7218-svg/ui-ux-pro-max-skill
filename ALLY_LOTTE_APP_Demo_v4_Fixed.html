@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALLY LOTTE 應用程式 - v4.1 修復版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #fff;
+        }
+
+        /* ===== TOPBAR ===== */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #1F4E78 0%, #2E5F99 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .topbar-title {
+            font-size: 16px;
+            font-weight: 600;
+            flex: 1;
+            text-align: center;
+        }
+
+        .topbar-current-pallet {
+            position: absolute;
+            left: 16px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .topbar-current-pallet.show {
+            display: block;
+        }
+
+        .network-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            position: absolute;
+            right: 16px;
+        }
+
+        .network-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            transition: all 0.3s ease;
+        }
+
+        .network-indicator.offline {
+            background: #f44336;
+        }
+
+        .network-indicator.syncing {
+            background: #FFC107;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* ===== SCREEN CONTAINER ===== */
+        .screen-container {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .screen {
+            display: none;
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .screen.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== S0: DASHBOARD ===== */
+        #s0 {
+            flex-direction: column;
+            gap: 16px;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .dashboard-header {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1F4E78;
+            margin-bottom: 20px;
+        }
+
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1F4E78;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .btn-primary {
+            padding: 12px 16px;
+            min-height: 44px;
+            background: linear-gradient(135deg, #1F4E78 0%, #2E5F99 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(31, 78, 120, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(31, 78, 120, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            padding: 12px 16px;
+            min-height: 44px;
+            background: #f5f5f5;
+            color: #1F4E78;
+            border: 2px solid #1F4E78;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #e8f0f7;
+        }
+
+        /* ===== S1: PALLET LIST ===== */
+        .pcard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .pcard {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .pcard.active {
+            border: 3px solid #D4AF37;
+            background: linear-gradient(135deg, #fffef0 0%, #fff9e6 100%);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+        }
+
+        .pcard.locked {
+            opacity: 0.55;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+        }
+
+        .pcard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .pcard-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #1F4E78;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pcard-title .lock-icon {
+            font-size: 16px;
+        }
+
+        .pcard-toggle {
+            font-size: 16px;
+            color: #666;
+            transition: transform 0.3s ease;
+        }
+
+        .pcard.expanded .pcard-toggle {
+            transform: rotate(180deg);
+        }
+
+        .pcard-body {
+            padding: 16px;
+            display: none;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .pcard.expanded .pcard-body {
+            display: block;
+        }
+
+        .pcard-info {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+
+        .info-row label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .info-row value {
+            color: #1F4E78;
+            font-weight: 600;
+        }
+
+        .pcard-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-action {
+            padding: 12px 16px;
+            min-height: 44px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-action.scan {
+            background: #1F4E78;
+            color: white;
+        }
+
+        .btn-action.scan:hover {
+            background: #163a52;
+        }
+
+        .btn-action.seal {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-action.seal:hover {
+            background: #45a049;
+        }
+
+        .btn-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ===== S2: BARCODE SCANNING ===== */
+        #s2 .screen-header {
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .s2-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 24px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 12px;
+            overflow: hidden;
+            min-width: 120px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #FFC107 0%, #FFD54F 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .scan-input-section {
+            margin-bottom: 24px;
+        }
+
+        .scan-input-section label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1F4E78;
+            margin-bottom: 8px;
+        }
+
+        .scan-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #1F4E78;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: monospace;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .scan-input:focus {
+            outline: none;
+            border-color: #0f2942;
+            box-shadow: 0 2px 8px rgba(31, 78, 120, 0.2);
+        }
+
+        .scanned-items {
+            margin-top: 20px;
+        }
+
+        .scanned-items h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1F4E78;
+            margin-bottom: 12px;
+        }
+
+        .item {
+            background: #f5f5f5;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item.scanned {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .item-code {
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        .item-time {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        /* ===== S3: SEAL PALLET ===== */
+        .s3-seal-input {
+            margin-bottom: 20px;
+        }
+
+        .s3-seal-input label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1F4E78;
+            margin-bottom: 8px;
+        }
+
+        .s3-seal-input input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #1F4E78;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .s3-seal-btn {
+            width: 100%;
+            padding: 12px 16px;
+            min-height: 44px;
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .s3-seal-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(33, 150, 243, 0.4);
+        }
+
+        .s3-seal-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* ===== S4: SYNC STATUS ===== */
+        .sync-status {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+        }
+
+        .sync-indicator {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+
+        .sync-indicator.error {
+            background: linear-gradient(135deg, #f44336 0%, #da190b 100%);
+        }
+
+        .sync-indicator.syncing {
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .sync-message {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1F4E78;
+            text-align: center;
+        }
+
+        .sync-details {
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+            max-width: 300px;
+            line-height: 1.6;
+        }
+
+        /* ===== NAVIGATION ===== */
+        .nav-bar {
+            display: flex;
+            border-top: 1px solid #e0e0e0;
+            background: white;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+        }
+
+        .nav-item {
+            flex: 1;
+            padding: 12px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-top: 3px solid transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: #999;
+        }
+
+        .nav-item.active {
+            border-top-color: #1F4E78;
+            color: #1F4E78;
+            font-weight: 600;
+        }
+
+        .nav-icon {
+            font-size: 20px;
+        }
+
+        /* ===== MODAL ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1F4E78;
+            margin-bottom: 16px;
+        }
+
+        .modal-message {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .btn-confirm {
+            padding: 12px 16px;
+            min-height: 44px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            padding: 12px 16px;
+            min-height: 44px;
+            background: #f5f5f5;
+            color: #333;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .dashboard-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- TOPBAR -->
+        <div class="topbar">
+            <div class="topbar-current-pallet" id="topbarCurrentPallet">← 封板 [--]</div>
+            <div class="topbar-title" id="topbarTitle">ALLY LOTTE</div>
+            <div class="network-status">
+                <div class="network-indicator" id="networkIndicator"></div>
+                <span id="networkStatus">在線</span>
+            </div>
+        </div>
+
+        <!-- SCREENS -->
+        <div class="screen-container">
+            <!-- S0: Dashboard -->
+            <div class="screen active" id="s0">
+                <div class="dashboard-header">ALLY LOTTE 倉儲系統</div>
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <h3>今日封板</h3>
+                        <div class="value" id="stat-sealed">12</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>待處理</h3>
+                        <div class="value" id="stat-pending">8</div>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn-primary" onclick="navigateToScreen('s1')">開始掃描</button>
+                    <button class="btn-secondary" onclick="navigateToScreen('s4')">同步狀態</button>
+                </div>
+            </div>
+
+            <!-- S1: Pallet List -->
+            <div class="screen" id="s1">
+                <h2 style="color: #1F4E78; margin-bottom: 16px; font-size: 16px;">待封板的棧板列表</h2>
+                <div class="pcard-list" id="pcard-list"></div>
+            </div>
+
+            <!-- S2: Barcode Scanning -->
+            <div class="screen" id="s2">
+                <div class="screen-header">
+                    <div class="s2-badge">
+                        🔒 <span id="scanned-count">0</span>/<span id="total-count">32</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="scan-input-section">
+                    <label>掃描條碼:</label>
+                    <input type="text" id="scanInput" class="scan-input" placeholder="請掃描或輸入條碼..." autofocus>
+                </div>
+                <div class="scanned-items">
+                    <h3>已掃描項目 (<span id="item-count">0</span>)</h3>
+                    <div id="scanned-list"></div>
+                </div>
+            </div>
+
+            <!-- S3: Seal Pallet -->
+            <div class="screen" id="s3">
+                <h2 style="color: #1F4E78; margin-bottom: 20px; font-size: 16px;">確認封板</h2>
+                <div class="s3-seal-input">
+                    <label>確認封板編號:</label>
+                    <input type="text" id="sealInput" placeholder="輸入封板編號...">
+                </div>
+                <button class="s3-seal-btn" onclick="completeSeal()" id="sealBtn">確認封板</button>
+            </div>
+
+            <!-- S4: Sync Status -->
+            <div class="screen" id="s4">
+                <div class="sync-status">
+                    <div class="sync-indicator" id="syncIndicator">✓</div>
+                    <div class="sync-message" id="syncMessage">所有資料已同步</div>
+                    <div class="sync-details" id="syncDetails">最後同步: 剛才 | 網路: 在線</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NAV BAR -->
+        <div class="nav-bar">
+            <div class="nav-item active" onclick="navigateToScreen('s0')">
+                <div class="nav-icon">🏠</div>
+                <span>首頁</span>
+            </div>
+            <div class="nav-item" onclick="navigateToScreen('s1')">
+                <div class="nav-icon">📦</div>
+                <span>棧板</span>
+            </div>
+            <div class="nav-item" onclick="navigateToScreen('s2')">
+                <div class="nav-icon">🔍</div>
+                <span>掃描</span>
+            </div>
+            <div class="nav-item" onclick="navigateToScreen('s3')">
+                <div class="nav-icon">✅</div>
+                <span>封板</span>
+            </div>
+            <div class="nav-item" onclick="navigateToScreen('s4')">
+                <div class="nav-icon">☁️</div>
+                <span>同步</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title" id="modalTitle">確認操作</div>
+            <div class="modal-message" id="modalMessage"></div>
+            <div class="modal-buttons">
+                <button class="btn-confirm" id="btnConfirm">確認</button>
+                <button class="btn-cancel" onclick="closeModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== APP STATE =====
+        const appState = {
+            currentScreen: 's0',
+            currentPallet: null,
+            pallets: [
+                { id: 'A2-001', status: 'pending', items: 32, scanned: 0, batch: 'BN-05-02' },
+                { id: 'A2-002', status: 'pending', items: 28, scanned: 0, batch: 'BN-05-03' },
+                { id: 'A2-003', status: 'locked', items: 32, scanned: 32, batch: 'BN-05-04' },
+                { id: 'A2-004', status: 'pending', items: 24, scanned: 0, batch: 'BN-05-05' },
+            ],
+            scannedItems: [],
+            totalSealed: 12,
+            totalPending: 8,
+            isOnline: true,
+            lastSync: new Date(),
+        };
+
+        // ===== NETWORK MONITORING =====
+        function initNetworkMonitor() {
+            const updateNetworkStatus = () => {
+                const isOnline = navigator.onLine;
+                appState.isOnline = isOnline;
+
+                const indicator = document.getElementById('networkIndicator');
+                const statusText = document.getElementById('networkStatus');
+
+                indicator.className = 'network-indicator' + (isOnline ? '' : ' offline');
+                statusText.textContent = isOnline ? '在線' : '離線';
+            };
+
+            window.addEventListener('online', updateNetworkStatus);
+            window.addEventListener('offline', updateNetworkStatus);
+            updateNetworkStatus();
+        }
+
+        // ===== SCREEN NAVIGATION =====
+        function navigateToScreen(screenId) {
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+            // Show selected screen
+            document.getElementById(screenId).classList.add('active');
+            event.target.closest('.nav-item').classList.add('active');
+
+            appState.currentScreen = screenId;
+
+            // Update topbar
+            const topbar = document.getElementById('topbarCurrentPallet');
+            if (screenId === 's3' && appState.currentPallet) {
+                topbar.textContent = `← 封板 [${appState.currentPallet.id} | ${appState.currentPallet.batch}]`;
+                topbar.classList.add('show');
+            } else {
+                topbar.classList.remove('show');
+            }
+
+            // Update screen title
+            const titles = {
+                's0': 'ALLY LOTTE',
+                's1': '棧板列表',
+                's2': '條碼掃描',
+                's3': '封板確認',
+                's4': '同步狀態'
+            };
+            document.getElementById('topbarTitle').textContent = titles[screenId] || 'ALLY LOTTE';
+
+            // Initialize screen content
+            if (screenId === 's1') renderPalletList();
+            if (screenId === 's2') initScanScreen();
+            if (screenId === 's4') updateSyncStatus();
+        }
+
+        // ===== S1: PALLET LIST =====
+        function renderPalletList() {
+            const listDiv = document.getElementById('pcard-list');
+            listDiv.innerHTML = '';
+
+            appState.pallets.forEach(pallet => {
+                const card = document.createElement('div');
+                card.className = `pcard expanded ${pallet.status === 'locked' ? 'locked' : ''} ${appState.currentPallet?.id === pallet.id ? 'active' : ''}`;
+
+                const isLocked = pallet.status === 'locked';
+                const progress = Math.round((pallet.scanned / pallet.items) * 100);
+
+                card.innerHTML = `
+                    <div class="pcard-header" onclick="toggleCardBody(this)">
+                        <div class="pcard-title">
+                            ${isLocked ? '<span class="lock-icon">🔒</span>' : '<span class="lock-icon">📦</span>'}
+                            ${pallet.id} - ${pallet.batch}
+                        </div>
+                        <div class="pcard-toggle">▼</div>
+                    </div>
+                    <div class="pcard-body">
+                        <div class="pcard-info">
+                            <div class="info-row">
+                                <label>狀態:</label>
+                                <value>${isLocked ? '已鎖定' : '待處理'}</value>
+                            </div>
+                            <div class="info-row">
+                                <label>進度:</label>
+                                <value>${pallet.scanned}/${pallet.items} (${progress}%)</value>
+                            </div>
+                            <div class="info-row">
+                                <label>批號:</label>
+                                <value>${pallet.batch}</value>
+                            </div>
+                        </div>
+                        <div class="pcard-actions">
+                            <button class="btn-action scan" onclick="selectPalletAndNavigate('${pallet.id}')" ${isLocked ? 'disabled' : ''}>掃描</button>
+                            <button class="btn-action seal" onclick="selectPalletForSealing('${pallet.id}')" ${isLocked ? 'disabled' : ''}>封板</button>
+                        </div>
+                    </div>
+                `;
+
+                listDiv.appendChild(card);
+            });
+        }
+
+        function toggleCardBody(headerEl) {
+            const card = headerEl.closest('.pcard');
+            card.classList.toggle('expanded');
+        }
+
+        // ===== S2: BARCODE SCANNING =====
+        function initScanScreen() {
+            const scanInput = document.getElementById('scanInput');
+            scanInput.value = '';
+            scanInput.focus();
+            updateProgressBar();
+            renderScannedItems();
+
+            scanInput.onkeypress = (e) => {
+                if (e.key === 'Enter') {
+                    const barcode = scanInput.value.trim();
+                    if (barcode) {
+                        addScannedItem(barcode);
+                        scanInput.value = '';
+                    }
+                }
+            };
+        }
+
+        function addScannedItem(barcode) {
+            const time = new Date().toLocaleTimeString('zh-TW');
+            appState.scannedItems.push({ code: barcode, time });
+
+            if (appState.currentPallet) {
+                appState.currentPallet.scanned = Math.min(
+                    appState.currentPallet.scanned + 1,
+                    appState.currentPallet.items
+                );
+            }
+
+            updateProgressBar();
+            renderScannedItems();
+        }
+
+        function updateProgressBar() {
+            const total = appState.currentPallet?.items || 32;
+            const scanned = appState.currentPallet?.scanned || appState.scannedItems.length;
+            const percentage = (scanned / total) * 100;
+
+            document.getElementById('scanned-count').textContent = scanned;
+            document.getElementById('total-count').textContent = total;
+            document.getElementById('item-count').textContent = appState.scannedItems.length;
+            document.getElementById('progress-fill').style.width = percentage + '%';
+        }
+
+        function renderScannedItems() {
+            const list = document.getElementById('scanned-list');
+            list.innerHTML = '';
+
+            appState.scannedItems.forEach((item, idx) => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'item scanned';
+                itemEl.innerHTML = `
+                    <div>
+                        <span class="item-code">${item.code}</span>
+                        <span class="item-time">${item.time}</span>
+                    </div>
+                    <span>✓</span>
+                `;
+                list.appendChild(itemEl);
+            });
+        }
+
+        // ===== S3: SEAL PALLET =====
+        function selectPalletAndNavigate(palletId) {
+            appState.currentPallet = appState.pallets.find(p => p.id === palletId);
+            appState.scannedItems = [];
+            navigateToScreen('s2');
+        }
+
+        function selectPalletForSealing(palletId) {
+            appState.currentPallet = appState.pallets.find(p => p.id === palletId);
+            navigateToScreen('s3');
+            document.getElementById('sealInput').focus();
+        }
+
+        function completeSeal() {
+            const sealInput = document.getElementById('sealInput');
+            const sealNumber = sealInput.value.trim();
+
+            if (!sealNumber) {
+                alert('請輸入封板編號');
+                return;
+            }
+
+            if (!appState.currentPallet) {
+                alert('請先選擇棧板');
+                return;
+            }
+
+            // Mark pallet as locked
+            appState.currentPallet.status = 'locked';
+            appState.totalSealed++;
+            appState.totalPending--;
+
+            // Show confirmation
+            showModal(
+                '封板成功',
+                `棧板 ${appState.currentPallet.id} 已成功封板。`,
+                () => {
+                    appState.scannedItems = [];
+                    appState.currentPallet = null;
+                    navigateToScreen('s1');
+                }
+            );
+        }
+
+        // ===== S4: SYNC STATUS =====
+        function updateSyncStatus() {
+            const indicator = document.getElementById('syncIndicator');
+            const message = document.getElementById('syncMessage');
+            const details = document.getElementById('syncDetails');
+
+            if (appState.isOnline) {
+                indicator.className = 'sync-indicator';
+                indicator.textContent = '✓';
+                message.textContent = '所有資料已同步';
+                details.textContent = `最後同步: ${appState.lastSync.toLocaleTimeString('zh-TW')} | 網路: 在線`;
+            } else {
+                indicator.className = 'sync-indicator error';
+                indicator.textContent = '⚠';
+                message.textContent = '離線模式';
+                details.textContent = '目前離線，變更將於恢復連線時同步';
+            }
+        }
+
+        // ===== MODAL =====
+        function showModal(title, message, onConfirm) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            document.getElementById('confirmModal').classList.add('show');
+
+            document.getElementById('btnConfirm').onclick = () => {
+                closeModal();
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+        }
+
+        // ===== INITIALIZATION =====
+        function init() {
+            initNetworkMonitor();
+            renderPalletList();
+        }
+
+        init();
+    </script>
+</body>
+</html>
