@@ -96,3 +96,256 @@ Never push directly to `main`. Always:
 2. Commit changes
 3. Push branch: `git push -u origin <branch>`
 4. Create PR: `gh pr create`
+
+---
+
+# ALLY LOTTE 移倉對點 APP v5
+
+## 📦 Project Overview
+
+**Project Type**: Warehouse Inventory Management System  
+**Purpose**: Complete warehouse transfer verification & pallet receiving system  
+**Target Platform**: PDA/Android WebView (390×844px)  
+**Status**: Production-ready (requires Firebase + Google Sheets configuration)
+
+### What It Does
+
+Real-time warehouse pallet receiving system with:
+- Multi-screen workflow (S0-S4): Truck setup → Pallet scanning → Verification → Closure
+- **NEW v5**: Firebase photo upload + Google Sheets LOG with timestamps + QR Code SVG per pallet
+
+---
+
+## 🎯 Core Features
+
+### Workflow Screens (S0-S4)
+- **S0**: 開工設定 - Truck #, Aisle selection (BA-BP), Trip size
+- **S1**: 掃描棧板 - Pallet scanning + **NEW**: Photos, QR codes, operation log
+- **S2**: 棧板管理 - Pallet list management
+- **S3**: 詳細對點 - Item-by-item verification
+- **S4**: 摘要檢查 - Summary & shipment closure
+
+### v5 New Features
+1. **📷 Photo Upload** (4 slots) → Firebase Storage: `warehouse/{truck}/{timestamp}/photo_*.jpg`
+2. **📋 Operation Log** → Real-time timestamp logging of all actions
+3. **🔳 QR Code Generation** → SVG/PNG per pallet (JSON: truck, pallet ID, location, timestamp)
+4. **☁️ Google Sheets Sync** → One-click data upload
+
+---
+
+## 📁 File Structure
+
+```
+ALLY_LOTTE_WAREHOUSE_v5_INTEGRATED.html        # Main app (~1200 lines)
+├─ Lines 1-450: HTML Structure (5 screens)
+├─ Lines 7-265: CSS Styles + NEW sections
+└─ Lines 451-1011: JavaScript Logic
+   ├─ Core: Pallet management, scanning, verification
+   ├─ NEW L950-970: Firebase init
+   ├─ NEW L975-1010: Log management
+   ├─ NEW L1015-1055: Google Sheets sync
+   ├─ NEW L1060-1110: Photo upload
+   └─ NEW L1115-1145: QR code generation
+
+ALLY_LOTTE_v5_INTEGRATION_GUIDE.md             # Setup guide
+```
+
+---
+
+## 🔧 Critical Setup (Must Configure Before Use)
+
+### 1. Firebase Configuration (Line ~950)
+```javascript
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_API_KEY",              // Required
+  projectId: "YOUR_PROJECT_ID",                 // Required
+  storageBucket: "YOUR_BUCKET.appspot.com",     // Required
+  appId: "YOUR_APP_ID"                          // Required
+};
+```
+**Get from**: Firebase Console → Project Settings → Your App
+
+### 2. Google Sheets Configuration (Line ~955)
+```javascript
+const GOOGLE_SHEETS_API_KEY = "YOUR_API_KEY";   // Required
+const GOOGLE_SHEETS_ID = "YOUR_SHEET_ID";       // Required
+```
+**Sheet ID**: Extracted from URL `/d/[ID]/edit`  
+**Required Columns**: 時間戳, 車號, 棧板ID, 位置, 商品數, 狀態, 操作時間
+
+### 3. Firebase Storage Rules
+```
+match /warehouse/{allPaths=**} {
+  allow read, write: if true;  // Dev only - add auth for production
+}
+```
+
+---
+
+## 💾 Key Data Structures
+
+### Application State (ST)
+```javascript
+{
+  truck: "BBB-2262",                    // Selected truck
+  aisle: "BA",                          // Primary aisle (BA-BP)
+  overflow: null,                       // Overflow aisle
+  pallets: {
+    "PA0001": {
+      id, location, items{}, status, expectedQty{}
+    }
+  },
+  closed: false
+}
+```
+
+### Operation Log (operationLog[])
+```javascript
+{
+  timestamp: "2026-06-12 10:30:45",     // Auto-generated
+  action: "照片上傳" | "QR Code 生成" | "Google Sheets 同步",
+  details: "索引 0",
+  palletCount: 32,
+  scannedItems: 156
+}
+```
+
+### QR Code Content (JSON)
+```json
+{
+  "truck": "BBB-2262",
+  "pallet": "PA0001",
+  "location": "BA-001-01",
+  "timestamp": "2026-06-12T10:30:00Z"
+}
+```
+
+---
+
+## 🔄 Data Flow
+
+```
+User Action (Scan/Photo/Sync)
+  ↓
+📷 Photo → Firebase Storage (warehouse/{truck}/{timestamp}/)
+📋 Log → Local operationLog[]
+🔳 QR → Google Chart API (JSON → PNG)
+☁️  Sync → Google Sheets API v4 (append)
+```
+
+---
+
+## 🛠️ Common Development Tasks
+
+### Add Feature to S1 Screen
+1. Add CSS (before line 265)
+2. Add HTML (in S1 section around line 360-410)
+3. Add JS handler (before line 945)
+4. Wire event listener
+5. Call `addLog('操作名稱', 'details')` to track operation
+
+### Generate QR Code for Pallet
+```javascript
+displayPalletQRCode(palletId);  // Display in panel
+downloadQRCodeSVG(palletId);    // Download as PNG
+```
+
+### Upload Photo to Firebase
+```javascript
+triggerPhotoCapture(photoIndex);  // Opens file picker + uploads
+```
+
+### Sync Data to Google Sheets
+```javascript
+syncToGoogleSheets();  // Uploads all pallets + operations
+```
+
+### Debug in Console
+```javascript
+console.log(ST);              // View full state
+console.log(operationLog);    // View all operations
+syncToGoogleSheets();         // Manual sync trigger
+```
+
+---
+
+## 🧪 Testing Checklist
+
+Before deploying:
+- [ ] Firebase config is correct (test photo upload)
+- [ ] Google Sheets API key works (test sync)
+- [ ] Google Sheet has correct column headers
+- [ ] QR codes generate and download
+- [ ] Timestamps record accurately
+- [ ] All S0-S4 screens work
+- [ ] Network indicator updates
+- [ ] Toast notifications appear
+
+---
+
+## 🔐 Security Notes
+
+### Current (Development)
+- Firebase rules: `allow read, write: if true` (open)
+- API keys exposed in frontend (NOT production-safe)
+- No user authentication
+
+### For Production
+1. Firebase Rules: Require authentication
+2. Google API: Use OAuth 2.0 + backend proxy (never expose API key)
+3. Photo Storage: Set expiration policies
+4. Add operator login + role-based access
+
+---
+
+## 📚 Key Functions Reference
+
+| Function | Line | Purpose |
+|----------|------|---------|
+| `addLog(action, details)` | ~980 | Record operation with timestamp |
+| `syncToGoogleSheets()` | ~1015 | Upload pallets to Google Sheet |
+| `triggerPhotoCapture(index)` | ~1065 | Open file picker for photo |
+| `displayPalletQRCode(palletId)` | ~1120 | Generate & show QR code |
+| `downloadQRCodeSVG(palletId)` | ~1145 | Download QR code as PNG |
+| `toast(message, isError)` | ~962 | Show notification |
+| `goS(screenNumber)` | ~983 | Navigate between screens |
+
+---
+
+## 🚀 Quick Deploy
+
+### Local Testing
+```bash
+python3 -m http.server 8000
+# Open: http://localhost:8000/ALLY_LOTTE_WAREHOUSE_v5_INTEGRATED.html
+```
+
+### Android/PDA WebView
+```java
+WebView webView = findViewById(R.id.webview);
+webView.getSettings().setJavaScriptEnabled(true);
+webView.loadUrl("file:///android_asset/ALLY_LOTTE_WAREHOUSE_v5_INTEGRATED.html");
+```
+
+---
+
+## ⚠️ Important Limitations
+
+- QR codes use external Google Charts API (no offline support)
+- API keys exposed in frontend (development only)
+- No user authentication
+- Photos stored indefinitely (no retention policy)
+- No encryption for sensitive data
+
+### Recommended for Production
+- Backend API gateway for Google/Firebase calls
+- User authentication + operator tracking
+- Firebase Realtime Database for live sync
+- Service Worker for offline mode
+- Photo expiration + archival policies
+
+---
+
+**Version**: v5 Integrated (Firebase + Google Sheets + QR Code)  
+**Last Updated**: 2026-06-12  
+**Remember**: Configure Firebase and Google Sheets before first use!
