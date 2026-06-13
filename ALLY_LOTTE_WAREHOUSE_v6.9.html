@@ -1156,6 +1156,7 @@ function assignLoc(forceIsolation) {
 
 function openSeal(pid) {
   ST.sealTarget = pid;
+  ST.curPallet = pid;
   ST.sealStatus = '';
   ST._pendingLoc = null;
   var p = ST.pallets[pid];
@@ -1181,8 +1182,9 @@ function openSeal(pid) {
   document.getElementById('reason-wrap').style.display = 'none';
   document.getElementById('reason-txt').value = '';
   document.getElementById('loc-box').style.display = 'none';
-  document.getElementById('seal-btn').disabled = true;
-  document.getElementById('seal-btn').textContent = '🔒 確認封板';
+  var cbtn = document.getElementById('confirm-seal-btn');
+  cbtn.disabled = true;
+  cbtn.textContent = '🔒 確認封板';
   // 重置異常拍照區
   var photoWrap = document.getElementById('anomaly-photo-wrap');
   if (photoWrap) photoWrap.style.display = 'none';
@@ -1197,7 +1199,7 @@ function pickSt(status, idx) {
   document.getElementById('so'+idx).classList.add('on');
   var nr = ['diff','damage','merge','other'].indexOf(status) >= 0;
   document.getElementById('reason-wrap').style.display = nr ? 'block' : 'none';
-  document.getElementById('seal-btn').disabled = false;
+  document.getElementById('confirm-seal-btn').disabled = false;
 
   // 異常拍照區顯示邏輯
   var photoWrap = document.getElementById('anomaly-photo-wrap');
@@ -1232,37 +1234,6 @@ function pickSt(status, idx) {
     document.getElementById('loc-box').style.display = 'none';
     ST._pendingLoc = null;
   }
-}
-
-function doSeal() {
-  var pid = ST.sealTarget; if (!pid) return;
-  var nr = ['diff','damage','merge','other'].indexOf(ST.sealStatus) >= 0;
-  if (nr) {
-    var r = document.getElementById('reason-txt').value.trim();
-    if (!r) { toast('請填寫說明原因', true); return; }
-    ST.pallets[pid].reason = r;
-  }
-  // 破損必須至少有 1 張照片
-  if (ST.sealStatus === 'damage' && ST.s3PhotoCount === 0) {
-    toast('⚠️ 外箱破損必須至少拍 1 張照片才能封板', true);
-    document.getElementById('anomaly-photo-wrap').style.display = 'block';
-    return;
-  }
-  var loc = ST._pendingLoc || assignLoc();
-  ST.pallets[pid].loc = loc;
-  ST.pallets[pid].status = 'locked';
-  ST.pallets[pid].sStatus = ST.sealStatus;
-  document.getElementById('loc-val').textContent = loc;
-  document.getElementById('loc-box').style.display = 'block';
-  document.getElementById('seal-btn').disabled = true;
-  document.getElementById('seal-btn').textContent = '✅ 已封板';
-  toast(pid + ' 封板完成 → ' + loc);
-  updS1Badge();
-  // Bug 2 fix: 清空 curPallet，下次加貨必須新建棧板
-  ST.curPallet = null;
-  // refresh aisle grid to show updated counts
-  buildAisleGrid('aisle-grid', 'pickAisle', ST.aisle);
-  setTimeout(function(){ goS(2); }, 1600);
 }
 
 /* ══ SUMMARY ══ */
@@ -2090,7 +2061,7 @@ function goNextPallet() {
 
 /* ══ CONFIRM & SEAL PALLET - v6 UX WORKFLOW ══ */
 function confirmAndSealPallet() {
-  var palletId = ST.curPallet;
+  var palletId = ST.sealTarget || ST.curPallet;
   if (!palletId) {
     toast('❌ 請先選擇棧板', true);
     return;
@@ -2102,6 +2073,20 @@ function confirmAndSealPallet() {
     return;
   }
 
+  // 必須先選擇狀態
+  if (!ST.sealStatus) {
+    toast('⚠️ 請先選擇這板的狀態（正常／異常）', true);
+    return;
+  }
+
+  // 異常狀態必須填寫原因
+  var needReason = ['diff','damage','merge','other'].indexOf(ST.sealStatus) >= 0;
+  if (needReason) {
+    var r = document.getElementById('reason-txt').value.trim();
+    if (!r) { toast('請填寫說明原因', true); return; }
+    pallet.reason = r;
+  }
+
   // 破損必須有照片
   if (ST.sealStatus === 'damage' && ST.s3PhotoCount === 0) {
     toast('⚠️ 外箱破損必須至少拍 1 張照片才能封板', true);
@@ -2109,10 +2094,11 @@ function confirmAndSealPallet() {
     return;
   }
 
+  pallet.sStatus = ST.sealStatus;
+
   // 儲存 S3 照片到棧板記錄
   if (ST.s3PhotoCount > 0) {
     pallet.anomalyPhotos = ST.palletPhotos[palletId] || [];
-    pallet.sStatus = ST.sealStatus || pallet.sStatus;
   }
 
   // 分配位置（如果未分配）
