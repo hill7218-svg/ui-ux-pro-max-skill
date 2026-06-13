@@ -672,8 +672,7 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         <div class="loc-val" id="loc-val">—</div>
         <div class="loc-sub">請手寫到板標儲位框後貼上棧板</div>
       </div>
-      <button class="btn" id="seal-btn" onclick="doSeal()" disabled style="margin-bottom:6px;">🔒 確認封板（基本檢查）</button>
-      <button class="btn" style="background:rgba(0,200,150,.1);border-color:var(--green)!important;color:var(--green);margin-bottom:12px;" onclick="confirmAndSealPallet()" id="confirm-seal-btn">✅ 確認對點並封板</button>
+      <button class="btn btn-g" id="confirm-seal-btn" onclick="confirmAndSealPallet()" style="margin-bottom:12px;font-size:15px;padding:15px;">🔒 確認封板</button>
     </div>
   </div>
 
@@ -896,6 +895,7 @@ function doStart() {
 function qs(v) { document.getElementById('ean-in').value = v; doLookup(); }
 
 function doLookup() {
+  if (ST.closed) { toast('⛔ 此趟已關單', true); return; }
   var v = document.getElementById('ean-in').value.trim();
   if (!v) { toast('請輸入EAN或品號', true); return; }
   var sku = EAN_MAP[v] || ITEM_MAP[v.toUpperCase()];
@@ -990,7 +990,7 @@ function genId() {
 }
 
 function newPallet() {
-  // Bug 1 fix: 不允許有 open 棧板時新建
+  if (ST.closed) { toast('⛔ 此趟已關單，無法新建棧板', true); return; }
   var openPallets = Object.values(ST.pallets).filter(function(p){ return p.status==='open'; });
   if (openPallets.length > 0) {
     var openId = openPallets[0].id;
@@ -1362,10 +1362,42 @@ function renderSummary() {
 }
 
 function doClose() {
-  if (!window.confirm('確定關單？')) return;
+  if (!window.confirm('確定關單？車輛裝滿，即將同步資料並重置系統。')) return;
   ST.closed = true;
-  toast('✅ 已關單！通知行政建 ' + Object.keys(ST.pallets).length + ' 張入庫單');
   renderSummary();
+  toast('✅ 已關單，正在同步 Google Sheets...');
+  syncToGoogleSheets().then(function(){
+    toast('☁️ 資料已上傳，3秒後返回開工頁面');
+    setTimeout(resetForNewTrip, 3000);
+  }).catch(function(){
+    toast('⚠️ 同步失敗，請手動按「同步」後再返回', true);
+    setTimeout(resetForNewTrip, 5000);
+  });
+}
+
+function resetForNewTrip() {
+  var savedTruckDriver = TRUCK_DRIVER;
+  ST.truck=''; ST.aisle=''; ST.overflow=''; ST.trip=0; ST.tail=false;
+  ST.pallets={}; ST.curPallet=null; ST.curSKU=null; ST.closed=false;
+  ST.locIdx={}; ST.sealTarget=null; ST.sealStatus=''; ST._pendingLoc=null;
+  ST.palletPhotos={}; ST.s3PhotoCount=0; ST.driverName='';
+  TRUCK_DRIVER = savedTruckDriver;
+  AISLES.forEach(function(a){ ST.locIdx[a]=0; });
+  // Reset S0 UI
+  document.getElementById('truck-sel').value = '';
+  var badge = document.getElementById('driver-badge');
+  if (badge) { badge.textContent = '👤 請選擇車號'; badge.className = 'driver-badge idle'; }
+  // Reset trip chips
+  document.querySelectorAll('[id^="tc"]').forEach(function(c){ c.classList.remove('on'); });
+  document.getElementById('tail-chk').checked = false;
+  // Rebuild aisle grids (clears selection)
+  buildAisleGrid('aisle-grid', 'pickAisle', '');
+  buildAisleGrid('overflow-grid', 'pickOverflow', '');
+  document.getElementById('overflow-wrap').style.display = 'none';
+  checkStart();
+  updS1Badge();
+  goS(0);
+  toast('🚛 系統已重置，請開始新的車趟');
 }
 
 /* ══ NAV ══ */
