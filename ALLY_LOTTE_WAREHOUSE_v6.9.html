@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ALLY × LOTTE 移倉對點 APP - v6.9</title>
 
-<!-- Firebase SDK (compat build — required for the global `firebase.*` API used below) -->
-<script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-storage-compat.js"></script>
+<!-- Firebase removed — photos now stored in Google Drive via Apps Script -->
 
 <!-- QR Code Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -1444,13 +1442,11 @@ function makePcardsExpandable() {
    填完即自動切換成 live 模式；留空則整個 App 以 demo 模式正常運作。
 */
 const CONFIG = {
-  // ── Firebase Storage（照片存證）──
-  firebase: {
-    apiKey:        "AIzaSyCF11uZrBA_zZd3P8__b_qO5RuWR_okMU0",
-    authDomain:    "ally-lotte-wh.firebaseapp.com",
-    projectId:     "ally-lotte-wh",
-    storageBucket: "ally-lotte-wh.firebasestorage.app",
-    appId:         "1:643593381925:web:ece349105000d051ce37cc"
+  // ── 照片存儲（Google Drive via Apps Script）──
+  // 不需要 Firebase！照片通過 Apps Script Web App 上傳到 Google Drive
+  // 填好 sheets.webAppUrl 後照片功能自動啟用
+  drive: {
+    folderId: ""    // ← 可選：指定 Google Drive 資料夾 ID；留空自動建立 ALLY_LOTTE_WH 資料夾
   },
 
   // ── Google Sheets（資料留存 / 主檔載入）──
@@ -1474,51 +1470,59 @@ const CONFIG = {
 };
 
 /* ═══════════════════════════════════════════════════════════════
-   ║  Backend — 對外接口層（唯一碰 fetch / firebase 的地方）        ║
+   ║  Backend — 對外接口層（唯一碰 fetch 的地方，Drive+Sheets）        ║
    ═══════════════════════════════════════════════════════════════
    業務程式一律呼叫 Backend.xxx()，不直接碰網路；未設定時自動回退本地。
 */
 const Backend = {
-  fb: { app:null, storage:null, ready:false },
+  driveReady: false,     // 照片上傳到 Google Drive
   sheetsReady: false,
   mode: 'demo',            // 'demo' | 'live'
 
   _has: function(v){ return !!(v && String(v).trim() && String(v).indexOf('YOUR_') < 0); },
 
   init: function() {
-    // Firebase
-    try {
-      if (Backend._has(CONFIG.firebase.apiKey) && window.firebase) {
-        var cfg = Object.assign({}, CONFIG.firebase);
-        if (!cfg.authDomain && cfg.projectId) cfg.authDomain = cfg.projectId + '.firebaseapp.com';
-        Backend.fb.app = firebase.initializeApp(cfg);
-        Backend.fb.storage = firebase.storage();
-        Backend.fb.ready = true;
-      }
-    } catch (e) { console.warn('[Backend] Firebase init failed:', e.message); }
+    // Drive photos: ready when Apps Script Web App URL is set (no Firebase needed)
+    Backend.driveReady = false;
 
     // Sheets
     Backend.sheetsReady = Backend._has(CONFIG.sheets.webAppUrl) ||
                           (Backend._has(CONFIG.sheets.apiKey) && Backend._has(CONFIG.sheets.sheetId));
-
-    Backend.mode = (Backend.fb.ready || Backend.sheetsReady) ? 'live' : 'demo';
+    Backend.mode = Backend.sheetsReady ? 'live' : 'demo';
     Backend._renderBadge();
     console.log('[Backend] mode=' + Backend.mode +
-      ' | firebase=' + Backend.fb.ready + ' | sheets=' + Backend.sheetsReady);
+      ' | drive=via-sheets | sheets=' + Backend.sheetsReady);
     return Backend.mode;
   },
 
-  // ── 照片上傳 → Firebase Storage。回傳 {ok,url}；未設定回 {ok:false,local:true} ──
+  // ── 照片上傳 → Google Drive（via Apps Script Web App）──
+  // Apps Script doPost 處理 action:'uploadPhoto'，存到 Google Drive 並回傳分享 URL
   uploadPhoto: async function(path, blob) {
-    if (!Backend.fb.ready) return { ok:false, url:null, local:true };
+    if (!Backend._has(CONFIG.sheets.webAppUrl)) return { ok:false, url:null, local:true };
     try {
-      var ref = Backend.fb.storage.ref(path);
-      var snap = await ref.put(blob);
-      var url = await snap.ref.getDownloadURL();
-      return { ok:true, url:url };
+      // Convert Blob to base64 DataURL
+      var base64 = await new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function(){ resolve(reader.result); };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      var res = await fetch(CONFIG.sheets.webAppUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'uploadPhoto',
+          imageData: base64,
+          filename: path.split('/').pop(),
+          path: path,
+          folderId: CONFIG.drive.folderId || ''
+        })
+      });
+      var j = await res.json().catch(function(){ return { ok:false }; });
+      if (j.ok) Backend.driveReady = true;
+      return j;
     } catch (e) { return { ok:false, url:null, error:e.message }; }
   },
-
   // ── 寫入列 → Sheets（經 Apps Script Web App）。回傳 {ok} ──
   appendRows: async function(tab, rows) {
     if (Backend._has(CONFIG.sheets.webAppUrl)) {
@@ -1622,7 +1626,7 @@ const Backend = {
     if (!el) return;
     if (Backend.mode === 'live') {
       el.textContent = '☁️ Live' +
-        (Backend.fb.ready ? ' · FB' : '') + (Backend.sheetsReady ? ' · Sheets' : '');
+        (Backend.driveReady ? ' · Drive' : '') + (Backend.sheetsReady ? ' · Sheets' : '');
       el.className = 'badge bgn';
     } else {
       el.textContent = '💾 Demo（未串接）';
