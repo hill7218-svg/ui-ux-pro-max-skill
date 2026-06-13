@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ALLY × LOTTE 移倉對點 APP - v5 Integrated</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-storage.js"></script>
+
+<!-- QR Code Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- For SVG QR Code: https://github.com/davidshimjs/qrcodejs -->
+<script>
+function generateQRCodeImage(text) {
+  // 使用Google Charts API生成QR Code
+  var encoded = encodeURIComponent(text);
+  return 'https://chart.googleapis.com/chart?chs=180x180&chld=L|0&cht=qr&chl=' + encoded;
+}
+</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+:root{
+  --navy:#0D1B3E;--navy2:#1A2F6B;--red:#C00000;--amber:#D4820A;
+  --teal:#007B6F;--gold:#FFD700;--green:#00C896;
+  --bg:#080E1F;--bg2:#0F1929;--card:#111827;--card2:#1C2640;
+  --border:#1E3060;--text:#E8EDF8;--muted:#6B7A99;--white:#FFFFFF;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;font-family:"Noto Sans TC",sans-serif;background:var(--bg);color:var(--text);}
+body{display:flex;justify-content:center;align-items:center;min-height:100vh;
+  background:radial-gradient(ellipse at 30% 20%,#0a1a3a 0%,#050a14 100%);}
+
+/* DEVICE */
+.device{
+  width:390px;height:844px;background:var(--bg2);border-radius:40px;overflow:hidden;
+  box-shadow:0 0 0 1px #222,0 40px 120px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.05);
+  position:relative;display:flex;flex-direction:column;
+}
+.statusbar{height:44px;background:var(--card);flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;padding:0 20px;}
+.statusbar .t{font-size:15px;font-weight:700;color:var(--white);}
+.statusbar .i{font-size:12px;color:var(--white);display:flex;gap:6px;align-items:center;}
+.network-indicator{width:8px;height:8px;border-radius:50%;background:#00C896;display:inline-block;}
+.network-indicator.offline{background:#FF6B6B;}
+.network-indicator.syncing{background:#FFC107;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+
+/* SCREENS */
+.scr{flex:1;display:none;flex-direction:column;overflow:hidden;background:var(--bg2);}
+.scr.active{display:flex;}
+
+/* TOPBAR */
+.topbar{background:var(--card);padding:12px 16px;flex-shrink:0;
+  display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);}
+.btn-back{width:32px;height:32px;border-radius:50%;background:var(--card2);
+  border:none;color:var(--text);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ttitle{flex:1;font-size:14px;font-weight:700;color:var(--white);}
+.badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;font-family:"Chakra Petch",monospace;}
+.bg{background:rgba(255,215,0,.15);color:var(--gold);border:1px solid rgba(255,215,0,.3);}
+.bgn{background:rgba(0,200,150,.15);color:var(--green);border:1px solid rgba(0,200,150,.3);}
+.brd{background:rgba(192,0,0,.15);color:#FF8080;border:1px solid rgba(192,0,0,.3);}
+.bamb{background:rgba(214,130,10,.15);color:#FFB74D;border:1px solid rgba(214,130,10,.3);}
+
+/* SCROLL */
+.body{flex:1;overflow-y:auto;padding:14px;}
+.body::-webkit-scrollbar{width:3px;}
+.body::-webkit-scrollbar-thumb{background:var(--border);}
+
+/* TABS */
+.tabs{height:60px;background:var(--card);border-top:1px solid var(--border);display:flex;flex-shrink:0;}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;cursor:pointer;color:var(--muted);font-size:8px;
+  font-family:"Chakra Petch",monospace;letter-spacing:.04em;border:none;background:none;}
+.tab.on{color:var(--gold);}
+.ti{font-size:18px;}
+
+/* CARD */
+.card{background:var(--card);border-radius:12px;border:1px solid var(--border);
+  padding:14px;margin-bottom:10px;}
+.sec{font-size:10px;font-family:"Chakra Petch",monospace;letter-spacing:.08em;
+  color:var(--muted);text-transform:uppercase;margin-bottom:8px;}
+.lbl{font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+
+/* SELECT / INPUT */
+.sel{width:100%;padding:12px 14px;background:var(--card2);border:1.5px solid var(--border);
+  border-radius:8px;color:var(--white);font-size:14px;font-family:"Noto Sans TC",sans-serif;
+  outline:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236B7A99' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+.sel:focus{border-color:var(--gold);}
+.sel option{background:var(--card2);}
+
+.input{width:100%;padding:12px 14px;background:var(--card2);border:1.5px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:14px;font-family:"Noto Sans TC",sans-serif;outline:none;}
+.input:focus{border-color:var(--gold);}
+
+.scan-input{width:100%;padding:11px 14px;background:var(--bg);border:1.5px solid var(--border);
+  border-radius:8px;color:var(--green);font-size:15px;font-family:"JetBrains Mono",monospace;outline:none;}
+.scan-input:focus{border-color:var(--gold);}
+
+/* AISLE GRID BA-BP */
+.aisle-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;}
+.aisle-btn{
+  padding:8px 4px;border-radius:8px;background:var(--card2);
+  border:1.5px solid var(--border);color:var(--muted);
+  font-size:12px;font-weight:700;cursor:pointer;text-align:center;
+  font-family:"Chakra Petch",monospace;transition:all .12s;
+}
+.aisle-btn:hover{border-color:rgba(255,215,0,.4);}
+.aisle-btn.on{border-color:var(--gold);background:rgba(255,215,0,.08);color:var(--gold);}
+.aisle-btn .ac{font-size:9px;font-weight:400;display:block;margin-top:2px;}
+
+/* CHIP ROW */
+.chip-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.chip{padding:6px 14px;border-radius:20px;background:var(--card2);border:1.5px solid var(--border);
+  color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;
+  font-family:"Chakra Petch",monospace;transition:all .12s;}
+.chip.on{border-color:var(--gold);background:rgba(255,215,0,.08);color:var(--gold);}
+
+/* BUTTONS */
+.btn{width:100%;padding:12px 16px;min-height:44px;border-radius:10px;border:1px solid var(--gold);
+  background:linear-gradient(135deg,var(--navy2),var(--navy));
+  color:var(--gold);font-size:14px;font-weight:700;cursor:pointer;
+  font-family:"Chakra Petch",monospace;letter-spacing:.06em;display:flex;align-items:center;justify-content:center;}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-g{background:rgba(0,200,150,.1);border-color:var(--green);color:var(--green);}
+.btn-r{background:rgba(192,0,0,.1);border-color:var(--red);color:#FF8080;}
+.btn-r:disabled{opacity:.35;cursor:not-allowed;}
+.btn-scan-go{padding:11px 14px;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--navy2);
+  border:1px solid var(--gold);color:var(--gold);font-size:12px;font-weight:700;
+  cursor:pointer;font-family:"Chakra Petch",monospace;white-space:nowrap;}
+
+/* PROGRESS BAR */
+.progress-bar{height:20px;background:rgba(0,200,150,.1);border-radius:10px;overflow:hidden;display:inline-block;width:120px;margin-left:6px;vertical-align:middle;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--teal));transition:width .3s ease;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--white);font-weight:700;}
+
+/* CURRENT PALLET DISPLAY */
+.current-pallet-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,215,0,.15);padding:4px 10px;border-radius:16px;font-size:11px;color:var(--gold);border:1px solid rgba(255,215,0,.3);font-family:"Chakra Petch",monospace;}
+
+/* ALERTS */
+.aw{background:rgba(214,130,10,.1);border-left:2px solid var(--amber);
+  border-radius:4px;padding:8px 10px;font-size:10px;color:#FFB74D;line-height:1.5;margin-bottom:8px;}
+.ao{background:rgba(0,200,150,.08);border-left:2px solid var(--green);
+  border-radius:4px;padding:8px 10px;font-size:10px;color:var(--green);line-height:1.5;margin-bottom:8px;}
+.ae{background:rgba(192,0,0,.08);border-left:2px solid var(--red);
+  border-radius:4px;padding:8px 10px;font-size:10px;color:#FF8080;line-height:1.5;margin-bottom:8px;}
+
+/* SKU CARD */
+.sku-card{background:var(--bg);border-radius:10px;padding:12px;
+  border:1px solid var(--border);margin-bottom:10px;display:none;}
+.sku-code{font-family:"Chakra Petch",monospace;font-size:10px;color:var(--gold);margin-bottom:3px;}
+.sku-name{font-size:13px;font-weight:700;color:var(--white);margin-bottom:5px;line-height:1.4;}
+.sku-tags{display:flex;gap:6px;flex-wrap:wrap;}
+.tn{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;
+  background:rgba(26,47,107,.4);color:#7BA7FF;border:1px solid var(--navy2);}
+.tc{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;
+  background:rgba(192,0,0,.3);color:#FF8080;border:1px solid var(--red);}
+
+/* QTY */
+.qty-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.qty-side{width:42px;height:42px;border-radius:8px;background:var(--card2);
+  border:1px solid var(--border);color:var(--text);font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;}
+.qty-num{flex:1;text-align:center;background:var(--bg);border:1.5px solid var(--border);
+  border-radius:8px;padding:10px;font-family:"Chakra Petch",monospace;
+  font-size:22px;font-weight:700;color:var(--white);outline:none;}
+.qty-num:focus{border-color:var(--gold);}
+.qhint{font-size:10px;text-align:center;padding:4px 0;}
+.qhok{color:var(--green);} .qhw{color:var(--amber);} .qhe{color:#FF8080;}
+
+/* PALLET CHIPS */
+.pchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.pchip{padding:6px 12px;border-radius:20px;background:var(--card2);
+  border:1.5px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;
+  cursor:pointer;font-family:"Chakra Petch",monospace;}
+.pchip.on{border-color:var(--teal);background:rgba(0,123,111,.15);color:var(--teal);}
+
+/* PALLET LIST */
+.pcard{background:var(--card);border-radius:10px;border:1px solid var(--border);margin-bottom:8px;overflow:hidden;transition:all .3s ease;}
+.pcard.locked{opacity:0.55;background:linear-gradient(135deg,rgba(0,200,150,.05),rgba(0,200,150,.1));}
+.pcard.active{border:2px solid var(--gold);background:linear-gradient(135deg,rgba(255,215,0,.08),rgba(255,215,0,.04));box-shadow:0 0 8px rgba(255,215,0,.2);}
+.pcard-hdr{padding:12px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+.pcard-id{font-family:"Chakra Petch",monospace;font-size:14px;font-weight:700;color:var(--gold);}
+.pcard-loc{font-size:11px;color:var(--teal);}
+.pcard-body{padding:0 14px 12px;border-top:1px solid var(--border);display:block;}
+.pcard-item{display:flex;align-items:center;gap:8px;padding:6px 0;
+  border-bottom:1px solid rgba(255,255,255,.05);font-size:11px;}
+.pcard-item:last-of-type{border-bottom:none;}
+.pi-code{font-family:"Chakra Petch",monospace;color:var(--gold);min-width:58px;font-size:10px;}
+.pi-name{flex:1;color:var(--muted);}
+.pi-qty{font-family:"Chakra Petch",monospace;font-weight:700;color:var(--green);}
+
+/* SEAL STATUS */
+.sopt{padding:12px 14px;border-radius:8px;cursor:pointer;display:flex;align-items:center;
+  gap:10px;border:1.5px solid var(--border);background:var(--card2);
+  transition:all .12s;margin-bottom:6px;}
+.sopt.on{border-color:var(--gold);background:rgba(255,215,0,.05);}
+.sopt-icon{font-size:18px;width:24px;text-align:center;}
+.sopt-label{font-size:12px;font-weight:700;color:var(--text);}
+.sopt-desc{font-size:10px;color:var(--muted);}
+.sopt.on.ok .sopt-label{color:var(--green);}
+.sopt.on.diff .sopt-label{color:#FF8080;}
+.sopt.on.dmg .sopt-label{color:#FFB74D;}
+.sopt.on.mrg .sopt-label{color:#7B8AFF;}
+.sopt.on.oth .sopt-label{color:var(--muted);}
+
+/* LOCATION */
+.loc-box{background:var(--bg);border-radius:10px;padding:16px;text-align:center;
+  border:2px solid var(--gold);margin-bottom:10px;display:none;}
+.loc-lbl{font-size:10px;color:var(--muted);font-family:"Chakra Petch",monospace;margin-bottom:4px;}
+.loc-val{font-family:"Chakra Petch",monospace;font-size:28px;font-weight:700;color:var(--gold);}
+.loc-sub{font-size:10px;color:var(--muted);margin-top:4px;}
+
+/* PHOTO & QR CODE SECTION */
+.photo-section{background:var(--card);border-radius:10px;padding:12px;margin-bottom:10px;border:1px solid var(--border);}
+.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;}
+.photo-item{aspect-ratio:1;background:var(--bg);border:2px dashed var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative;}
+.photo-item:hover{border-color:var(--gold);background:rgba(255,215,0,.05);}
+.photo-item img{width:100%;height:100%;object-fit:cover;}
+.photo-placeholder{color:var(--muted);font-size:24px;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.photo-label{font-size:8px;color:var(--muted);}
+#photoInput{display:none;}
+
+.qr-section{background:var(--bg);border-radius:10px;padding:16px;margin-bottom:10px;text-align:center;border:2px solid var(--gold);display:none;}
+.qr-code-container{width:180px;height:180px;background:var(--white);border-radius:8px;margin:0 auto 12px;padding:8px;display:flex;align-items:center;justify-content:center;}
+.qr-code-container svg{width:100%;height:100%;}
+.qr-label{font-size:10px;color:var(--muted);margin-bottom:8px;}
+.qr-id{font-family:"Chakra Petch",monospace;font-size:12px;font-weight:700;color:var(--gold);}
+
+.log-panel{background:var(--bg);border-radius:10px;padding:12px;margin-bottom:10px;
+  border:1px solid var(--border);max-height:200px;overflow-y:auto;display:none;}
+.log-entry{font-size:9px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);
+  font-family:"Chakra Petch",monospace;}
+.log-entry:last-child{border-bottom:none;}
+.log-time{color:var(--gold);}
+.log-action{color:var(--green);}
+
+.btn-photo{background:rgba(255,215,0,.1);border-color:var(--gold)!important;color:var(--gold);margin-bottom:6px;}
+.btn-qrcode{background:rgba(0,200,150,.1);border-color:var(--green)!important;color:var(--green);margin-bottom:6px;}
+.btn-synclog{background:rgba(192,0,0,.1);border-color:#FF8080!important;color:#FF8080;margin-bottom:6px;}
+
+/* ✨ LOCATION MODAL - v6 UX IMPROVEMENT ✨ */
+.modal-overlay{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,.65);backdrop-filter:blur(5px);
+  display:none;align-items:center;justify-content:center;
+  z-index:2000;animation:fadeIn 200ms ease;
+}
+
+.modal-overlay.show{display:flex;}
+
+.location-modal{
+  background:linear-gradient(135deg,var(--card2),var(--card));
+  border:3px solid var(--gold);border-radius:20px;
+  padding:48px 32px;text-align:center;max-width:300px;
+  animation:slideUp 400ms cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow:0 20px 60px rgba(255,215,0,.3),0 0 40px rgba(255,215,0,.1);
+}
+
+.location-modal .success-icon{
+  font-size:56px;margin-bottom:20px;animation:bounce 600ms ease;
+}
+
+.location-modal .modal-label{
+  font-size:11px;color:var(--green);text-transform:uppercase;
+  letter-spacing:.12em;margin-bottom:16px;font-weight:900;
+}
+
+.location-modal .location-code{
+  font-family:"Chakra Petch",monospace;font-size:64px;font-weight:900;
+  color:var(--gold);margin-bottom:12px;line-height:1;
+  text-shadow:0 0 30px rgba(255,215,0,.4);
+  letter-spacing:4px;
+}
+
+.location-modal .location-desc{
+  font-size:12px;color:var(--muted);margin-bottom:24px;line-height:1.8;
+}
+
+.location-modal .action-text{
+  font-size:11px;color:var(--green);font-weight:700;margin-top:16px;
+  animation:fadeInScale 600ms ease 400ms forwards;opacity:0;
+}
+
+.location-modal .auto-next{
+  font-size:10px;color:var(--muted);margin-top:12px;margin-bottom:0;
+}
+
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+@keyframes bounce{0%,100%{transform:scale(1);}50%{transform:scale(1.15);}}
+@keyframes fadeInScale{0%{opacity:0;transform:scale(.7);}100%{opacity:1;transform:scale(1);}}
+
+/* SUMMARY */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.sb{background:var(--card);border-radius:8px;padding:12px;text-align:center;border:1px solid var(--border);}
+.sv{font-family:"Chakra Petch",monospace;font-size:22px;font-weight:700;}
+.sl{font-size:9px;color:var(--muted);margin-top:3px;}
+.diff-row{display:flex;justify-content:space-between;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--border);font-size:11px;}
+.diff-row:last-child{border-bottom:none;}
+
+/* BATCH */
+#batch-box{display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
+
+/* TOAST */
+.toast{position:absolute;bottom:74px;left:14px;right:14px;
+  background:rgba(0,200,150,.92);color:#fff;padding:10px 16px;
+  border-radius:8px;font-size:12px;font-weight:700;font-family:"Chakra Petch",monospace;
+  text-align:center;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;}
+.toast.err{background:rgba(192,0,0,.92);}
+.toast.show{opacity:1;}
+
+/* NOTE */
+.demo-note{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+  font-size:10px;color:rgba(255,255,255,.2);font-family:"Chakra Petch",monospace;
+  letter-spacing:.06em;pointer-events:none;}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="statusbar">
+    <span class="t" id="clk">09:26</span>
+    <div class="i"><div class="network-indicator" id="networkInd" title="在線"></div><span>🔋</span></div>
+  </div>
+
+  <!-- ══ S0: 開工設定 ══ -->
+  <div class="scr active" id="s0">
+    <div class="body">
+      <div style="text-align:center;padding:20px 0 14px;">
+        <div style="font-family:'Chakra Petch',monospace;font-size:17px;font-weight:700;color:var(--white)">ALLY × LOTTE 移倉</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">對點系統 Demo · 艾立供應鏈</div>
+      </div>
+
+      <!-- 車號下拉 -->
+      <div class="card">
+        <div class="sec">① 車號</div>
+        <select class="sel" id="truck-sel" onchange="onTruckChange()">
+          <option value="">-- 選擇車號 --</option>
+          <option value="BBB-2262">🚛 BBB-2262</option>
+          <option value="BXC-2262">🚛 BXC-2262</option>
+          <option value="BCK-8801">🚛 BCK-8801</option>
+          <option value="BDF-3390">🚛 BDF-3390</option>
+          <option value="OTHER">🚛 其他車號</option>
+        </select>
+        <div id="truck-other-wrap" style="display:none;margin-top:8px;">
+          <input class="input" id="truck-other" placeholder="輸入車號..." oninput="onTruckOther()">
+        </div>
+        <div id="truck-info" style="font-size:10px;color:var(--muted);margin-top:8px;display:none;"></div>
+      </div>
+
+      <!-- 走道 BA-BP -->
+      <div class="card">
+        <div class="sec">② 作業走道（BA～BP）</div>
+        <div class="aisle-grid" id="aisle-grid"></div>
+        <div id="cap-info" style="font-size:10px;color:var(--muted);margin-bottom:6px;display:none;"></div>
+        <div id="cap-warn" class="aw" style="display:none;"></div>
+        <div id="overflow-wrap" style="display:none;">
+          <div class="lbl">溢出走道</div>
+          <div class="aisle-grid" id="overflow-grid" style="margin-bottom:0;"></div>
+        </div>
+      </div>
+
+      <!-- 趟次 -->
+      <div class="card">
+        <div class="sec">③ 趟次</div>
+        <div class="chip-row">
+          <div class="chip" id="tc0" onclick="pickTrip(1,0)">第1趟</div>
+          <div class="chip" id="tc1" onclick="pickTrip(2,1)">第2趟</div>
+          <div class="chip" id="tc2" onclick="pickTrip(3,2)">第3趟</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;">
+          <input type="checkbox" id="tail-chk" style="width:16px;height:16px;accent-color:var(--amber)">
+          <span style="font-size:12px;color:var(--muted)">尾數趟次（允許少於32板）</span>
+        </label>
+      </div>
+
+      <button class="btn" id="start-btn" onclick="doStart()" disabled>✓ 確認設定，開始點驗</button>
+      <div style="height:16px;"></div>
+    </div>
+  </div>
+
+  <!-- ══ S1: 點驗 ══ -->
+  <div class="scr" id="s1">
+    <div class="topbar">
+      <button class="btn-back" onclick="goS(0)">←</button>
+      <div class="ttitle" id="s1title">點驗</div>
+      <span class="badge bg" id="s1badge">0板</span>
+    </div>
+    <div class="body">
+      <!-- batch -->
+      <div class="card" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--muted);">🔀 批量拆板</span>
+          <input type="checkbox" id="batch-chk" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleBatch()">
+        </div>
+        <div id="batch-box">
+          <div class="lbl" style="margin-top:8px;">品號 / EAN</div>
+          <input class="input" id="batch-item" placeholder="品號或EAN" style="margin-bottom:6px;">
+          <div class="lbl">總箱數</div>
+          <input class="input" id="batch-total" type="number" placeholder="例: 1000" style="margin-bottom:6px;">
+          <div class="lbl">每板上限箱數</div>
+          <input class="input" id="batch-per" type="number" placeholder="例: 50" style="margin-bottom:8px;">
+          <button class="btn btn-g" style="padding:11px" onclick="doBatch()">⚡ 自動建立棧板</button>
+          <div id="batch-res" style="font-size:11px;color:var(--teal);margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <!-- scan -->
+      <div class="card">
+        <div class="sec">掃EAN / 輸入品號</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input class="scan-input" id="ean-in" placeholder="掃描或輸入EAN/品號..."
+            autocomplete="off" autocorrect="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter'){doLookup();return false;}">
+          <button class="btn-scan-go" onclick="doLookup()">查</button>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:2px;">
+          <span style="font-size:9px;color:var(--muted);align-self:center;">示範：</span>
+          <button onclick="qs('4903333264230')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9321</button>
+          <button onclick="qs('4903333226122')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9323</button>
+          <button onclick="qs('BJ9276')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9276</button>
+          <button onclick="qs('BJ9408')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9408</button>
+          <button onclick="qs('BT9101')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BT9101</button>
+        </div>
+        <div class="sku-card" id="sku-card">
+          <div class="sku-code" id="sku-code"></div>
+          <div class="sku-name" id="sku-name"></div>
+          <div class="sku-tags">
+            <span id="sku-temp" class="tn"></span>
+            <span id="sku-store" style="font-size:10px;color:var(--muted);"></span>
+            <span style="font-size:10px;color:var(--muted);">每箱<strong id="sku-cp" style="color:var(--white);"></strong>PCS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- qty -->
+      <div class="card" id="qty-card" style="display:none;">
+        <div class="sec">輸入箱數</div>
+        <div class="qty-row">
+          <button class="qty-side" onclick="adjQ(-1)">−</button>
+          <input class="qty-num" id="qty-v" type="number" value="1" min="1" oninput="qHint()">
+          <button class="qty-side" onclick="adjQ(1)">＋</button>
+        </div>
+        <div class="qhint" id="qty-h"></div>
+        <div id="pcs-prev" style="text-align:center;font-size:10px;color:var(--muted);margin-top:3px;"></div>
+      </div>
+
+      <!-- pallet pick -->
+      <div class="card" id="psel-card" style="display:none;">
+        <div class="sec">指定棧板</div>
+        <div class="pchips" id="pchips"></div>
+        <button class="btn btn-g" style="padding:11px;font-size:12px" onclick="newPallet()">＋ 新建棧板</button>
+      </div>
+
+      <div id="add-wrap" style="display:none;margin-bottom:10px;">
+        <button class="btn" onclick="addItem()">✓ 加入棧板</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" onclick="goS(1)"><span class="ti">📷</span>點驗</button>
+      <button class="tab" onclick="goS(2)"><span class="ti">🗂️</span>棧板</button>
+      <button class="tab" onclick="goS(4)"><span class="ti">📊</span>彙總</button>
+      <!-- 新增功能: 照片、QR Code、LOG -->
+      <div class="card" style="margin-top:16px;border-top:2px solid var(--gold);padding-top:14px;">
+        <div class="sec" style="color:var(--gold);">🆕 集成功能</div>
+
+        <!-- 照片區 -->
+        <div class="photo-section" id="photo-section">
+          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px;">📷 拍照記錄</div>
+          <div class="photo-grid">
+            <div class="photo-item" onclick="triggerPhotoCapture(0)" id="photo-0">
+              <div class="photo-placeholder">📷<div class="photo-label">照片1</div></div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoCapture(1)" id="photo-1">
+              <div class="photo-placeholder">📷<div class="photo-label">照片2</div></div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoCapture(2)" id="photo-2">
+              <div class="photo-placeholder">📷<div class="photo-label">照片3</div></div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoCapture(3)" id="photo-3">
+              <div class="photo-placeholder">📷<div class="photo-label">照片4</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- QR Code 區 -->
+        <button class="btn btn-qrcode" onclick="document.getElementById('qr-panel').style.display=document.getElementById('qr-panel').style.display==='none'?'block':'none'">🔳 顯示 QR Code 面板</button>
+        <div id="qr-panel" class="qr-section">
+          <div class="qr-label">掃描此碼進行入庫</div>
+          <div class="qr-code-container" id="qr-code-container"></div>
+          <div class="qr-id" id="qr-pallet-id">尚未選擇棧板</div>
+          <button class="btn" style="margin-top:8px;background:rgba(0,200,150,.1);border-color:var(--green);color:var(--green);font-size:12px;" onclick="downloadQRCodeSVG(ST.selectedPallet)">⬇️ 下載 SVG</button>
+        </div>
+
+        <!-- LOG 面板 -->
+        <button class="btn btn-synclog" onclick="document.getElementById('log-panel').style.display=document.getElementById('log-panel').style.display==='none'?'block':'none'">📋 操作日誌</button>
+        <div id="log-panel" class="log-panel"></div>
+
+        <!-- 同步按鈕 -->
+        <button class="btn btn-g" style="margin-top:8px;" onclick="syncToGoogleSheets()">☁️ 同步 Google Sheets</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ S2: 棧板管理 ══ -->
+  <div class="scr" id="s2">
+    <div class="topbar">
+      <button class="btn-back" onclick="goS(1)">←</button>
+      <div class="ttitle">棧板管理</div>
+      <span class="badge bgn" id="s2badge">0板</span>
+    </div>
+    <div class="body" id="plist"></div>
+    <div class="tabs">
+      <button class="tab" onclick="goS(1)"><span class="ti">📷</span>點驗</button>
+      <button class="tab on" onclick="goS(2)"><span class="ti">🗂️</span>棧板</button>
+      <button class="tab" onclick="goS(4)"><span class="ti">📊</span>彙總</button>
+    </div>
+  </div>
+
+  <!-- ══ S3: 封板 ══ -->
+  <div class="scr" id="s3">
+    <div class="topbar">
+      <button class="btn-back" onclick="goS(2)">←</button>
+      <div class="ttitle" id="s3title">封板</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="sec">本板品項</div>
+        <div id="s3items"></div>
+      </div>
+      <div class="card">
+        <div class="sec">這板正常嗎？</div>
+        <div class="sopt ok"  id="so0" onclick="pickSt('ok',0)">
+          <span class="sopt-icon">✅</span>
+          <div><div class="sopt-label">正常</div><div class="sopt-desc">數量吻合，外箱完好 · 一鍵封板</div></div>
+        </div>
+        <div class="sopt diff" id="so1" onclick="pickSt('diff',1)">
+          <span class="sopt-icon">⚠️</span>
+          <div><div class="sopt-label">數量不符</div><div class="sopt-desc">實際箱數與預期不同</div></div>
+        </div>
+        <div class="sopt dmg"  id="so2" onclick="pickSt('damage',2)">
+          <span class="sopt-icon">📦</span>
+          <div><div class="sopt-label">外箱破損</div><div class="sopt-desc">外觀異常，需拍照存證</div></div>
+        </div>
+        <div class="sopt mrg"  id="so3" onclick="pickSt('merge',3)">
+          <span class="sopt-icon">🔀</span>
+          <div><div class="sopt-label">DSV併板</div><div class="sopt-desc">DSV自行合併多板位貨物</div></div>
+        </div>
+        <div class="sopt oth"  id="so4" onclick="pickSt('other',4)">
+          <span class="sopt-icon">❓</span>
+          <div><div class="sopt-label">其他</div><div class="sopt-desc">不在帳上 / 無法辨識 / 其他異常</div></div>
+        </div>
+        <div id="reason-wrap" style="display:none;margin-top:8px;">
+          <div class="lbl">說明原因（必填）</div>
+          <textarea class="input" id="reason-txt" rows="2" placeholder="請描述異常狀況..."
+            style="resize:none;font-size:12px;"></textarea>
+        </div>
+      </div>
+      <div class="loc-box" id="loc-box">
+        <div class="loc-lbl">APP配發儲位</div>
+        <div class="loc-val" id="loc-val">—</div>
+        <div class="loc-sub">請手寫到板標儲位框後貼上棧板</div>
+      </div>
+      <button class="btn" id="seal-btn" onclick="doSeal()" disabled style="margin-bottom:6px;">🔒 確認封板（基本檢查）</button>
+      <button class="btn" style="background:rgba(0,200,150,.1);border-color:var(--green)!important;color:var(--green);margin-bottom:12px;" onclick="confirmAndSealPallet()" id="confirm-seal-btn">✅ 確認對點並封板</button>
+    </div>
+  </div>
+
+  <!-- ══ S4: 彙總 ══ -->
+  <div class="scr" id="s4">
+    <div class="topbar">
+      <button class="btn-back" onclick="goS(1)">←</button>
+      <div class="ttitle">趟次彙總</div>
+      <span class="badge bamb" id="s4badge">進行中</span>
+    </div>
+    <div class="body">
+      <div class="sg" id="stats"></div>
+      <div class="card">
+        <div class="sec">vs 預期清單比對</div>
+        <div id="diff-tbl"></div>
+      </div>
+      <div id="close-warn-box" style="display:none;margin-bottom:8px;"></div>
+      <button class="btn btn-r" id="close-btn" onclick="doClose()" disabled style="margin-bottom:16px;">🔒 關單上車</button>
+    </div>
+    <div class="tabs">
+      <button class="tab" onclick="goS(1)"><span class="ti">📷</span>點驗</button>
+      <button class="tab" onclick="goS(2)"><span class="ti">🗂️</span>棧板</button>
+      <button class="tab on"><span class="ti">📊</span>彙總</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+<div class="demo-note">ALLY × LOTTE 移倉對點 APP Demo · 艾立供應鏈</div>
+
+<script id="ds">const EAN_MAP={"4903333264230":{"i":"BJ9321","n":"LOTTE 原味巧克力派分享包(9顆裝)","c":10,"s":"24°~26°","a":"LOTTE 原味巧克力派分享包(9顆裝)"},"74903333264239":{"i":"BJ9321","n":"LOTTE 原味巧克力派分享包(9顆裝)","c":10,"s":"24°~26°","a":"LOTTE 原味巧克力派分享包(9顆裝)"},"4903333226122":{"i":"BJ9323","n":"LOTTE 千層派盒裝－巧克力風味73g","c":60,"s":"24°~26°","a":"LOTTE 千層派盒裝－巧克力風味73g"},"84903333226128":{"i":"BJ9323","n":"LOTTE 千層派盒裝－巧克力風味73g","c":60,"s":"24°~26°","a":"LOTTE 千層派盒裝－巧克力風味73g"},"14903333226129":{"i":"BJ9323","n":"LOTTE 千層派盒裝－巧克力風味73g","c":60,"s":"24°~26°","a":"LOTTE 千層派盒裝－巧克力風味73g"},"4903333284443":{"i":"BJ9408","n":"LOTTE 千層派分享包－巧克力風味for PX","c":18,"s":"24°~26°","a":"LOTTE 千層派分享包－巧克力風味for PX"},"24903333284447":{"i":"BJ9400","n":"LOTTE千層派分享包－巧克力風味","c":18,"s":"24°~26°","a":"因RSP價格變動, 須申請品號confirmed by Elsa/Reese9/3"},"4712834451335":{"i":"BJ9276","n":"樂天卡士逹派(36顆裝) (Costco 出貨專用)\n作改包 收縮膜6盒成1組","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (新規格36顆/6盒 /1組)"},"4903333064366":{"i":"BJ9277","n":"樂天卡士逹派(6顆裝) (進口專用)\n非中文化進口入保稅後for BJ9276卡士逹派(36顆裝) For Costco","c":25,"s":"24°~26°","a":"產品淨重、設計、外箱條碼皆與BJ9262不一樣因此重新申請品號避免新舊混淆\n2022/5/30首批新版7個月效期"},"64903333064368":{"i":"BJ9277","n":"樂天卡士逹派(6顆裝) (進口專用)\n非中文化進口入保稅後for BJ9276卡士逹派(36顆裝) For Costco","c":25,"s":"24°~26°","a":"產品淨重、設計、外箱條碼皆與BJ9262不一樣因此重新申請品號避免新舊混淆\n2022/5/30首批新版7個月效期"},"4903333133062":{"i":"BJ9296","n":"樂天小熊餅-粉紅草莓風味","c":80,"s":"24°~26°","a":"樂天小熊餅-粉紅草莓風味"},"84903333133068":{"i":"BJ9296","n":"樂天小熊餅-粉紅草莓風味","c":80,"s":"24°~26°","a":"樂天小熊餅-粉紅草莓風味"},"64903333133064":{"i":"BJ9296","n":"樂天小熊餅-粉紅草莓風味","c":80,"s":"24°~26°","a":"樂天小熊餅-粉紅草莓風味"},"4903333257454":{"i":"BJ9339","n":"LOTTE脆脆巧克力派－濃厚可可風味","c":5,"s":"24°~26°","a":"LOTTE脆脆巧克力派－濃厚可可風味"},"14903333257451":{"i":"BJ9339","n":"LOTTE脆脆巧克力派－濃厚可可風味","c":5,"s":"24°~26°","a":"LOTTE脆脆巧克力派－濃厚可可風味"},"4903333237029":{"i":"BJ9340","n":"樂天巧克力派－抹茶歐培拉風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"樂天巧克力派－抹茶歐培拉風味(6顆裝)(進口專用)"},"14903333237026":{"i":"BJ9340","n":"樂天巧克力派－抹茶歐培拉風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"樂天巧克力派－抹茶歐培拉風味(6顆裝)(進口專用)"},"4712834451410":{"i":"BJ9341","n":"樂天巧克力派－抹茶歐培拉風味(36顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (規格36顆/6盒 /1組)"},"4903333298853":{"i":"BJ9346","n":"樂天原味巧克力派(6顆裝)","c":25,"s":"24°~26°","a":"樂天原味巧克力派(6顆裝)"},"84903333298859":{"i":"BJ9346","n":"樂天原味巧克力派(6顆裝)","c":25,"s":"24°~26°","a":"樂天原味巧克力派(6顆裝)"},"4903333272853":{"i":"BJ9354","n":"樂天千層派盒裝－濃厚巧克力風味","c":60,"s":"24°~26°","a":"樂天千層派盒裝－濃厚巧克力風味"},"84903333272859":{"i":"BJ9354","n":"樂天千層派盒裝－濃厚巧克力風味","c":60,"s":"24°~26°","a":"樂天千層派盒裝－濃厚巧克力風味"},"24903333272857":{"i":"BJ9354","n":"樂天千層派盒裝－濃厚巧克力風味","c":60,"s":"24°~26°","a":"樂天千層派盒裝－濃厚巧克力風味"},"4903333229208":{"i":"BJ9371","n":"樂天千層派分享包－濃厚巧克力風味(18袋裝)(進口專用)\n非中文化進口入保稅後for BJ9372 樂天千層派分享包－濃厚巧克力風味(4袋裝) For Costco","c":18,"s":"24°~26°","a":"樂天千層派分享包－濃厚巧克力風味(18袋裝)(進口專用)\n非中文化進口入保稅後for BJ9372 樂天千層派分享包－濃厚巧克力風味(4袋裝) For Costco"},"24903333229202":{"i":"BJ9371","n":"樂天千層派分享包－濃厚巧克力風味(18袋裝)(進口專用)\n非中文化進口入保稅後for BJ9372 樂天千層派分享包－濃厚巧克力風味(4袋裝) For Costco","c":18,"s":"24°~26°","a":"樂天千層派分享包－濃厚巧克力風味(18袋裝)(進口專用)\n非中文化進口入保稅後for BJ9372 樂天千層派分享包－濃厚巧克力風味(4袋裝) For Costco"},"4903333294497":{"i":"BJ9356","n":"樂天巧克力派－冬季限定濃厚風味(6顆裝)(進口專用)\n非中文化進口入保稅後for BJ9357 樂天巧克力派－冬季限定濃厚風味(36顆裝) For Costco","c":25,"s":"24°~26°","a":"樂天巧克力派－冬季限定濃厚風味(6顆裝)(進口專用)\n非中文化進口入保稅後for BJ9357 樂天巧克力派－冬季限定濃厚風味(36顆裝) For Costco"},"14903333294494":{"i":"BJ9356","n":"樂天巧克力派－冬季限定濃厚風味(6顆裝)(進口專用)\n非中文化進口入保稅後for BJ9357 樂天巧克力派－冬季限定濃厚風味(36顆裝) For Costco","c":25,"s":"24°~26°","a":"樂天巧克力派－冬季限定濃厚風味(6顆裝)(進口專用)\n非中文化進口入保稅後for BJ9357 樂天巧克力派－冬季限定濃厚風味(36顆裝) For Costco"},"4712834451441":{"i":"BJ9357","n":"樂天巧克力派－冬季限定濃厚風味(36顆裝)(Costco 出貨專用)\n作改包 收縮膜6盒成1組","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (規格36顆/6盒 /1組)"},"4903333226108":{"i":"BJ9362","n":"LOTTE樂天卡士達派－粉雪草莓風味","c":25,"s":"24°~26°","a":"LOTTE樂天卡士達派－粉雪草莓風味"},"14903333226105":{"i":"BJ9362","n":"LOTTE樂天卡士達派－粉雪草莓風味","c":25,"s":"24°~26°","a":"LOTTE樂天卡士達派－粉雪草莓風味"},"4712834451458":{"i":"BJ9377","n":"樂天千層派－濃厚巧克力風味(4袋裝)(Costco 出貨專用)\n新：78組/1板","c":1,"s":"24°~26°","a":"新舊區分, 72組/板－－>78組/板\n作改包 4包成1組OPP袋  (規格4袋 /1組, 每板78組)"},"4903333203147":{"i":"BJ9373","n":"LOTTE ZERO奶油小餅乾","c":30,"s":"24°~26°","a":"LOTTE ZERO奶油小餅乾"},"14903333203144":{"i":"BJ9373","n":"LOTTE ZERO奶油小餅乾","c":30,"s":"24°~26°","a":"LOTTE ZERO奶油小餅乾"},"4903333298464":{"i":"BJ9374","n":"LOTTE ZERO可可小餅乾","c":30,"s":"24°~26°","a":"LOTTE ZERO可可小餅乾"},"14903333298461":{"i":"BJ9374","n":"LOTTE ZERO可可小餅乾","c":30,"s":"24°~26°","a":"LOTTE ZERO可可小餅乾"},"4903333277582":{"i":"BJ9383","n":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味(萬聖節限定)"},"14903333277589":{"i":"BJ9383","n":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味(萬聖節限定)"},"4903333296507":{"i":"BJ9384","n":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－巧克力風味(萬聖節限定)"},"14903333296504":{"i":"BJ9384","n":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－巧克力風味(萬聖節限定)"},"4903333251087":{"i":"BJ9385","n":"LOTTE原味巧克力派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE原味巧克力派分享包(萬聖節限定)"},"14903333251084":{"i":"BJ9385","n":"LOTTE原味巧克力派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE原味巧克力派分享包(萬聖節限定)"},"4903333246007":{"i":"BJ9386","n":"LOTTE卡士達派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE卡士達派分享包(萬聖節限定)"},"14903333246004":{"i":"BJ9386","n":"LOTTE卡士達派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE卡士達派分享包(萬聖節限定)"},"4903333208784":{"i":"BJ9389","n":"樂天小熊餅派對包－巧克力風味","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味"},"14903333208781":{"i":"BJ9389","n":"樂天小熊餅派對包－巧克力風味","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味"},"4903333239597":{"i":"BJ9393","n":"LOTTE卡士逹派－熔岩巧克力風味(6顆裝) (進口專用)","c":25,"s":"24°~26°","a":"非中文化進口入保稅後for BJ9394熔岩巧克力風味(36顆裝) For Costco"},"14903333239594":{"i":"BJ9393","n":"LOTTE卡士逹派－熔岩巧克力風味(6顆裝) (進口專用)","c":25,"s":"24°~26°","a":"非中文化進口入保稅後for BJ9394熔岩巧克力風味(36顆裝) For Costco"},"4712834451502":{"i":"BJ9394","n":"LOTTE卡士逹派－熔岩巧克力風味(36顆裝) (Costco 出貨專用)","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (新規格36顆/6盒 /1組)"},"49779059":{"i":"BJ9407","n":"樂天小熊餅四連包－英文小熊for PX","c":60,"s":"24°~26°","a":"樂天小熊餅四連包－英文小熊for PX"},"50000049779054":{"i":"BJ9407","n":"樂天小熊餅四連包－英文小熊for PX","c":60,"s":"24°~26°","a":"樂天小熊餅四連包－英文小熊for PX"},"80000049779055":{"i":"BJ9407","n":"樂天小熊餅四連包－英文小熊for PX","c":60,"s":"24°~26°","a":"樂天小熊餅四連包－英文小熊for PX"},"14903333284440":{"i":"BJ9408","n":"LOTTE 千層派分享包－巧克力風味for PX","c":18,"s":"24°~26°","a":"LOTTE 千層派分享包－巧克力風味for PX"},"4903333247790":{"i":"BJ9410","n":"LOTTE卡士達派－奢華白桃風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE卡士達派－奢華白桃風味(6顆裝)(進口專用)"},"14903333247797":{"i":"BJ9411","n":"LOTTE卡士達派－奢華白桃風味(30顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華白桃風味(30顆裝)(Costco 出貨專用)"},"4712834451540":{"i":"BJ9411","n":"LOTTE卡士達派－奢華白桃風味(30顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華白桃風味(30顆裝)(Costco 出貨專用)"},"4903333219940":{"i":"BJ9413","n":"LOTTE千層派盒裝－奢華草莓塔風味(進口專用)","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－奢華草莓塔風味(進口專用)"},"84903333219946":{"i":"BJ9413","n":"LOTTE千層派盒裝－奢華草莓塔風味(進口專用)","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－奢華草莓塔風味(進口專用)"},"14903333219947":{"i":"BJ9414","n":"LOTTE千層派盒裝－奢華草莓塔風味(10盒裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE千層派盒裝－奢華草莓塔風味(10盒裝)(Costco 出貨專用)"},"4712834451533":{"i":"BJ9414","n":"LOTTE千層派盒裝－奢華草莓塔風味(10盒裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE千層派盒裝－奢華草莓塔風味(10盒裝)(Costco 出貨專用)"},"4903333259366":{"i":"BJ9415","n":"LOTTE巧克力派－開心果草莓風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－開心果草莓風味"},"14903333259363":{"i":"BJ9415","n":"LOTTE巧克力派－開心果草莓風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－開心果草莓風味"},"4903333240180":{"i":"BJ9425","n":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味"},"84903333240186":{"i":"BJ9425","n":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味"},"14903333240187":{"i":"BJ9425","n":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味"},"4903333245932":{"i":"BJ9427","n":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)"},"14903333245939":{"i":"BJ9428","n":"LOTTE千層派分享包－宇治抹茶風味(4袋裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE千層派分享包－宇治抹茶風味(4袋裝)(costco出貨專用)"},"4712834451564":{"i":"BJ9428","n":"LOTTE千層派分享包－宇治抹茶風味(4袋裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE千層派分享包－宇治抹茶風味(4袋裝)(costco出貨專用)"},"4903333262274":{"i":"BJ9432","n":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味(萬聖節限定)"},"14903333262271":{"i":"BJ9432","n":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味(萬聖節限定)"},"4903333250271":{"i":"BJ9433","n":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－巧克力風味(萬聖節限定)"},"14903333250278":{"i":"BJ9433","n":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－巧克力風味(萬聖節限定)"},"4903333261161":{"i":"BJ9434","n":"LOTTE原味巧克力派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE原味巧克力派分享包(萬聖節限定)"},"14903333261168":{"i":"BJ9434","n":"LOTTE原味巧克力派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE原味巧克力派分享包(萬聖節限定)"},"4903333231485":{"i":"BJ9435","n":"LOTTE卡士達派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE卡士達派分享包(萬聖節限定)"},"14903333231482":{"i":"BJ9435","n":"LOTTE卡士達派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE卡士達派分享包(萬聖節限定)"},"4903333289899":{"i":"BJ9439","n":"LOTTE卡士達派－奢華蘋果風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE卡士達派－奢華蘋果風味(6顆裝)(進口專用)"},"14903333289896":{"i":"BJ9440","n":"LOTTE卡士達派－奢華蘋果風味(30顆裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華蘋果風味(30顆裝)(costco出貨專用)"},"4712834451618":{"i":"BJ9440","n":"LOTTE卡士達派－奢華蘋果風味(30顆裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華蘋果風味(30顆裝)(costco出貨專用)"},"4903333297139":{"i":"BJ9444","n":"LOTTE卡士達派－白蘭地酒心可可風味(單顆)","c":150,"s":"24°~26°","a":"LOTTE卡士達派－白蘭地酒心可可風味(單顆)"},"84903333297135":{"i":"BJ9444","n":"LOTTE卡士達派－白蘭地酒心可可風味(單顆)","c":150,"s":"24°~26°","a":"LOTTE卡士達派－白蘭地酒心可可風味(單顆)"},"14903333297136":{"i":"BJ9445","n":"LOTTE卡士達派－白蘭地酒心可可風味(6顆裝)","c":25,"s":"24°~26°","a":"穿中文化袖套印上條碼for CF中盒出貨"},"4712834451632":{"i":"BJ9445","n":"LOTTE卡士達派－白蘭地酒心可可風味(6顆裝)","c":25,"s":"24°~26°","a":"穿中文化袖套印上條碼for CF中盒出貨"},"4903333270576":{"i":"BJ9446","n":"LOTTE巧克力派－冬季限定濃厚風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－冬季限定濃厚風味"},"14903333270573":{"i":"BJ9446","n":"LOTTE巧克力派－冬季限定濃厚風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－冬季限定濃厚風味"},"4903333211289":{"i":"BJ9447","n":"LOTTE千層派盒裝－楓糖奶油夾心風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－楓糖奶油夾心風味"},"84903333211285":{"i":"BJ9447","n":"LOTTE千層派盒裝－楓糖奶油夾心風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－楓糖奶油夾心風味"},"14903333211286":{"i":"BJ9447","n":"LOTTE千層派盒裝－楓糖奶油夾心風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－楓糖奶油夾心風味"},"4903333206872":{"i":"BJ9448","n":"LOTTE白巧克力派－初雪草莓風味","c":25,"s":"24°~26°","a":"LOTTE白巧克力派－初雪草莓風味"},"14903333206879":{"i":"BJ9448","n":"LOTTE白巧克力派－初雪草莓風味","c":25,"s":"24°~26°","a":"LOTTE白巧克力派－初雪草莓風味"},"4903333222155":{"i":"BJ9449","n":"LOTTE Zero可可餅乾－隨手包","c":90,"s":"24°~26°","a":"LOTTE Zero可可餅乾－隨手包"},"84903333222151":{"i":"BJ9449","n":"LOTTE Zero可可餅乾－隨手包","c":90,"s":"24°~26°","a":"LOTTE Zero可可餅乾－隨手包"},"14903333222152":{"i":"BJ9449","n":"LOTTE Zero可可餅乾－隨手包","c":90,"s":"24°~26°","a":"LOTTE Zero可可餅乾－隨手包"},"4903333260102":{"i":"BJ9450","n":"樂天千層派分享包－雙重牛奶糖風味","c":18,"s":"24°~26°","a":"樂天千層派分享包－雙重牛奶糖風味"},"14903333260109":{"i":"BJ9450","n":"樂天千層派分享包－雙重牛奶糖風味","c":18,"s":"24°~26°","a":"樂天千層派分享包－雙重牛奶糖風味"},"4903333248506":{"i":"BJ9452","n":"LOTTE卡士達派－奢華草莓風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE卡士達派－奢華草莓風味(6顆裝)(進口專用)"},"14903333248503":{"i":"BJ9452","n":"LOTTE卡士達派－奢華草莓風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE卡士達派－奢華草莓風味(6顆裝)(進口專用)"},"4712834451649":{"i":"BJ9453","n":"LOTTE卡士達派－奢華草莓風味(30顆裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華草莓風味(30顆裝)(costco出貨專用)"},"4903333219155":{"i":"BJ9454","n":"LOTTE巧克力派－開心果草莓風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－開心果草莓風味"},"14903333219152":{"i":"BJ9461","n":"LOTTE巧克力派－焦糖奶油風味(6顆裝)","c":25,"s":"24°~26°","a":"穿中文化袖套印上條碼for CF中盒出貨"},"4903333247387":{"i":"BJ9456","n":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(6顆裝)(進口專用)"},"14903333247384":{"i":"BJ9456","n":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(6顆裝)(進口專用)"},"4712834451656":{"i":"BJ9457","n":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(30顆裝)(Costco 出貨專用)","c":25,"s":"24°~26°","a":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(30顆裝)(costco出貨專用)"},"4903333207145":{"i":"BJ9459","n":"樂天小熊餅－草莓奶油蛋糕風味46g for FM","c":80,"s":"24°~26°","a":"樂天小熊餅－草莓奶油蛋糕風味46g for FM"},"84903333207141":{"i":"BJ9459","n":"樂天小熊餅－草莓奶油蛋糕風味46g for FM","c":80,"s":"24°~26°","a":"樂天小熊餅－草莓奶油蛋糕風味46g for FM"},"14903333207142":{"i":"BJ9459","n":"樂天小熊餅－草莓奶油蛋糕風味46g for FM","c":80,"s":"24°~26°","a":"樂天小熊餅－草莓奶油蛋糕風味46g for FM"},"4903333284023":{"i":"BJ9460","n":"LOTTE巧克力派－焦糖奶油風味(單顆)","c":150,"s":"24°~26°","a":"LOTTE巧克力派－焦糖奶油風味(單顆)"},"84903333284029":{"i":"BJ9460","n":"LOTTE巧克力派－焦糖奶油風味(單顆)","c":150,"s":"24°~26°","a":"LOTTE巧克力派－焦糖奶油風味(單顆)"},"4712834451663":{"i":"BJ9461","n":"LOTTE巧克力派－焦糖奶油風味(6顆裝)","c":25,"s":"24°~26°","a":"穿中文化袖套印上條碼for CF中盒出貨"},"4903333299591":{"i":"BJ9462","n":"LOTTE The奶油派","c":50,"s":"24°~26°","a":"此規格無中盒, 因加工後無收縮膜"},"加工後無收縮膜":{"i":"BJ9463","n":"LOTTE The焦糖派","c":50,"s":"24°~26°","a":"此規格無中盒, 因加工後無收縮膜"},"14903333299598":{"i":"BJ9462","n":"LOTTE The奶油派","c":50,"s":"24°~26°","a":"此規格無中盒, 因加工後無收縮膜"},"4903333215737":{"i":"BJ9463","n":"LOTTE The焦糖派","c":50,"s":"24°~26°","a":"此規格無中盒, 因加工後無收縮膜"},"14903333215734":{"i":"BJ9463","n":"LOTTE The焦糖派","c":50,"s":"24°~26°","a":"此規格無中盒, 因加工後無收縮膜"},"4903333207541":{"i":"BJ9464","n":"LOTTE千層派盒裝－濃郁奶霜風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－濃郁奶霜風味"},"84903333207547":{"i":"BJ9464","n":"LOTTE千層派盒裝－濃郁奶霜風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－濃郁奶霜風味"},"14903333207548":{"i":"BJ9464","n":"LOTTE千層派盒裝－濃郁奶霜風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－濃郁奶霜風味"},"4903333207121":{"i":"BJ9465","n":"LOTTE巧克力派－頂級麝香葡萄風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－頂級麝香葡萄風味"},"14903333207128":{"i":"BJ9465","n":"LOTTE巧克力派－頂級麝香葡萄風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－頂級麝香葡萄風味"},"4903333231775":{"i":"BJ9467","n":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)"},"14903333231772":{"i":"BJ9468","n":"樂天千層派－濃厚巧克力風味+宇治抹茶風味綜合包(4袋裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"樂天千層派－濃厚巧克力風味+宇治抹茶風味綜合包(4袋裝)(costco出貨專用)"},"4712834451724":{"i":"BJ9468","n":"樂天千層派－濃厚巧克力風味+宇治抹茶風味綜合包(4袋裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"樂天千層派－濃厚巧克力風味+宇治抹茶風味綜合包(4袋裝)(costco出貨專用)"},"4903333283996":{"i":"BJ9470","n":"LOTTE巧克力派－伯爵檸檬茶風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE巧克力派－伯爵檸檬茶風味(6顆裝)(進口專用)"},"14903333283993":{"i":"BJ9471","n":"樂天巧克力派－伯爵檸檬茶風味(30顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"樂天巧克力派－伯爵檸檬茶風味(30顆裝)(costco出貨專用)"},"4712834451731":{"i":"BJ9471","n":"樂天巧克力派－伯爵檸檬茶風味(30顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"樂天巧克力派－伯爵檸檬茶風味(30顆裝)(costco出貨專用)"},"4903333155439":{"i":"CJ0017","n":"LOTTE Ghana加納牛奶可可製品(片裝)50g","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納代可可脂牛奶巧克力片裝55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨,\n進口產品條碼:490333312955,  加工後產品條碼4903333155439"},"84903333172951":{"i":"CJ0017","n":"LOTTE Ghana加納牛奶可可製品(片裝)50g","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納代可可脂牛奶巧克力片裝55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨,\n進口產品條碼:490333312955,  加工後產品條碼4903333155439"},"54903333172950":{"i":"CJ0017","n":"LOTTE Ghana加納牛奶可可製品(片裝)50g","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納代可可脂牛奶巧克力片裝55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨,\n進口產品條碼:490333312955,  加工後產品條碼4903333155439"},"4903333132287":{"i":"CJ0018","n":"LOTTE Ghana加納黑巧克力(片裝)50g添加植物油","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納黑巧克力片裝(可可脂中添加植物油) 55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨\n進口產品條碼4903333143146 , 加工後產品條碼4903333132287"},"84903333143142":{"i":"CJ0018","n":"LOTTE Ghana加納黑巧克力(片裝)50g添加植物油","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納黑巧克力片裝(可可脂中添加植物油) 55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨\n進口產品條碼4903333143146 , 加工後產品條碼4903333132287"},"54903333143141":{"i":"CJ0018","n":"LOTTE Ghana加納黑巧克力(片裝)50g添加植物油","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納黑巧克力片裝(可可脂中添加植物油) 55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨\n進口產品條碼4903333143146 , 加工後產品條碼4903333132287"},"4903333282050":{"i":"CJ9371","n":"LOTTE 烘焙杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 烘焙杏仁可可球"},"84903333282056":{"i":"CJ9371","n":"LOTTE 烘焙杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 烘焙杏仁可可球"},"14903333282057":{"i":"CJ9371","n":"LOTTE 烘焙杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 烘焙杏仁可可球"},"4903333258529":{"i":"CJ9372","n":"LOTTE 脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 脆心杏仁可可球"},"84903333258525":{"i":"CJ9372","n":"LOTTE 脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 脆心杏仁可可球"},"14903333258526":{"i":"CJ9372","n":"LOTTE 脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 脆心杏仁可可球"},"4903333251216":{"i":"CJ9373","n":"LOTTE 夏威夷果仁可可球","c":80,"s":"18°~22°","a":"LOTTE 夏威夷果仁可可球"},"84903333251212":{"i":"CJ9373","n":"LOTTE 夏威夷果仁可可球","c":80,"s":"18°~22°","a":"LOTTE 夏威夷果仁可可球"},"14903333251213":{"i":"CJ9373","n":"LOTTE 夏威夷果仁可可球","c":80,"s":"18°~22°","a":"LOTTE 夏威夷果仁可可球"},"4903333226191":{"i":"CJ9377","n":"LOTTE 紗紗－原味可可製品","c":80,"s":"18°~22°","a":"LOTTE 紗紗－原味可可製品"},"84903333226197":{"i":"CJ9377","n":"LOTTE 紗紗－原味可可製品","c":80,"s":"18°~22°","a":"LOTTE 紗紗－原味可可製品"},"14903333226198":{"i":"CJ9377","n":"LOTTE 紗紗－原味可可製品","c":80,"s":"18°~22°","a":"LOTTE 紗紗－原味可可製品"},"4903333261963":{"i":"CJ9416","n":"LOTTE脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE脆心杏仁可可球"},"84903333261969":{"i":"CJ9416","n":"LOTTE脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE脆心杏仁可可球"},"14903333261960":{"i":"CJ9416","n":"LOTTE脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE脆心杏仁可可球"},"4903333208678":{"i":"CJ9454","n":"LOTTE Almond杏仁可可球隨手包－濃脆風味","c":120,"s":"18°~22°","a":"LOTTE Almond杏仁可可球隨手包－濃脆風味"},"84903333208674":{"i":"CJ9454","n":"LOTTE Almond杏仁可可球隨手包－濃脆風味","c":120,"s":"18°~22°","a":"LOTTE Almond杏仁可可球隨手包－濃脆風味"},"14903333208675":{"i":"CJ9454","n":"LOTTE Almond杏仁可可球隨手包－濃脆風味","c":120,"s":"18°~22°","a":"LOTTE Almond杏仁可可球隨手包－濃脆風味"},"4903333249251":{"i":"CJ9455","n":"LOTTE Crunky脆心可可球－岩鹽焦糖風味","c":120,"s":"18°~22°","a":"LOTTE Crunky脆心可可球－岩鹽焦糖風味"},"84903333249257":{"i":"CJ9455","n":"LOTTE Crunky脆心可可球－岩鹽焦糖風味","c":120,"s":"18°~22°","a":"LOTTE Crunky脆心可可球－岩鹽焦糖風味"},"14903333249258":{"i":"CJ9455","n":"LOTTE Crunky脆心可可球－岩鹽焦糖風味","c":120,"s":"18°~22°","a":"LOTTE Crunky脆心可可球－岩鹽焦糖風味"},"4903333214549":{"i":"CJ9456","n":"LOTTE ZERO冬季限定可可製品","c":80,"s":"18°~22°","a":"LOTTE ZERO冬季限定可可製品"},"84903333214545":{"i":"CJ9456","n":"LOTTE ZERO冬季限定可可製品","c":80,"s":"18°~22°","a":"LOTTE ZERO冬季限定可可製品"},"14903333214546":{"i":"CJ9456","n":"LOTTE ZERO冬季限定可可製品","c":80,"s":"18°~22°","a":"LOTTE ZERO冬季限定可可製品"},"4903333248735":{"i":"CJ9457","n":"LOTTE Zero可可製品","c":80,"s":"18°~22°","a":"LOTTE Zero可可製品"},"84903333248731":{"i":"CJ9457","n":"LOTTE Zero可可製品","c":80,"s":"18°~22°","a":"LOTTE Zero可可製品"},"44903333248733":{"i":"CJ9457","n":"LOTTE Zero可可製品","c":80,"s":"18°~22°","a":"LOTTE Zero可可製品"},"4903333207237":{"i":"CJ9458","n":"LOTTE ZERO巧克力70%(添加植物油)","c":80,"s":"18°~22°","a":"LOTTE ZERO巧克力70%(添加植物油)"},"84903333207233":{"i":"CJ9458","n":"LOTTE ZERO巧克力70%(添加植物油)","c":80,"s":"18°~22°","a":"LOTTE ZERO巧克力70%(添加植物油)"},"44903333207235":{"i":"CJ9458","n":"LOTTE ZERO巧克力70%(添加植物油)","c":80,"s":"18°~22°","a":"LOTTE ZERO巧克力70%(添加植物油)"},"4903333035274":{"i":"DJ9073","n":"樂天KOUME小梅糖","c":10,"s":"24°~26°","a":"Cindy 2023/5/18mail: The summer version was discontinued in Aug. 2022."},"24903333035278":{"i":"DJ9073","n":"樂天KOUME小梅糖","c":10,"s":"24°~26°","a":"Cindy 2023/5/18mail: The summer version was discontinued in Aug. 2022."},"4903333272860":{"i":"DJ9074","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包"},"84903333272866":{"i":"DJ9074","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包"},"24903333272864":{"i":"DJ9074","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包"},"4903333270668":{"i":"DJ9075","n":"LOTTE KOUME小梅糖(50周年紀念)","c":48,"s":"24°~26°","a":"LOTTE KOUME小梅糖(50周年紀念)"},"84903333270664":{"i":"DJ9075","n":"LOTTE KOUME小梅糖(50周年紀念)","c":48,"s":"24°~26°","a":"LOTTE KOUME小梅糖(50周年紀念)"},"14903333270665":{"i":"DJ9075","n":"LOTTE KOUME小梅糖(50周年紀念)","c":48,"s":"24°~26°","a":"LOTTE KOUME小梅糖(50周年紀念)"},"4903333219834":{"i":"DJ9076","n":"LOTTE ZERO牛奶硬糖袋裝","c":10,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖袋裝"},"34903333219835":{"i":"DJ9076","n":"LOTTE ZERO牛奶硬糖袋裝","c":10,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖袋裝"},"4903333253364":{"i":"DJ9078","n":"LOTTE春日小梅糖","c":72,"s":"24°~26°","a":"LOTTE春日小梅糖"},"84903333253360":{"i":"DJ9078","n":"LOTTE春日小梅糖","c":72,"s":"24°~26°","a":"LOTTE春日小梅糖"},"14903333253361":{"i":"DJ9078","n":"LOTTE春日小梅糖","c":72,"s":"24°~26°","a":"LOTTE春日小梅糖"},"4903333292639":{"i":"DJ9079","n":"LOTTE白熊沁涼硬糖(袋裝）","c":48,"s":"24°~26°","a":"LOTTE白熊沁涼硬糖(袋裝）"},"84903333292635":{"i":"DJ9079","n":"LOTTE白熊沁涼硬糖(袋裝）","c":48,"s":"24°~26°","a":"LOTTE白熊沁涼硬糖(袋裝）"},"14903333292636":{"i":"DJ9079","n":"LOTTE白熊沁涼硬糖(袋裝）","c":48,"s":"24°~26°","a":"LOTTE白熊沁涼硬糖(袋裝）"},"4903333258451":{"i":"DJ9080","n":"LOTTE ZERO牛奶硬糖(迷你包)","c":96,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(迷你包)"},"84903333258457":{"i":"DJ9080","n":"LOTTE ZERO牛奶硬糖(迷你包)","c":96,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(迷你包)"},"14903333258458":{"i":"DJ9080","n":"LOTTE ZERO牛奶硬糖(迷你包)","c":96,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(迷你包)"},"4903333233205":{"i":"DJ9081","n":"LOTTE ZERO牛奶硬糖(袋裝)","c":72,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(袋裝)"},"84903333233201":{"i":"DJ9081","n":"LOTTE ZERO牛奶硬糖(袋裝)","c":72,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(袋裝)"},"14903333233202":{"i":"DJ9081","n":"LOTTE ZERO牛奶硬糖(袋裝)","c":72,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(袋裝)"},"4903333256815":{"i":"DJ9082","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包"},"84903333256811":{"i":"DJ9082","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包"},"14903333256812":{"i":"DJ9082","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包"},"4903333257010":{"i":"DJ8031","n":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味"},"84903333257016":{"i":"DJ8031","n":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味"},"14903333257017":{"i":"DJ8031","n":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味"},"4903333229406":{"i":"DJ8032","n":"LOTTE小梅硬軟糖","c":120,"s":"24°~26°","a":"LOTTE小梅硬軟糖"},"84903333229402":{"i":"DJ8032","n":"LOTTE小梅硬軟糖","c":120,"s":"24°~26°","a":"LOTTE小梅硬軟糖"},"24903333229400":{"i":"DJ8032","n":"LOTTE小梅硬軟糖","c":120,"s":"24°~26°","a":"LOTTE小梅硬軟糖"},"4903333235568":{"i":"DJ8033","n":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味"},"84903333235564":{"i":"DJ8033","n":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味"},"14903333235565":{"i":"DJ8033","n":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味"},"4903333275595":{"i":"DJ8036","n":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM"},"84903333275591":{"i":"DJ8036","n":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM"},"14903333275592":{"i":"DJ8036","n":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM"},"4903333235216":{"i":"DJ8037","n":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM"},"84903333235212":{"i":"DJ8037","n":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM"},"14903333235213":{"i":"DJ8037","n":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM"},"4903333279982":{"i":"DJ8038","n":"LOTTE小梅花瓣軟糖","c":80,"s":"24°~26°","a":"LOTTE小梅花瓣軟糖"},"84903333279988":{"i":"DJ8038","n":"LOTTE小梅花瓣軟糖","c":80,"s":"24°~26°","a":"LOTTE小梅花瓣軟糖"},"14903333279989":{"i":"DJ8038","n":"LOTTE小梅花瓣軟糖","c":80,"s":"24°~26°","a":"LOTTE小梅花瓣軟糖"},"8801062161881":{"i":"BK9330","n":"LOTTE 巧克力派(6顆裝) for PX","c":16,"s":"24°~26°","a":"LOTTE 巧克力派(6顆裝) for PX"},"48801062161889":{"i":"BK9330","n":"LOTTE 巧克力派(6顆裝) for PX","c":16,"s":"24°~26°","a":"LOTTE 巧克力派(6顆裝) for PX"},"8801019930744":{"i":"BK9331","n":"LOTTE 巧克力派(12顆裝) for PX","c":8,"s":"24°~26°","a":"LOTTE 巧克力派(12顆裝) for PX"},"18801019930741":{"i":"BK9331","n":"LOTTE 巧克力派(12顆裝) for PX","c":8,"s":"24°~26°","a":"LOTTE 巧克力派(12顆裝) for PX"},"8801062140398":{"i":"BK0051","n":"LOTTE 蛋黃派(6顆裝)","c":12,"s":"24°~26°","a":"2026更換成分"},"18801062126221":{"i":"BK0051","n":"LOTTE 蛋黃派(6顆裝)","c":12,"s":"24°~26°","a":"2026更換成分"},"8801062244683":{"i":"BK0052","n":"LOTTE 蛋黃派(10顆裝)","c":8,"s":"24°~26°","a":"2026更換成分"},"18801062126184":{"i":"BK0052","n":"LOTTE 蛋黃派(10顆裝)","c":8,"s":"24°~26°","a":"2026更換成分"},"8801062899623":{"i":"BK0053","n":"LOTTE 蛋黃派－香甜草莓風味(6顆裝)","c":12,"s":"24°~26°","a":"2026更換成分"},"N/A":{"i":"BK9360","n":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX"},"18801062899613":{"i":"BK0053","n":"LOTTE 蛋黃派－香甜草莓風味(6顆裝)","c":12,"s":"24°~26°","a":"2026更換成分"},"8801062899609":{"i":"BK0054","n":"LOTTE 蛋黃派－香甜草莓風味(10顆裝)","c":8,"s":"24°~26°","a":"2026更換成分"},"18801062899590":{"i":"BK0054","n":"LOTTE 蛋黃派－香甜草莓風味(10顆裝)","c":8,"s":"24°~26°","a":"2026更換成分"},"8801062267675":{"i":"BK9287","n":"LOTTE Pepero巧克力口味餅乾棒47g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"28801062639483":{"i":"BK9274","n":"LOTTE Pepero巧克力口味餅乾棒47g","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062267712":{"i":"BK9289","n":"LOTTE Pepero杏仁巧克力口味餅乾棒32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"28801062478907":{"i":"BK9275","n":"LOTTE Pepero杏仁巧克力口味餅乾棒32g","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062636358":{"i":"BK9291","n":"LOTTE Pepero白巧克力口味餅乾棒32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"58801062636353":{"i":"BK9291","n":"LOTTE Pepero白巧克力口味餅乾棒32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062267699":{"i":"BK9318","n":"LOTTE Pepero巧克力夾心口味餅乾棒45g","c":40,"s":"18°~22°","a":"2023-6月降克數50-->45g"},"68801062639481":{"i":"BK9277","n":"LOTTE Pepero巧克力夾心口味餅乾棒50g","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062641260":{"i":"BK9314","n":"LOTTE Pepero黑餅乾巧克力口味餅乾棒FOR PX","c":40,"s":"18°~22°","a":"LOTTE Pepero黑餅乾巧克力口味餅乾棒FOR PX"},"28801062481730":{"i":"BK9314","n":"LOTTE Pepero黑餅乾巧克力口味餅乾棒FOR PX","c":40,"s":"18°~22°","a":"LOTTE Pepero黑餅乾巧克力口味餅乾棒FOR PX"},"8801062881741":{"i":"BK9295","n":"LOTTE Pepero脆心巧克力口味餅乾棒39g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"18801062881748":{"i":"BK9295","n":"LOTTE Pepero脆心巧克力口味餅乾棒39g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062880140":{"i":"BK9297","n":"LOTTE Pepero杏仁白巧克力口味餅乾棒 32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"18801062880147":{"i":"BK9297","n":"LOTTE Pepero杏仁白巧克力口味餅乾棒 32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062016099":{"i":"BK9363","n":"LOTTE Pepero巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"改成分/設計"},"18801062016096":{"i":"BK9363","n":"LOTTE Pepero巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"改成分/設計"},"8801062267798":{"i":"BK9359","n":"LOTTE  Pepero杏仁巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE  Pepero杏仁巧克力口味餅乾棒分享盒for PX"},"28801062482201":{"i":"BK9359","n":"LOTTE  Pepero杏仁巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE  Pepero杏仁巧克力口味餅乾棒分享盒for PX"},"8801062641239":{"i":"BK9360","n":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX"},"68801062477977 <--（海外版)":{"i":"BK9284","n":"LOTTE Pepero白巧克力口味餅乾棒分享盒","c":9,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062880881":{"i":"BK9361","n":"LOTTE Pepero脆心巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE Pepero脆心巧克力口味餅乾棒分享盒for PX"},"18801062880888":{"i":"BK9361","n":"LOTTE Pepero脆心巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE Pepero脆心巧克力口味餅乾棒分享盒for PX"},"8801062865710":{"i":"BK9286","n":"LOTTE Pepero黑餅乾巧克力口味餅乾棒分享盒","c":9,"s":"18°~22°","a":"2022-12月改餅乾棒"},"18801062865717":{"i":"BK9286","n":"LOTTE Pepero黑餅乾巧克力口味餅乾棒分享盒","c":9,"s":"18°~22°","a":"2022-12月改餅乾棒"},"38801062478164":{"i":"BK9287","n":"LOTTE Pepero巧克力口味餅乾棒47g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"18801062132765":{"i":"BK9288","n":"LOTTE Pepero杏仁巧克力口味餅乾棒32g FOR PX","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"98801062478166":{"i":"BK9289","n":"LOTTE Pepero杏仁巧克力口味餅乾棒32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒"},"8801062862535":{"i":"BK9313","n":"LOTTE Pepero草莓脆粒餅乾棒32g－5盒裝","c":40,"s":"18°~22°","a":"減克重為32g"},"18801062862532":{"i":"BK9313","n":"LOTTE Pepero草莓脆粒餅乾棒32g－5盒裝","c":40,"s":"18°~22°","a":"減克重為32g"},"4712834451403":{"i":"BK9312","n":"LOTTE 蛋黃派(4顆裝)","c":24,"s":"24°~26°","a":"LOTTE 蛋黃派(4顆裝)"},"04712834451403":{"i":"BK9312","n":"LOTTE 蛋黃派(4顆裝)","c":24,"s":"24°~26°","a":"LOTTE 蛋黃派(4顆裝)"},"1880106286052":{"i":"BK9318","n":"LOTTE Pepero巧克力夾心口味餅乾棒45g","c":40,"s":"18°~22°","a":"2023-6月降克數50-->45g"},"8801062865680":{"i":"BK9321","n":"LOTTE ZERO零砂糖可可豆餅乾","c":20,"s":"24°~26°","a":"非中文化, 進保稅"},"18801062865687":{"i":"BK9321","n":"LOTTE ZERO零砂糖可可豆餅乾","c":20,"s":"24°~26°","a":"非中文化, 進保稅"},"8801062865673":{"i":"BK9362","n":"LOTTE ZERO零砂糖可可豆餅乾量販包","c":12,"s":"24°~26°","a":"非中文化, 進保稅 (國內版)"},"18801062865670":{"i":"BK9362","n":"LOTTE ZERO零砂糖可可豆餅乾量販包","c":12,"s":"24°~26°","a":"非中文化, 進保稅 (國內版)"},"8801062006700":{"i":"BK9326","n":"LOTTE Pepero夏日柑橘脆粒風味餅乾棒32g","c":40,"s":"18°~22°","a":"非中文化, 進保稅"},"18801062006707":{"i":"BK9326","n":"LOTTE Pepero夏日柑橘脆粒風味餅乾棒32g","c":40,"s":"18°~22°","a":"非中文化, 進保稅"},"8801062859108":{"i":"BK9332","n":"LOTTE ZERO 零砂糖可可&香草夾心餅乾96g","c":30,"s":"24°~26°","a":"LOTTE ZERO 零砂糖可可&香草夾心餅乾96g"},"18801062859105":{"i":"BK9332","n":"LOTTE ZERO 零砂糖可可&香草夾心餅乾96g","c":30,"s":"24°~26°","a":"LOTTE ZERO 零砂糖可可&香草夾心餅乾96g"},"8801062859054":{"i":"BK9345","n":"LOTTE ZERO零砂糖可可&香草夾心餅乾量販包288g","c":12,"s":"24°~26°","a":"LOTTE ZERO零砂糖可可&香草夾心餅乾量販包288g"},"18801062859051":{"i":"BK9345","n":"LOTTE ZERO零砂糖可可&香草夾心餅乾量販包288g","c":12,"s":"24°~26°","a":"LOTTE ZERO零砂糖可可&香草夾心餅乾量販包288g"},"845502061407":{"i":"BK9346","n":"LOTTE巧克力派-香蕉風味(12顆裝)for PX","c":8,"s":"24°~26°","a":"共版中文化"},"18801062000781":{"i":"BK9346","n":"LOTTE巧克力派-香蕉風味(12顆裝)for PX","c":8,"s":"24°~26°","a":"共版中文化"},"8801062475148":{"i":"BK9347","n":"LOTTE 黑巧克力派(12顆裝)for PX","c":8,"s":"24°~26°","a":"LOTTE 黑巧克力派(12顆裝)\n2017/4/14 開始中文化包裝"},"28801062475135":{"i":"BK9347","n":"LOTTE 黑巧克力派(12顆裝)for PX","c":8,"s":"24°~26°","a":"LOTTE 黑巧克力派(12顆裝)\n2017/4/14 開始中文化包裝"},"8802259019121":{"i":"BK9348","n":"LOTTE ZERO零砂糖巧克力派(12顆裝)","c":8,"s":"24°~26°","a":"非中文化, 進保稅"},"18802259019128":{"i":"BK9348","n":"LOTTE ZERO零砂糖巧克力派(12顆裝)","c":8,"s":"24°~26°","a":"非中文化, 進保稅"},"8801062866816":{"i":"BK9350","n":"LOTTE Pepero餅乾棒棒組FOR PX－2025","c":4,"s":"18°~22°","a":"Pepero 口味: 杏仁32G * 3 + 白巧32G * 3 + 草莓32G * 4"},"38801062477709":{"i":"BK9350","n":"LOTTE Pepero餅乾棒棒組FOR PX－2025","c":4,"s":"18°~22°","a":"Pepero 口味: 杏仁32G * 3 + 白巧32G * 3 + 草莓32G * 4"},"8801062273355":{"i":"BK9351","n":"LOTTE夢幻巧克力派－可可風味(12顆裝)(進口專用)","c":8,"s":"24°~26°","a":"LOTTE夢幻巧克力派－可可風味(12顆裝)(進口專用)"},"18801062859273":{"i":"BK9351","n":"LOTTE夢幻巧克力派－可可風味(12顆裝)(進口專用)","c":8,"s":"24°~26°","a":"LOTTE夢幻巧克力派－可可風味(12顆裝)(進口專用)"},"4712834451588":{"i":"BK9352","n":"LOTTE夢幻巧克力派－可可風味(36顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE夢幻巧克力派－可可風味(36顆裝)(Costco 出貨專用)"},"68801062479834":{"i":"BK9360","n":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX"},"8801062271399":{"i":"CK9032","n":"LOTTE Crunky 巧克力球(76g)","c":24,"s":"18°~22°","a":"LOTTE Crunky 巧克力球76g進口條碼為:8801062633456加工後條碼:8801062271399\n2015-07月第一批進口,由84g→76g 更改克數\n※(76g中文標+(CK0011)73g舊條碼)"},"8801062633463":{"i":"CK9032","n":"LOTTE Crunky 巧克力球(76g)","c":24,"s":"18°~22°","a":"LOTTE Crunky 巧克力球76g進口條碼為:8801062633456加工後條碼:8801062271399\n2015-07月第一批進口,由84g→76g 更改克數\n※(76g中文標+(CK0011)73g舊條碼)"},"18801062633460":{"i":"CK9032","n":"LOTTE Crunky 巧克力球(76g)","c":24,"s":"18°~22°","a":"LOTTE Crunky 巧克力球76g進口條碼為:8801062633456加工後條碼:8801062271399\n2015-07月第一批進口,由84g→76g 更改克數\n※(76g中文標+(CK0011)73g舊條碼)"},"8801062863839":{"i":"CK9072","n":"LOTTE ZERO 零砂糖脆心可可球","c":32,"s":"18°~22°","a":"非中文化"},"8801062863822":{"i":"CK9072","n":"LOTTE ZERO 零砂糖脆心可可球","c":32,"s":"18°~22°","a":"非中文化"},"18801062863829":{"i":"CK9072","n":"LOTTE ZERO 零砂糖脆心可可球","c":32,"s":"18°~22°","a":"非中文化"},"8801062332113":{"i":"DK0019","n":"LOTTE Anytime 薄荷三層糖60g","c":20,"s":"24°~26°","a":"LOTTE Anytime 薄荷三層糖60g\n-降克數申請新品號\n-MKT將提供不超過0.5公克的糖數值文件(實際0.68公克), 得以零表示, 故不蓋外包裝sugar free"},"68801062332115":{"i":"DK0019","n":"LOTTE Anytime 薄荷三層糖60g","c":20,"s":"24°~26°","a":"LOTTE Anytime 薄荷三層糖60g\n-降克數申請新品號\n-MKT將提供不超過0.5公克的糖數值文件(實際0.68公克), 得以零表示, 故不蓋外包裝sugar free"},"8801062221974":{"i":"DK9012","n":"LOTTE檸檬糖17.5g","c":48,"s":"24°~26°","a":"LOTTE檸檬 糖17.5g\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C"},"8801062221981":{"i":"DK9012","n":"LOTTE檸檬糖17.5g","c":48,"s":"24°~26°","a":"LOTTE檸檬 糖17.5g\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C"},"38801062221975":{"i":"DK9012","n":"LOTTE檸檬糖17.5g","c":48,"s":"24°~26°","a":"LOTTE檸檬 糖17.5g\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C"},"8801062221196":{"i":"DK9084","n":"LOTTE 檸檬糖65g(罐裝) for PX","c":24,"s":"24°~26°","a":"LOTTE 檸檬糖65g(罐裝) for PX\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C"},"880106221202":{"i":"DK9084","n":"LOTTE 檸檬糖65g(罐裝) for PX","c":24,"s":"24°~26°","a":"LOTTE 檸檬糖65g(罐裝) for PX\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C"},"38801062221197":{"i":"DK9084","n":"LOTTE 檸檬糖65g(罐裝) for PX","c":24,"s":"24°~26°","a":"LOTTE 檸檬糖65g(罐裝) for PX\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C"},"8801062009527":{"i":"DK9085","n":"LOTTE 青葡萄糖153g for PX","c":20,"s":"24°~26°","a":"中文化\n2018-7月改克重"},"58801062009522":{"i":"DK9085","n":"LOTTE 青葡萄糖153g for PX","c":20,"s":"24°~26°","a":"中文化\n2018-7月改克重"},"8801062870301":{"i":"DK9078","n":"LOTTE ZERO零砂糖水果風味軟糖","c":40,"s":"24°~26°","a":"非中文化"},"8801062870295":{"i":"DK9078","n":"LOTTE ZERO零砂糖水果風味軟糖","c":40,"s":"24°~26°","a":"非中文化"},"18801062870292":{"i":"DK9078","n":"LOTTE ZERO零砂糖水果風味軟糖","c":40,"s":"24°~26°","a":"非中文化"},"8801062863754":{"i":"DK9088","n":"LOTTE 蜜桃糖153g","c":20,"s":"24°~26°","a":"改成中文化, 改外箱條碼"},"18801062859198":{"i":"DK9079","n":"LOTTE 蜜桃糖153g","c":20,"s":"24°~26°","a":"非中文化"},"8801062332250":{"i":"DK9080","n":"LOTTE Anytime三層糖—檸檬薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化"},"58801062332255":{"i":"DK9080","n":"LOTTE Anytime三層糖—檸檬薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化"},"8801062335619":{"i":"DK9087","n":"樂天Anytime三層糖梅子蜜桃薄荷風味超值組(Costco出貨專用)","c":8,"s":"24°~26°","a":"若不用開上蓋. 可以只要一個品號. 但因為要開上蓋, 所以另申請加工後的品號"},"38801062335610":{"i":"DK9081","n":"LOTTE Anytime三層糖—梅子&蜜桃薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化"},"8801062239078":{"i":"DK9082","n":"LOTTE Anytime三層糖—牛奶薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化, 2025/4/21改品名, 牛奶薄荷風味"},"38801062479925":{"i":"DK9082","n":"LOTTE Anytime三層糖—牛奶薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化, 2025/4/21改品名, 牛奶薄荷風味"},"8801062865666":{"i":"DK9083","n":"LOTTE ZERO零砂糖水果風味軟糖量販包","c":18,"s":"24°~26°","a":"非中文化"},"8801062865659":{"i":"DK9083","n":"LOTTE ZERO零砂糖水果風味軟糖量販包","c":18,"s":"24°~26°","a":"非中文化"},"18801062865656":{"i":"DK9083","n":"LOTTE ZERO零砂糖水果風味軟糖量販包","c":18,"s":"24°~26°","a":"非中文化"},"48801062335945":{"i":"DK9087","n":"樂天Anytime三層糖梅子蜜桃薄荷風味超值組(Costco出貨專用)","c":8,"s":"24°~26°","a":"若不用開上蓋. 可以只要一個品號. 但因為要開上蓋, 所以另申請加工後的品號"},"68801062863756":{"i":"DK9088","n":"LOTTE 蜜桃糖153g","c":20,"s":"24°~26°","a":"改成中文化, 改外箱條碼"},"8802259021360":{"i":"DK9089","n":"LOTTE ZERO零砂糖紅豆羊羹量販包300g","c":16,"s":"24°~26°","a":"LOTTE ZERO零砂糖紅豆羊羹量販包300g"},"18802259021367":{"i":"DK9089","n":"LOTTE ZERO零砂糖紅豆羊羹量販包300g","c":16,"s":"24°~26°","a":"LOTTE ZERO零砂糖紅豆羊羹量販包300g"},"8802259022664":{"i":"DK9090","n":"LOTTE ZERO零砂糖香柚風味軟糖量販包238g","c":18,"s":"24°~26°","a":"LOTTE ZERO零砂糖香柚風味軟糖量販包238g"},"18802259022661":{"i":"DK9090","n":"LOTTE ZERO零砂糖香柚風味軟糖量販包238g","c":18,"s":"24°~26°","a":"LOTTE ZERO零砂糖香柚風味軟糖量販包238g"},"8852008303087":{"i":"BT9116","n":"樂天小熊餅家庭號－萬聖節限定版195g","c":10,"s":"24°~26°","a":"巧19.5*5包 / 草19.5*5包"},"58852008303099":{"i":"BT9116","n":"樂天小熊餅家庭號－萬聖節限定版195g","c":10,"s":"24°~26°","a":"巧19.5*5包 / 草19.5*5包"},"4712834456439":{"i":"GW0156","n":"樂天小熊餅-巧克力風味分享包96g","c":16,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x8包\n'延用BT0044條碼"},"04712834456439":{"i":"GW0156","n":"樂天小熊餅-巧克力風味分享包96g","c":16,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x8包\n'延用BT0044條碼"},"8852008300185":{"i":"BT0060","n":"樂天小熊餅－巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008300192":{"i":"BT0060","n":"樂天小熊餅－巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"5 885 2008 30020 3":{"i":"BT0060","n":"樂天小熊餅－巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008300215":{"i":"BT0061","n":"樂天小熊餅－草莓風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008300222":{"i":"BT0061","n":"樂天小熊餅－草莓風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"5 885 2008 30023 4":{"i":"BT0061","n":"樂天小熊餅－草莓風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008300765":{"i":"BT0062","n":"樂天小熊餅－牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008300772":{"i":"BT0062","n":"樂天小熊餅－牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"58852008300784":{"i":"BT0062","n":"樂天小熊餅－牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"885 2008 300253":{"i":"BT0065","n":"樂天小熊餅家庭號－巧克力風味195g","c":10,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"5 885 2008 30026 5":{"i":"BT0073","n":"樂天小熊餅家庭號－巧克力風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"885 2008 300284":{"i":"BT9122","n":"樂天小熊餅－家庭號草莓風味195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅-家庭號草莓風味195g\n條碼延用"},"5 885 2008 30029 6":{"i":"BT9122","n":"樂天小熊餅－家庭號草莓風味195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅-家庭號草莓風味195g\n條碼延用"},"8852008300970":{"i":"BT0067","n":"樂天小熊餅家庭號－牛奶風味195g","c":10,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"58852008300982":{"i":"BT0075","n":"樂天小熊餅家庭號－牛奶風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"8852008304848":{"i":"BT0063","n":"樂天小熊餅－濃黑巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008304855":{"i":"BT0063","n":"樂天小熊餅－濃黑巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"58852008304867":{"i":"BT0063","n":"樂天小熊餅－濃黑巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008304909":{"i":"BT9123","n":"樂天小熊餅家庭號－濃黑巧克力風味195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號-濃厚黑可可風味195g\n全中文化"},"58852008304911":{"i":"BT9123","n":"樂天小熊餅家庭號－濃黑巧克力風味195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號-濃厚黑可可風味195g\n全中文化"},"8852008305401":{"i":"BT0070","n":"樂天小熊餅串串包－巧克力風味56g","c":24,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分\n樂天小熊餅串串包-巧克力風味56g\n 6串/中盒 , 4中盒/箱  （4包/串, 銷售單位：串)"},"58852008305413":{"i":"BT0070","n":"樂天小熊餅串串包－巧克力風味56g","c":24,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分\n樂天小熊餅串串包-巧克力風味56g\n 6串/中盒 , 4中盒/箱  （4包/串, 銷售單位：串)"},"8852008305654":{"i":"BT0071","n":"樂天小熊餅－宇治抹茶風味33g","c":48,"s":"24°~26°","a":"2026年2月改成分"},"8852008305661":{"i":"BT0071","n":"樂天小熊餅－宇治抹茶風味33g","c":48,"s":"24°~26°","a":"2026年2月改成分"},"58852008305673":{"i":"BT0071","n":"樂天小熊餅－宇治抹茶風味33g","c":48,"s":"24°~26°","a":"2026年2月改成分"},"8852008305722":{"i":"BT0072","n":"樂天小熊餅家庭號－宇治抹茶風味175g","c":10,"s":"24°~26°","a":"2026年2月改成分"},"58852008305734":{"i":"BT0072","n":"樂天小熊餅家庭號－宇治抹茶風味175g","c":10,"s":"24°~26°","a":"2026年2月改成分"},"8852008304879":{"i":"BT0064","n":"樂天小熊餅－北海道牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008304886":{"i":"BT0064","n":"樂天小熊餅－北海道牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"58852008304898":{"i":"BT0064","n":"樂天小熊餅－北海道牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"8852008304923":{"i":"BT0069","n":"樂天小熊餅家庭號－北海道牛奶風味195g","c":10,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分"},"58852008304935":{"i":"BT0077","n":"樂天小熊餅家庭號－北海道牛奶風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"4712834451670":{"i":"BT0073","n":"樂天小熊餅家庭號－巧克力風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"4712834451687":{"i":"BT0074","n":"樂天小熊餅家庭號－草莓風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"4712834451694":{"i":"BT0075","n":"樂天小熊餅家庭號－牛奶風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"4712834451700":{"i":"BT0076","n":"樂天小熊餅家庭號－濃黑巧克力風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"4712834451717":{"i":"BT0077","n":"樂天小熊餅家庭號－北海道牛奶風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。"},"8852008303131":{"i":"BT9131","n":"樂天小熊餅家庭號－聖誕節限定版195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號-聖誕節限定版195g\nchoco19.5g*5+Straw19.5*5"},"58852008303143":{"i":"BT9131","n":"樂天小熊餅家庭號－聖誕節限定版195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號-聖誕節限定版195g\nchoco19.5g*5+Straw19.5*5"},"8852008302578":{"i":"BT9044","n":"樂天小熊餅家庭號－新年限定版195g","c":10,"s":"24°~26°","a":"choco19.5g*5+Straw19.5*5+揮春*2"},"58852008302580":{"i":"BT9044","n":"樂天小熊餅家庭號－新年限定版195g","c":10,"s":"24°~26°","a":"choco19.5g*5+Straw19.5*5+揮春*2"},"8852008303926":{"i":"BT9115","n":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK","c":48,"s":"24°~26°","a":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK"},"8852008303933":{"i":"BT9115","n":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK","c":48,"s":"24°~26°","a":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK"},"58852008303945":{"i":"BT9115","n":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK","c":48,"s":"24°~26°","a":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK"},"8852008305371":{"i":"BT9120","n":"樂天小熊餅聖誕節限定版－巧克力風味37g for 7E","c":48,"s":"24°~26°","a":"BT9083 改4入一OPP for 7E"},"8852008305388":{"i":"BT9120","n":"樂天小熊餅聖誕節限定版－巧克力風味37g for 7E","c":48,"s":"24°~26°","a":"BT9083 改4入一OPP for 7E"},"58852008305390":{"i":"BT9120","n":"樂天小熊餅聖誕節限定版－巧克力風味37g for 7E","c":48,"s":"24°~26°","a":"BT9083 改4入一OPP for 7E"},"8852008510010":{"i":"BT9132","n":"LOTTE Toppo巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"8852008510027":{"i":"BT9132","n":"LOTTE Toppo巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"58852008510053":{"i":"BT9132","n":"LOTTE Toppo巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"8852008510492":{"i":"BT9133","n":"LOTTE TOPPO濃厚巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"8852008510508":{"i":"BT9133","n":"LOTTE TOPPO濃厚巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"58852008510510":{"i":"BT9133","n":"LOTTE TOPPO濃厚巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"8852008511239":{"i":"BT9134","n":"LOTTE TOPPO香草草莓口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"8852008511246":{"i":"BT9134","n":"LOTTE TOPPO香草草莓口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"58852008511258":{"i":"BT9134","n":"LOTTE TOPPO香草草莓口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化"},"8852008305845":{"i":"BT9111","n":"樂天小熊餅伴手禮版－鳳梨口味108g","c":10,"s":"24°~26°","a":"泰國已貼中文標, 進口時中文化\n樂天小熊餅-鳳梨口味12g  x9包"},"58852008305857":{"i":"BT9111","n":"樂天小熊餅伴手禮版－鳳梨口味108g","c":10,"s":"24°~26°","a":"泰國已貼中文標, 進口時中文化\n樂天小熊餅-鳳梨口味12g  x9包"},"8852008302172":{"i":"BT9112","n":"樂天小熊餅伴手禮版－芒果口味108g","c":10,"s":"24°~26°","a":"泰國已貼中文標, 進口時中文化\n樂天小熊餅-芒果口味12g  x9包"},"58852008302184":{"i":"BT9112","n":"樂天小熊餅伴手禮版－芒果口味108g","c":10,"s":"24°~26°","a":"泰國已貼中文標, 進口時中文化\n樂天小熊餅-芒果口味12g  x9包"},"8852008306132":{"i":"BT9117","n":"樂天小熊餅－唐吉訶德限定120g","c":10,"s":"24°~26°","a":"濃黑12*5包 / 煉12*5包 , 中文化共版"},"58852008306144":{"i":"BT9117","n":"樂天小熊餅－唐吉訶德限定120g","c":10,"s":"24°~26°","a":"濃黑12*5包 / 煉12*5包 , 中文化共版"},"8852008306255":{"i":"BT9121","n":"樂天小熊餅復活節限定版－巧克力風味37g","c":48,"s":"24°~26°","a":"新品"},"8852008306262":{"i":"BT9121","n":"樂天小熊餅復活節限定版－巧克力風味37g","c":48,"s":"24°~26°","a":"新品"},"58852008306274":{"i":"BT9121","n":"樂天小熊餅復活節限定版－巧克力風味37g","c":48,"s":"24°~26°","a":"新品"},"4712834451571":{"i":"BT9124","n":"樂天小熊餅散裝－巧克力風味12g for Coupang","c":140,"s":"24°~26°","a":"1.BT9124為整箱販售:中標要貼在外箱上\n2.有貼中標外箱需用其它顏色膠帶區分, 以利海關或fda官員查驗"},"8852008306538":{"i":"BT9135","n":"樂天小熊餅－泰奶風味33g","c":48,"s":"24°~26°","a":"樂天小熊餅－泰奶風味33g"},"8852008306545":{"i":"BT9135","n":"樂天小熊餅－泰奶風味33g","c":48,"s":"24°~26°","a":"樂天小熊餅－泰奶風味33g"},"58852008306557":{"i":"BT9135","n":"樂天小熊餅－泰奶風味33g","c":48,"s":"24°~26°","a":"樂天小熊餅－泰奶風味33g"},"8852008306583":{"i":"BT9136","n":"樂天小熊餅家庭號－泰奶風味175g","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號－泰奶風味175g"},"58852008306595":{"i":"BT9136","n":"樂天小熊餅家庭號－泰奶風味175g","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號－泰奶風味175g"},"8852008306569":{"i":"BT9137","n":"樂天小熊餅手提雲朵包組","c":6,"s":"24°~26°","a":"樂天小熊餅手提雲朵包組"},"58852008306571":{"i":"BT9137","n":"樂天小熊餅手提雲朵包組","c":6,"s":"24°~26°","a":"樂天小熊餅手提雲朵包組"},"8852008306620":{"i":"BT9138","n":"樂天小熊餅家庭號－開學限定版195g","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號－開學限定版195g"},"58852008306632":{"i":"BT9138","n":"樂天小熊餅家庭號－開學限定版195g","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號－開學限定版195g"},"8935341300729":{"i":"BV0007","n":"LOTTE巧克力布雪蛋糕(6顆裝)","c":16,"s":"24°~26°","a":"2026.4月改成分, 需附PHO"},"08935341300736":{"i":"BV0007","n":"LOTTE巧克力布雪蛋糕(6顆裝)","c":16,"s":"24°~26°","a":"2026.4月改成分, 需附PHO"},"8935341300620":{"i":"BV0009","n":"LOTTE巧克力布雪蛋糕(12顆裝) for 和泰汽車","c":8,"s":"24°~26°","a":"2026.4月改成分, 需附PHO"},"08935341300637":{"i":"BV0009","n":"LOTTE巧克力布雪蛋糕(12顆裝) for 和泰汽車","c":8,"s":"24°~26°","a":"2026.4月改成分, 需附PHO"},"8935341301122":{"i":"BV0005","n":"LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)","c":16,"s":"24°~26°","a":"LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)"},"08935341301337":{"i":"BV0005","n":"LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)","c":16,"s":"24°~26°","a":"LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)"},"8935341301023":{"i":"BV0006","n":"LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)","c":8,"s":"24°~26°","a":"LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)"},"08935341301238":{"i":"BV0006","n":"LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)","c":8,"s":"24°~26°","a":"LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)"},"8935341301528":{"i":"BV0010","n":"LOTTE巧克力派－日式抹茶口味(6顆裝)","c":16,"s":"24°~26°","a":"非中文化"},"8935341301733":{"i":"BV0010","n":"LOTTE巧克力派－日式抹茶口味(6顆裝)","c":16,"s":"24°~26°","a":"非中文化"},"8935341301627":{"i":"BV0011","n":"LOTTE巧克力派－日式抹茶口味(12顆裝)","c":8,"s":"24°~26°","a":"非中文化"},"8935341301832":{"i":"BV0011","n":"LOTTE巧克力派－日式抹茶口味(12顆裝)","c":8,"s":"24°~26°","a":"非中文化"},"8934677000914":{"i":"AV0004","n":"LOTTE XYLITOL木糖醇無糖口香糖－萊姆薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-萊姆薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"8934677001911":{"i":"AV0004","n":"LOTTE XYLITOL木糖醇無糖口香糖－萊姆薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-萊姆薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"08934677004912":{"i":"AV0004","n":"LOTTE XYLITOL木糖醇無糖口香糖－萊姆薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-萊姆薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"8934677000938":{"i":"AV0005","n":"LOTTE XYLITOL木糖醇無糖口香糖－清新薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-清新薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"8934677001935":{"i":"AV0005","n":"LOTTE XYLITOL木糖醇無糖口香糖－清新薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-清新薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"08934677004936":{"i":"AV0005","n":"LOTTE XYLITOL木糖醇無糖口香糖－清新薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-清新薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"8934677000921":{"i":"AV0006","n":"LOTTE XYLITOL木糖醇無糖口香糖－藍莓薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-藍莓薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"8934677001928":{"i":"AV0006","n":"LOTTE XYLITOL木糖醇無糖口香糖－藍莓薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-藍莓薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"08934677004929":{"i":"AV0006","n":"LOTTE XYLITOL木糖醇無糖口香糖－藍莓薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-藍莓薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)"},"4712834456071":{"i":"FW0071","n":"樂天福氣派禮盒(2026CNY)","c":10,"s":"24°~26°","a":"紅巧派 x 6pcs\n黑巧派 x 6pcs \n蛋黃派 x 4pcs\n草莓蛋黃派 22g x4pcs \n(散裝)"},"04712834456071":{"i":"FW0071","n":"樂天福氣派禮盒(2026CNY)","c":10,"s":"24°~26°","a":"紅巧派 x 6pcs\n黑巧派 x 6pcs \n蛋黃派 x 4pcs\n草莓蛋黃派 22g x4pcs \n(散裝)"},"4712834456484":{"i":"FW0076","n":"樂天小熊好運筒(2025CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*10pcs\nBT9094樂天小熊餅-草莓風味12g*10pcs\nBT9097樂天小熊餅-香濃煉乳12g*5pcs"},"04712834456484":{"i":"FW0076","n":"樂天小熊好運筒(2025CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*10pcs\nBT9094樂天小熊餅-草莓風味12g*10pcs\nBT9097樂天小熊餅-香濃煉乳12g*5pcs"},"4712834456729":{"i":"FW0090","n":"樂天小熊幸福禮盒(2025CNY)","c":6,"s":"24°~26°","a":"贈品-樂天小熊大餅乾枕(白)(SW9227) / (黑)(SW9226)\n樂天小熊餅-巧克力風味12g*3\n樂天小熊餅-草莓風味 12g*3\n樂天小熊餅-濃黑巧克力風味12g*2"},"04712834456729":{"i":"FW0090","n":"樂天小熊幸福禮盒(2025CNY)","c":6,"s":"24°~26°","a":"贈品-樂天小熊大餅乾枕(白)(SW9227) / (黑)(SW9226)\n樂天小熊餅-巧克力風味12g*3\n樂天小熊餅-草莓風味 12g*3\n樂天小熊餅-濃黑巧克力風味12g*2"},"4712834456903":{"i":"FW0083","n":"LOTTE PEPERO歡慶禮盒(2025CNY)","c":6,"s":"18°~22","a":"BK9156巧克力棒47g*1\nBK9157 仁巧克力棒32g*1\nBK9158 白巧克力棒32g*1\nBK9071 黑餅乾巧克力棒32g*1\nBK9233 脆心巧克力棒39g*1\nBK9244 杏仁白巧克力棒32g*1"},"04712834456903":{"i":"FW0083","n":"LOTTE PEPERO歡慶禮盒(2025CNY)","c":6,"s":"18°~22","a":"BK9156巧克力棒47g*1\nBK9157 仁巧克力棒32g*1\nBK9158 白巧克力棒32g*1\nBK9071 黑餅乾巧克力棒32g*1\nBK9233 脆心巧克力棒39g*1\nBK9244 杏仁白巧克力棒32g*1"},"4712834457054":{"i":"FW0084","n":"樂天派經典禮盒 (2024CNY)","c":6,"s":"24°~26°","a":"贈品-TBC\n樂天巧克力派 28g*5pcs\n樂天黑巧克力派 28g*5pcs\n樂天蛋黃派 23g*3pcs\n(散裝)"},"04712834457054":{"i":"FW0084","n":"樂天派經典禮盒 (2024CNY)","c":6,"s":"24°~26°","a":"贈品-TBC\n樂天巧克力派 28g*5pcs\n樂天黑巧克力派 28g*5pcs\n樂天蛋黃派 23g*3pcs\n(散裝)"},"4712834457061":{"i":"FW0085","n":"樂天派對禮盒(2026CNY)","c":12,"s":"24°~26°","a":"紅巧派 28g*6 x2pks\n蛋黃派 23g*6 x1pks\n(原品包裝)"},"04712834457061":{"i":"FW0085","n":"樂天派對禮盒(2026CNY)","c":12,"s":"24°~26°","a":"紅巧派 28g*6 x2pks\n蛋黃派 23g*6 x1pks\n(原品包裝)"},"4712834457078":{"i":"FW0086","n":"樂天派雙喜禮盒(2025CNY)","c":12,"s":"24°~26°","a":"紅巧派 28g*6 x2pks\n蛋黃派 23g*6 x1pks\n(原品包裝)"},"04712834457078":{"i":"FW0086","n":"樂天派雙喜禮盒(2025CNY)","c":12,"s":"24°~26°","a":"紅巧派 28g*6 x2pks\n蛋黃派 23g*6 x1pks\n(原品包裝)"},"4712834457115":{"i":"FW0088","n":"樂天小熊餅經典六角禮盒(2024CNY)","c":6,"s":"24°~27°","a":"樂天小熊餅-巧克力風味12g x4包\n樂天小熊餅-草莓風味12g x4包\n樂天小熊餅-濃黑巧克力風味12g x4包\nSW9223贈品-樂天小熊旅行分裝瓶"},"04712834457115":{"i":"FW0088","n":"樂天小熊餅經典六角禮盒(2024CNY)","c":6,"s":"24°~27°","a":"樂天小熊餅-巧克力風味12g x4包\n樂天小熊餅-草莓風味12g x4包\n樂天小熊餅-濃黑巧克力風味12g x4包\nSW9223贈品-樂天小熊旅行分裝瓶"},"4712834457146":{"i":"FW0091","n":"樂天小熊餅經典六角禮盒(2025CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*4pcs\nBT9096樂天小熊餅-濃黑12g*4pcs\nSW9243贈品-樂天小熊和風玻璃杯"},"04712834457146":{"i":"FW0091","n":"樂天小熊餅經典六角禮盒(2025CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*4pcs\nBT9096樂天小熊餅-濃黑12g*4pcs\nSW9243贈品-樂天小熊和風玻璃杯"},"4712834457238":{"i":"FW0092","n":"樂天派經典禮盒 (2025CNY)","c":12,"s":"24°~26°","a":"紅巧派(28g*6)*2盒\n蛋黃派(23g*6)*1盒"},"04712834457238":{"i":"FW0092","n":"樂天派經典禮盒 (2025CNY)","c":12,"s":"24°~26°","a":"紅巧派(28g*6)*2盒\n蛋黃派(23g*6)*1盒"},"4712834457276":{"i":"FW0093","n":"LOTTE PEPERO萬事棒棒禮盒(2025CNY)","c":10,"s":"18°~23°","a":"PEPERO杏仁*2&白巧*2&黑餅乾*2"},"04712834457276":{"i":"FW0093","n":"LOTTE PEPERO萬事棒棒禮盒(2025CNY)","c":10,"s":"18°~23°","a":"PEPERO杏仁*2&白巧*2&黑餅乾*2"},"4712834457283":{"i":"FW0094","n":"樂天小熊圓滿禮盒(2025CNY)","c":10,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*6pcs\nBT9094樂天小熊餅-草莓風味12g*6pcs\nBT9096樂天小熊餅-濃黑12g*6pcs"},"04712834457283":{"i":"FW0094","n":"樂天小熊圓滿禮盒(2025CNY)","c":10,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*6pcs\nBT9094樂天小熊餅-草莓風味12g*6pcs\nBT9096樂天小熊餅-濃黑12g*6pcs"},"4712834457399":{"i":"FW0096","n":"樂天小熊餅經典六角禮盒(2026CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*4pcs\nBT9096樂天小熊餅-濃黑12g*4pcs\nSW9270贈品-樂天小熊解壓零錢包"},"04712834457399":{"i":"FW0096","n":"樂天小熊餅經典六角禮盒(2026CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*4pcs\nBT9096樂天小熊餅-濃黑12g*4pcs\nSW9270贈品-樂天小熊解壓零錢包"},"4712834457412":{"i":"FW0097","n":"樂天派經典禮盒 (2026CNY)","c":12,"s":"18°~23°","a":"7-11_2026年CNY禮盒:【樂天派經典禮盒】，目前採購正在走建檔流程，但2025年樂天派經典禮盒主檔還存在於客戶系統中\n導致條碼重複無法建檔，再麻煩協助更改2026年CNY禮盒:【樂天派經典禮盒】之商品條碼，以利建檔作業，謝謝\n紅巧派(28g*6)*2盒\n蛋黃派(23g*6)*1盒"},"04712834457412":{"i":"FW0097","n":"樂天派經典禮盒 (2026CNY)","c":12,"s":"18°~23°","a":"7-11_2026年CNY禮盒:【樂天派經典禮盒】，目前採購正在走建檔流程，但2025年樂天派經典禮盒主檔還存在於客戶系統中\n導致條碼重複無法建檔，再麻煩協助更改2026年CNY禮盒:【樂天派經典禮盒】之商品條碼，以利建檔作業，謝謝\n紅巧派(28g*6)*2盒\n蛋黃派(23g*6)*1盒"},"4712834457436":{"i":"FW0098","n":"樂天小熊餅熊萌陶瓷碗組(2026 CNY FM)","c":12,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*3pcs\nSW9275    贈品-樂天小熊造型陶瓷碗"},"04712834457436":{"i":"FW0098","n":"樂天小熊餅熊萌陶瓷碗組(2026 CNY FM)","c":12,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*3pcs\nSW9275    贈品-樂天小熊造型陶瓷碗"},"4712834455111":{"i":"GW0012","n":"樂天雙享派超值組合包","c":12,"s":"24°~26°","a":"巧克力派(6顆裝)*1\n蛋黃派(6顆裝)*1"},"14712834455118":{"i":"GW0012","n":"樂天雙享派超值組合包","c":12,"s":"24°~26°","a":"巧克力派(6顆裝)*1\n蛋黃派(6顆裝)*1"},"4712834455166":{"i":"GW0058","n":"LOTTE XYLITOL護牙分享包(全聯版)","c":48,"s":"24°~26°","a":"LOTTE XYLITOL護牙分享包(全聯版)\n-(萊姆-清新-藍莓 口味包裝(26.1g*3)\n商品/中盒/外箱條碼與GW0017相同\n包材: 商品OPP袋及外箱重新製作。中盒與GW0017共用"},"4712834455173":{"i":"GW0058","n":"LOTTE XYLITOL護牙分享包(全聯版)","c":48,"s":"24°~26°","a":"LOTTE XYLITOL護牙分享包(全聯版)\n-(萊姆-清新-藍莓 口味包裝(26.1g*3)\n商品/中盒/外箱條碼與GW0017相同\n包材: 商品OPP袋及外箱重新製作。中盒與GW0017共用"},"04712834455166":{"i":"GW0058","n":"LOTTE XYLITOL護牙分享包(全聯版)","c":48,"s":"24°~26°","a":"LOTTE XYLITOL護牙分享包(全聯版)\n-(萊姆-清新-藍莓 口味包裝(26.1g*3)\n商品/中盒/外箱條碼與GW0017相同\n包材: 商品OPP袋及外箱重新製作。中盒與GW0017共用"},"4712834455180":{"i":"GW0060","n":"樂天小熊餅超值美味組合","c":10,"s":"24°~26°","a":"樂天小熊餅超值美味組合(鈣添加)\nKoala chocolate 37g風味*1+\nKoala strawberry 37g風味*1+\nKoala milk 37g風味*1  (2018/6月換設計)"},"14712834455187":{"i":"GW0060","n":"樂天小熊餅超值美味組合","c":10,"s":"24°~26°","a":"樂天小熊餅超值美味組合(鈣添加)\nKoala chocolate 37g風味*1+\nKoala strawberry 37g風味*1+\nKoala milk 37g風味*1  (2018/6月換設計)"},"4712834456378":{"i":"GW0100","n":"樂天小熊餅超值分享組","c":12,"s":"24°~26°","a":"樂天小熊餅-濃黑巧克力風味37g*1pcs\n樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1pcs\n樂天小熊餅-牛奶風味37g*1pcs"},"04712834456378":{"i":"GW0100","n":"樂天小熊餅超值分享組","c":12,"s":"24°~26°","a":"樂天小熊餅-濃黑巧克力風味37g*1pcs\n樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1pcs\n樂天小熊餅-牛奶風味37g*1pcs"},"4712834456828":{"i":"GW0131","n":"樂天小熊餅美味分享組","c":12,"s":"24°~26°","a":"BT0053樂天小熊餅-濃黑巧克力風味37g*1\nBT0047樂天小熊餅-巧克力風味37g*1pcs\nBT0048樂天小熊餅-草莓風味37g*1pcs\nBT0058北海道牛奶37g*1pcs"},"04712834456828":{"i":"GW0131","n":"樂天小熊餅美味分享組","c":12,"s":"24°~26°","a":"BT0053樂天小熊餅-濃黑巧克力風味37g*1\nBT0047樂天小熊餅-巧克力風味37g*1pcs\nBT0048樂天小熊餅-草莓風味37g*1pcs\nBT0058北海道牛奶37g*1pcs"},"4712834456972":{"i":"GW0145","n":"樂天派綜合分享包","c":12,"s":"24°~26°","a":"BK0041巧派6入*2\nBK0017蛋派6入*1"},"04712834456972":{"i":"GW0145","n":"樂天派綜合分享包","c":12,"s":"24°~26°","a":"BK0041巧派6入*2\nBK0017蛋派6入*1"},"4712834456989":{"i":"GW0146","n":"樂天派金平安箱","c":4,"s":"24°~26°","a":"BK0018蛋派10入*3包"},"04712834456989":{"i":"GW0146","n":"樂天派金平安箱","c":4,"s":"24°~26°","a":"BK0018蛋派10入*3包"},"4712834456996":{"i":"GW0147","n":"LOTTE Pepero綜合享樂組","c":10,"s":"18°~22°","a":"BK9274 巧克力棒47g*2\nBK9275 杏仁巧克力棒32g*2\nBK9276 白巧克力棒32g*2"},"04712834456996":{"i":"GW0147","n":"LOTTE Pepero綜合享樂組","c":10,"s":"18°~22°","a":"BK9274 巧克力棒47g*2\nBK9275 杏仁巧克力棒32g*2\nBK9276 白巧克力棒32g*2"},"4712834457016":{"i":"GW0149","n":"樂天蛋黃派組合包","c":12,"s":"24°~26°","a":"BK0017蛋派6入*3"},"04712834457016":{"i":"GW0149","n":"樂天蛋黃派組合包","c":12,"s":"24°~26°","a":"BK0017蛋派6入*3"},"4712834457047":{"i":"GW0152","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*1&白巧*1&黑餅乾*2&\nSW9216 贈品-LOTTE PEPERO 不鏽鋼水果叉2入裝"},"04712834457047":{"i":"GW0152","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*1&白巧*1&黑餅乾*2&\nSW9216 贈品-LOTTE PEPERO 不鏽鋼水果叉2入裝"},"4712834457153":{"i":"GW0157","n":"樂天小熊餅-草莓風味分享包96g","c":16,"s":"24°~26°","a":"樂天小熊餅-草莓風味12g x8包"},"04712834457153":{"i":"GW0157","n":"樂天小熊餅-草莓風味分享包96g","c":16,"s":"24°~26°","a":"樂天小熊餅-草莓風味12g x8包"},"4712834457160":{"i":"GW0178","n":"樂天小熊餅公仔存錢筒","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x2包、\n樂天小熊餅-草莓風味12g x2包\n樂天小熊餅-濃黑巧克力風味12gx2包\nSW9234贈品-樂天小熊公仔存錢筒"},"04712834457160":{"i":"GW0178","n":"樂天小熊餅公仔存錢筒","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x2包、\n樂天小熊餅-草莓風味12g x2包\n樂天小熊餅-濃黑巧克力風味12gx2包\nSW9234贈品-樂天小熊公仔存錢筒"},"4712834457191":{"i":"GW0161","n":"樂天甜蜜雙星組","c":8,"s":"24°~26°","a":"蛋黃派23g*5顆\n布雪27g*10"},"04712834457191":{"i":"GW0161","n":"樂天甜蜜雙星組","c":8,"s":"24°~26°","a":"蛋黃派23g*5顆\n布雪27g*10"},"4712834457207":{"i":"GW0162","n":"樂天小熊餅豪飽包","c":8,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9261贈品-樂天小熊保冷保溫瓶"},"04712834457207":{"i":"GW0162","n":"樂天小熊餅豪飽包","c":8,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9261贈品-樂天小熊保冷保溫瓶"},"4712834457269":{"i":"GW0167","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*1&白巧*2&黑餅乾*1&\nSW9246贈品-LOTTE PEPERO造型隨身鏡手機架"},"04712834457269":{"i":"GW0167","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*1&白巧*2&黑餅乾*1&\nSW9246贈品-LOTTE PEPERO造型隨身鏡手機架"},"4712834457313":{"i":"GW0169","n":"樂天小熊餅巧克力超值豪華組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12克*20pcs"},"04712834457313":{"i":"GW0169","n":"樂天小熊餅巧克力超值豪華組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12克*20pcs"},"4712834457320":{"i":"GW0170","n":"樂天小熊餅圓筒包組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12克*2pcs\n樂天小熊餅-草莓風味12克*2pcs\n樂天小熊餅-濃黑巧克力風味12克*2pcs\nSW9260贈品-樂天小熊造型圓筒包"},"04712834457320":{"i":"GW0170","n":"樂天小熊餅圓筒包組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12克*2pcs\n樂天小熊餅-草莓風味12克*2pcs\n樂天小熊餅-濃黑巧克力風味12克*2pcs\nSW9260贈品-樂天小熊造型圓筒包"},"4712834456835":{"i":"GW0171","n":"LOTTE Pepero強棒組_2025","c":1,"s":"18°~22","a":"口味: PEPERO 杏仁128g *1 +白巧128g *1 +草莓32g *1 +黑餅乾32g *1+脆心39g *1"},"棧板出貨":{"i":"GW0190","n":"樂天福滿箱","c":1,"s":"18°~22","a":"樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1pcs\nLOTTE蛋黃派6入*1pcs\nLOTTE巧克力派6入*1pcs\nLOTTE Pepero杏仁分享盒*1pcs"},"4712834457344":{"i":"GW0173","n":"樂天小熊餅置物籃組","c":1,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9265贈品-樂天小熊置物籃"},"4712834457351":{"i":"GW0174","n":"樂天小熊餅大熊桶","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*25pcs"},"04712834457351":{"i":"GW0174","n":"樂天小熊餅大熊桶","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*25pcs"},"4712834457368":{"i":"GW0175","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*2&白巧*2\nSW9266贈品-LOTTE PEPERO FRIENDS造型梅森杯"},"04712834457368":{"i":"GW0175","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*2&白巧*2\nSW9266贈品-LOTTE PEPERO FRIENDS造型梅森杯"},"4712834457375":{"i":"GW0176","n":"樂天小熊餅暖萌組","c":7,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\n贈品-樂天小熊晴雨傘"},"04712834457375":{"i":"GW0176","n":"樂天小熊餅暖萌組","c":7,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\n贈品-樂天小熊晴雨傘"},"4712834457382":{"i":"GW0177","n":"LOTTE Pepero x Stray Kids豪華珍藏組16pk for 7E","c":1,"s":"18°~22","a":"LOTTE PEPERO杏仁巧克力餅乾棒Stray Kids限定版*4\nLOTTE PEPERO白巧克力餅乾棒Stray Kids限定版*4\nLOTTE PEPERO脆心巧克力餅乾棒Stray Kids限定版*4\nLOTTE PEPERO巧克力餅乾棒Stray Kids限定版*4\nSW9268贈品-Stray Kids證件照組*1+SW9267鑰匙圈*4"},"4712834457405":{"i":"GW0179","n":"樂天小熊餅聖誕組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味37g*2pcs \n樂天小熊餅-草莓風味37g*1pcs \n樂天小熊餅-牛奶風味37g*1pcs \n樂天小熊餅-濃黑巧克力風味37g*1pcs \nSW9271贈品-樂天小熊隨身收納包"},"04712834457405":{"i":"GW0179","n":"樂天小熊餅聖誕組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味37g*2pcs \n樂天小熊餅-草莓風味37g*1pcs \n樂天小熊餅-牛奶風味37g*1pcs \n樂天小熊餅-濃黑巧克力風味37g*1pcs \nSW9271贈品-樂天小熊隨身收納包"},"4712834457429":{"i":"GW0180","n":"樂天小熊餅好運袋","c":12,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x3包\n樂天小熊餅-草莓風味12g x3包\nSW9272贈品-樂天小熊熊頭購物袋"},"04712834457429":{"i":"GW0180","n":"樂天小熊餅好運袋","c":12,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x3包\n樂天小熊餅-草莓風味12g x3包\nSW9272贈品-樂天小熊熊頭購物袋"},"4712834457443":{"i":"GW0181","n":"樂天小熊餅手提收納籃組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x6包、\n樂天小熊餅-草莓風味12g x4包\n樂天小熊餅-濃黑巧克力風味12gx4包\nSW9277贈品-樂天小熊手提收納籃"},"04712834457443":{"i":"GW0181","n":"樂天小熊餅手提收納籃組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x6包、\n樂天小熊餅-草莓風味12g x4包\n樂天小熊餅-濃黑巧克力風味12gx4包\nSW9277贈品-樂天小熊手提收納籃"},"4712834457450":{"i":"GW0182","n":"樂天小熊餅開運組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*5pcs\n樂天小熊餅-草莓風味12g*3pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9284 贈品-樂天小熊御守"},"04712834457450":{"i":"GW0182","n":"樂天小熊餅開運組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*5pcs\n樂天小熊餅-草莓風味12g*3pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9284 贈品-樂天小熊御守"},"4712834457467":{"i":"GW0183","n":"LOTTE PEPERO 派對包","c":10,"s":"18°~22°","a":"LOTTE PEPERO X Stray Kids 聯名收藏套組\n內含: PEPERO  杏仁巧克力餅乾棒32g*1pcs\nPEPERO  白巧克力餅乾棒32g*2pcs\nSW9281贈品-PEPERO FRIENDS 造型原子筆*1"},"04712834457467":{"i":"GW0183","n":"LOTTE PEPERO 派對包","c":10,"s":"18°~22°","a":"LOTTE PEPERO X Stray Kids 聯名收藏套組\n內含: PEPERO  杏仁巧克力餅乾棒32g*1pcs\nPEPERO  白巧克力餅乾棒32g*2pcs\nSW9281贈品-PEPERO FRIENDS 造型原子筆*1"},"4712834457474":{"i":"GW0184","n":"樂天小熊餅豪華雙禮組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1cs\n樂天小熊餅-牛奶風味37g*1cs\n樂天小熊餅-濃黑風味37g*1pcs\nSW9242 贈品-樂天小熊簇絨墊\nSW9239 贈品-樂天小熊摺疊籃"},"04712834457474":{"i":"GW0184","n":"樂天小熊餅豪華雙禮組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1cs\n樂天小熊餅-牛奶風味37g*1cs\n樂天小熊餅-濃黑風味37g*1pcs\nSW9242 贈品-樂天小熊簇絨墊\nSW9239 贈品-樂天小熊摺疊籃"},"4712834457481":{"i":"GW0185","n":"樂天小熊餅保冷袋組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*3pcs\n樂天小熊餅-草莓風味12g*3pcs\nSW9286-贈品-樂天小熊保冷袋"},"04712834457481":{"i":"GW0185","n":"樂天小熊餅保冷袋組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*3pcs\n樂天小熊餅-草莓風味12g*3pcs\nSW9286-贈品-樂天小熊保冷袋"},"4712834457498":{"i":"GW0186","n":"樂天小熊餅豪飽包","c":0,"s":"nan","a":""},"04712834457498":{"i":"GW0186","n":"樂天小熊餅豪飽包","c":0,"s":"nan","a":""},"4712834457504":{"i":"GW0187","n":"樂天小熊餅招牌燈組","c":0,"s":"nan","a":""},"04712834457504":{"i":"GW0187","n":"樂天小熊餅招牌燈組","c":0,"s":"nan","a":""},"4712834457511":{"i":"GW0188","n":"樂天黃金雙星組","c":8,"s":"24°~26°","a":"樂天巧克力派 28g*10pcs\n樂天巧克力布雪蛋糕-起司口味 27g*7pcs"},"04712834457511":{"i":"GW0188","n":"樂天黃金雙星組","c":8,"s":"24°~26°","a":"樂天巧克力派 28g*10pcs\n樂天巧克力布雪蛋糕-起司口味 27g*7pcs"},"4712834457528":{"i":"GW0189","n":"樂天小熊餅大熊桶","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*22pcs"},"04712834457528":{"i":"GW0189","n":"樂天小熊餅大熊桶","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*22pcs"},"4712834457337":{"i":"GW0190","n":"樂天福滿箱","c":1,"s":"18°~22","a":"樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1pcs\nLOTTE蛋黃派6入*1pcs\nLOTTE巧克力派6入*1pcs\nLOTTE Pepero杏仁分享盒*1pcs"},"4712834456194":{"i":"GW0191","n":"樂天小熊澎湃箱－巧克力風味","c":1,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*26pcs"},"4712834456200":{"i":"GW0192","n":"樂天小熊澎湃包-綜合口味","c":1,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*7pcs\n樂天小熊餅-草莓風味12g*7cs\n樂天小熊餅-濃黑風味12g*6pcs\n樂天小熊餅-北海道牛奶風味12g*6pcs"},"4712834454954":{"i":"SW9162","n":"贈品－樂天小熊餅造型存錢桶","c":0,"s":"Dry","a":"尺寸:"},"04712834454954":{"i":"SW9162","n":"贈品－樂天小熊餅造型存錢桶","c":0,"s":"Dry","a":"尺寸:"},"4712834453667":{"i":"SW9186","n":"贈品－樂天小熊立體造型隨身杯","c":0,"s":"Dry","a":"贈品－樂天小熊立體造型隨身杯"},"4712834453865":{"i":"SW9208","n":"贈品－LOTTE PEPERO FRIENDS萬用提袋","c":0,"s":"Dry","a":"尺寸:18*26*7cm"},"4712834453896":{"i":"SW9212","n":"贈品－樂天小熊造型木盤","c":0,"s":"Dry","a":"尺寸:cm"},"4712834453902":{"i":"SW9213","n":"贈品－LOTTE保冷袋","c":0,"s":"Dry","a":"尺寸:cm"},"4712834459010":{"i":"SW9224","n":"贈品－樂天小熊購物車 (桶色)","c":1,"s":"Dry","a":"尺寸:cm"},"4712834459027":{"i":"SW9225","n":"贈品－樂天小熊華爾滋靠枕","c":1,"s":"Dry","a":"尺寸:cm\n2024 Donki CNY 療癒靠枕組 贈品"},"4712834459034":{"i":"SW9226","n":"贈品－樂天小熊大餅乾枕(黑)","c":1,"s":"Dry","a":"尺寸:cm"},"4712834459041":{"i":"SW9227","n":"贈品－樂天小熊大餅乾枕(白)","c":1,"s":"Dry","a":"尺寸:cm"},"4712834459188":{"i":"SW9232","n":"贈品－LOTTE PEPERO FRIENDS 證件套","c":250,"s":"Dry","a":"尺寸:11*7cm"},"4712834459065":{"i":"SW9234","n":"贈品－樂天小熊公仔存錢筒","c":45,"s":"Dry","a":"尺寸:61*47.7*58.2cm"},"04712834459065":{"i":"SW9234","n":"贈品－樂天小熊公仔存錢筒","c":45,"s":"Dry","a":"尺寸:61*47.7*58.2cm"},"4712834459072":{"i":"SW9235","n":"贈品－樂天小熊造型不鏽鋼湯匙","c":300,"s":"Dry","a":"尺寸:30*20*24.5   cm"},"4712834459096":{"i":"SW9237","n":"贈品－樂天小熊托特袋","c":75,"s":"Dry","a":""},"4712834459119":{"i":"SW9239","n":"贈品－樂天小熊摺疊籃","c":1,"s":"Dry","a":"?"},"4712834459140":{"i":"SW9242-2","n":"贈品－樂天小熊簇絨墊(黃)","c":50,"s":"Dry","a":"PM:進貨廠商分出贈品顏色,SW9242-1藍/SW9242-2黃, 但加工GW0166隨機出貨(順出)\nGA系統只建購一個貨號, 僅在DSV系統分出SW9242-1藍/SW9242-2黃"},"4712834459157":{"i":"SW9243","n":"贈品－樂天小熊和風玻璃杯","c":1,"s":"Dry","a":""},"4712834459171":{"i":"SW9250","n":"贈品－PEPERO FRIENDS造型馬克杯","c":24,"s":"Dry","a":"9.8*9 cm"},"4712834459225":{"i":"SW9256","n":"贈品-樂天小熊摺疊露營推車","c":1,"s":"Dry","a":""},"4712834459232":{"i":"SW9257","n":"贈品-樂天小熊證件套","c":1,"s":"Dry","a":""},"4712834459249":{"i":"SW9258","n":"贈品-樂天小熊造型桌鐘","c":1,"s":"Dry","a":""},"4712834459256":{"i":"SW9259","n":"贈品-LOTTE掛勾摺疊購物袋","c":1,"s":"Dry","a":"2025 Q2布雪滿額贈贈品"},"4712834459263":{"i":"SW9260","n":"贈品-樂天小熊造型圓筒包","c":1,"s":"Dry","a":"贈品-樂天小熊造型圓筒包"},"4712834459317":{"i":"SW9265","n":"贈品-樂天小熊置物籃","c":1,"s":"Dry","a":"贈品-樂天小熊置物籃"},"4712834459324":{"i":"SW9266","n":"贈品-LOTTE PEPERO FRIENDS造型梅森杯","c":36,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型梅森杯"},"4712834459331":{"i":"SW9267","n":"贈品-LOTTE PEPERO x Stray Kids聯名鑰匙圈","c":500,"s":"Dry","a":"產品尺寸4*7.9 cm"},"4712834459355":{"i":"SW9269","n":"贈品-LOTTE PEPERO x Stray Kids聯名海報_45x62CM","c":250,"s":"Dry","a":"產品尺寸45*62 cm"},"4712834459362":{"i":"SW9270","n":"贈品-樂天小熊解壓零錢包","c":1,"s":"Dry","a":"贈品-樂天小熊解壓零錢包"},"4712834459379":{"i":"SW9271","n":"贈品-樂天小熊隨身收納包","c":200,"s":"Dry","a":"贈品-樂天小熊隨身收納包"},"4712834459386":{"i":"SW9272","n":"贈品-樂天小熊熊頭購物袋","c":1,"s":"Dry","a":"贈品-樂天小熊熊頭購物袋"},"4712834459393":{"i":"SW9273","n":"贈品-樂天小熊法蘭絨毯","c":30,"s":"Dry","a":"贈品-樂天小熊法蘭絨毯"},"4712834459409":{"i":"SW9274","n":"贈品-樂天小熊造型隔熱墊","c":110,"s":"Dry","a":"贈品-樂天小熊造型隔熱墊"},"4712834459416":{"i":"SW9275","n":"贈品-樂天小熊造型陶瓷碗","c":0,"s":"Dry","a":"贈品-樂天小熊造型陶瓷碗"},"4712834459430":{"i":"SW9277","n":"贈品-樂天小熊手提收納籃","c":10,"s":"Dry","a":"贈品-樂天小熊手提收納籃"},"4712834459447":{"i":"SW9285","n":"贈品-樂天小熊茄芷風格網袋(for大創)","c":100,"s":"Dry","a":"贈品－贈品-樂天小熊茄芷風格網袋 for 大創"},"4712834459461":{"i":"SW9280","n":"贈品-LOTTE PEPERO FRIENDS證件套2026","c":250,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS證件套2026"},"04712834459461":{"i":"SW9280","n":"贈品-LOTTE PEPERO FRIENDS證件套2026","c":250,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS證件套2026"},"4712834459478":{"i":"SW9281","n":"贈品-LOTTE PEPERO FRIENDS造型原子筆2026","c":1000,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型原子筆2026"},"04712834459478":{"i":"SW9281","n":"贈品-LOTTE PEPERO FRIENDS造型原子筆2026","c":1000,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型原子筆2026"},"4712834459485":{"i":"SW9283","n":"贈品-LOTTE PEPERO FRIENDS造型襪2026","c":360,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型襪2026"},"04712834459485":{"i":"SW9283","n":"贈品-LOTTE PEPERO FRIENDS造型襪2026","c":360,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型襪2026"},"4712834459492":{"i":"SW9284","n":"贈品-樂天小熊御守","c":1,"s":"Dry","a":"贈品-樂天小熊御守"},"04712834459447":{"i":"SW9285","n":"贈品-樂天小熊茄芷風格網袋(for大創)","c":100,"s":"Dry","a":"贈品－贈品-樂天小熊茄芷風格網袋 for 大創"},"4712834459508":{"i":"SW9286","n":"贈品-樂天小熊保冷袋","c":1,"s":"Dry","a":"贈品-樂天小熊保冷袋"},"4712834459515":{"i":"SW9287","n":"贈品-樂天小熊不鏽鋼餐盒","c":1,"s":"Dry","a":""},"4712834459522":{"i":"SW9288","n":"贈品-樂天小熊招牌燈","c":1,"s":"Dry","a":""}};
+const ITEM_MAP={"BJ9321":{"i":"BJ9321","n":"LOTTE 原味巧克力派分享包(9顆裝)","c":10,"s":"24°~26°","a":"LOTTE 原味巧克力派分享包(9顆裝)","ean":"4903333264230"},"BJ9323":{"i":"BJ9323","n":"LOTTE 千層派盒裝－巧克力風味73g","c":60,"s":"24°~26°","a":"LOTTE 千層派盒裝－巧克力風味73g","ean":"4903333226122"},"BJ9408":{"i":"BJ9408","n":"LOTTE 千層派分享包－巧克力風味for PX","c":18,"s":"24°~26°","a":"LOTTE 千層派分享包－巧克力風味for PX","ean":"4903333284443"},"BJ9400":{"i":"BJ9400","n":"LOTTE千層派分享包－巧克力風味","c":18,"s":"24°~26°","a":"因RSP價格變動, 須申請品號confirmed by Elsa/Reese9/3","ean":"24903333284447"},"BJ9276":{"i":"BJ9276","n":"樂天卡士逹派(36顆裝) (Costco 出貨專用)\n作改包 收縮膜6盒成1組","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (新規格36顆/6盒 /1組)","ean":"4712834451335"},"BJ9277":{"i":"BJ9277","n":"樂天卡士逹派(6顆裝) (進口專用)\n非中文化進口入保稅後for BJ9276卡士逹派(36顆裝) For Costco","c":25,"s":"24°~26°","a":"產品淨重、設計、外箱條碼皆與BJ9262不一樣因此重新申請品號避免新舊混淆\n2022/5/30首批新版7個月效期","ean":"4903333064366"},"BJ9296":{"i":"BJ9296","n":"樂天小熊餅-粉紅草莓風味","c":80,"s":"24°~26°","a":"樂天小熊餅-粉紅草莓風味","ean":"4903333133062"},"BJ9339":{"i":"BJ9339","n":"LOTTE脆脆巧克力派－濃厚可可風味","c":5,"s":"24°~26°","a":"LOTTE脆脆巧克力派－濃厚可可風味","ean":"4903333257454"},"BJ9340":{"i":"BJ9340","n":"樂天巧克力派－抹茶歐培拉風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"樂天巧克力派－抹茶歐培拉風味(6顆裝)(進口專用)","ean":"4903333237029"},"BJ9341":{"i":"BJ9341","n":"樂天巧克力派－抹茶歐培拉風味(36顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (規格36顆/6盒 /1組)","ean":"4712834451410"},"BJ9346":{"i":"BJ9346","n":"樂天原味巧克力派(6顆裝)","c":25,"s":"24°~26°","a":"樂天原味巧克力派(6顆裝)","ean":"4903333298853"},"BJ9354":{"i":"BJ9354","n":"樂天千層派盒裝－濃厚巧克力風味","c":60,"s":"24°~26°","a":"樂天千層派盒裝－濃厚巧克力風味","ean":"4903333272853"},"BJ9371":{"i":"BJ9371","n":"樂天千層派分享包－濃厚巧克力風味(18袋裝)(進口專用)\n非中文化進口入保稅後for BJ9372 樂天千層派分享包－濃厚巧克力風味(4袋裝) For Costco","c":18,"s":"24°~26°","a":"樂天千層派分享包－濃厚巧克力風味(18袋裝)(進口專用)\n非中文化進口入保稅後for BJ9372 樂天千層派分享包－濃厚巧克力風味(4袋裝) For Costco","ean":"4903333229208"},"BJ9356":{"i":"BJ9356","n":"樂天巧克力派－冬季限定濃厚風味(6顆裝)(進口專用)\n非中文化進口入保稅後for BJ9357 樂天巧克力派－冬季限定濃厚風味(36顆裝) For Costco","c":25,"s":"24°~26°","a":"樂天巧克力派－冬季限定濃厚風味(6顆裝)(進口專用)\n非中文化進口入保稅後for BJ9357 樂天巧克力派－冬季限定濃厚風味(36顆裝) For Costco","ean":"4903333294497"},"BJ9357":{"i":"BJ9357","n":"樂天巧克力派－冬季限定濃厚風味(36顆裝)(Costco 出貨專用)\n作改包 收縮膜6盒成1組","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (規格36顆/6盒 /1組)","ean":"4712834451441"},"BJ9362":{"i":"BJ9362","n":"LOTTE樂天卡士達派－粉雪草莓風味","c":25,"s":"24°~26°","a":"LOTTE樂天卡士達派－粉雪草莓風味","ean":"4903333226108"},"BJ9377":{"i":"BJ9377","n":"樂天千層派－濃厚巧克力風味(4袋裝)(Costco 出貨專用)\n新：78組/1板","c":1,"s":"24°~26°","a":"新舊區分, 72組/板－－>78組/板\n作改包 4包成1組OPP袋  (規格4袋 /1組, 每板78組)","ean":"4712834451458"},"BJ9373":{"i":"BJ9373","n":"LOTTE ZERO奶油小餅乾","c":30,"s":"24°~26°","a":"LOTTE ZERO奶油小餅乾","ean":"4903333203147"},"BJ9374":{"i":"BJ9374","n":"LOTTE ZERO可可小餅乾","c":30,"s":"24°~26°","a":"LOTTE ZERO可可小餅乾","ean":"4903333298464"},"BJ9383":{"i":"BJ9383","n":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","ean":"4903333277582"},"BJ9384":{"i":"BJ9384","n":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","ean":"4903333296507"},"BJ9385":{"i":"BJ9385","n":"LOTTE原味巧克力派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE原味巧克力派分享包(萬聖節限定)","ean":"4903333251087"},"BJ9386":{"i":"BJ9386","n":"LOTTE卡士達派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE卡士達派分享包(萬聖節限定)","ean":"4903333246007"},"BJ9389":{"i":"BJ9389","n":"樂天小熊餅派對包－巧克力風味","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味","ean":"4903333208784"},"BJ9393":{"i":"BJ9393","n":"LOTTE卡士逹派－熔岩巧克力風味(6顆裝) (進口專用)","c":25,"s":"24°~26°","a":"非中文化進口入保稅後for BJ9394熔岩巧克力風味(36顆裝) For Costco","ean":"4903333239597"},"BJ9394":{"i":"BJ9394","n":"LOTTE卡士逹派－熔岩巧克力風味(36顆裝) (Costco 出貨專用)","c":1,"s":"24°~26°","a":"作改包 收縮膜6盒成1組 (新規格36顆/6盒 /1組)","ean":"4712834451502"},"BJ9407":{"i":"BJ9407","n":"樂天小熊餅四連包－英文小熊for PX","c":60,"s":"24°~26°","a":"樂天小熊餅四連包－英文小熊for PX","ean":"49779059"},"BJ9410":{"i":"BJ9410","n":"LOTTE卡士達派－奢華白桃風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE卡士達派－奢華白桃風味(6顆裝)(進口專用)","ean":"4903333247790"},"BJ9411":{"i":"BJ9411","n":"LOTTE卡士達派－奢華白桃風味(30顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華白桃風味(30顆裝)(Costco 出貨專用)","ean":"14903333247797"},"BJ9413":{"i":"BJ9413","n":"LOTTE千層派盒裝－奢華草莓塔風味(進口專用)","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－奢華草莓塔風味(進口專用)","ean":"4903333219940"},"BJ9414":{"i":"BJ9414","n":"LOTTE千層派盒裝－奢華草莓塔風味(10盒裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE千層派盒裝－奢華草莓塔風味(10盒裝)(Costco 出貨專用)","ean":"14903333219947"},"BJ9415":{"i":"BJ9415","n":"LOTTE巧克力派－開心果草莓風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－開心果草莓風味","ean":"4903333259366"},"BJ9425":{"i":"BJ9425","n":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－藍莓乳酪蛋糕風味","ean":"4903333240180"},"BJ9427":{"i":"BJ9427","n":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)","ean":"4903333245932"},"BJ9428":{"i":"BJ9428","n":"LOTTE千層派分享包－宇治抹茶風味(4袋裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE千層派分享包－宇治抹茶風味(4袋裝)(costco出貨專用)","ean":"14903333245939"},"BJ9432":{"i":"BJ9432","n":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","c":14,"s":"24°~26°","a":"樂天小熊餅派對包－巧克力風味(萬聖節限定)","ean":"4903333262274"},"BJ9433":{"i":"BJ9433","n":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－巧克力風味(萬聖節限定)","ean":"4903333250271"},"BJ9434":{"i":"BJ9434","n":"LOTTE原味巧克力派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE原味巧克力派分享包(萬聖節限定)","ean":"4903333261161"},"BJ9435":{"i":"BJ9435","n":"LOTTE卡士達派分享包(萬聖節限定)","c":10,"s":"24°~26°","a":"LOTTE卡士達派分享包(萬聖節限定)","ean":"4903333231485"},"BJ9439":{"i":"BJ9439","n":"LOTTE卡士達派－奢華蘋果風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE卡士達派－奢華蘋果風味(6顆裝)(進口專用)","ean":"4903333289899"},"BJ9440":{"i":"BJ9440","n":"LOTTE卡士達派－奢華蘋果風味(30顆裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華蘋果風味(30顆裝)(costco出貨專用)","ean":"14903333289896"},"BJ9444":{"i":"BJ9444","n":"LOTTE卡士達派－白蘭地酒心可可風味(單顆)","c":150,"s":"24°~26°","a":"LOTTE卡士達派－白蘭地酒心可可風味(單顆)","ean":"4903333297139"},"BJ9445":{"i":"BJ9445","n":"LOTTE卡士達派－白蘭地酒心可可風味(6顆裝)","c":25,"s":"24°~26°","a":"穿中文化袖套印上條碼for CF中盒出貨","ean":"14903333297136"},"BJ9446":{"i":"BJ9446","n":"LOTTE巧克力派－冬季限定濃厚風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－冬季限定濃厚風味","ean":"4903333270576"},"BJ9447":{"i":"BJ9447","n":"LOTTE千層派盒裝－楓糖奶油夾心風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－楓糖奶油夾心風味","ean":"4903333211289"},"BJ9448":{"i":"BJ9448","n":"LOTTE白巧克力派－初雪草莓風味","c":25,"s":"24°~26°","a":"LOTTE白巧克力派－初雪草莓風味","ean":"4903333206872"},"BJ9449":{"i":"BJ9449","n":"LOTTE Zero可可餅乾－隨手包","c":90,"s":"24°~26°","a":"LOTTE Zero可可餅乾－隨手包","ean":"4903333222155"},"BJ9450":{"i":"BJ9450","n":"樂天千層派分享包－雙重牛奶糖風味","c":18,"s":"24°~26°","a":"樂天千層派分享包－雙重牛奶糖風味","ean":"4903333260102"},"BJ9452":{"i":"BJ9452","n":"LOTTE卡士達派－奢華草莓風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE卡士達派－奢華草莓風味(6顆裝)(進口專用)","ean":"4903333248506"},"BJ9453":{"i":"BJ9453","n":"LOTTE卡士達派－奢華草莓風味(30顆裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"LOTTE卡士達派－奢華草莓風味(30顆裝)(costco出貨專用)","ean":"4712834451649"},"BJ9454":{"i":"BJ9454","n":"LOTTE巧克力派－開心果草莓風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－開心果草莓風味","ean":"4903333219155"},"BJ9461":{"i":"BJ9461","n":"LOTTE巧克力派－焦糖奶油風味(6顆裝)","c":25,"s":"24°~26°","a":"穿中文化袖套印上條碼for CF中盒出貨","ean":"14903333219152"},"BJ9456":{"i":"BJ9456","n":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(6顆裝)(進口專用)","ean":"4903333247387"},"BJ9457":{"i":"BJ9457","n":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(30顆裝)(Costco 出貨專用)","c":25,"s":"24°~26°","a":"LOTTE巧克力派－北海道生焦糖乳酪蛋糕風味(30顆裝)(costco出貨專用)","ean":"4712834451656"},"BJ9459":{"i":"BJ9459","n":"樂天小熊餅－草莓奶油蛋糕風味46g for FM","c":80,"s":"24°~26°","a":"樂天小熊餅－草莓奶油蛋糕風味46g for FM","ean":"4903333207145"},"BJ9460":{"i":"BJ9460","n":"LOTTE巧克力派－焦糖奶油風味(單顆)","c":150,"s":"24°~26°","a":"LOTTE巧克力派－焦糖奶油風味(單顆)","ean":"4903333284023"},"BJ9462":{"i":"BJ9462","n":"LOTTE The奶油派","c":50,"s":"24°~26°","a":"此規格無中盒, 因加工後無收縮膜","ean":"4903333299591"},"BJ9463":{"i":"BJ9463","n":"LOTTE The焦糖派","c":50,"s":"24°~26°","a":"此規格無中盒, 因加工後無收縮膜","ean":"加工後無收縮膜"},"BJ9464":{"i":"BJ9464","n":"LOTTE千層派盒裝－濃郁奶霜風味","c":60,"s":"24°~26°","a":"LOTTE千層派盒裝－濃郁奶霜風味","ean":"4903333207541"},"BJ9465":{"i":"BJ9465","n":"LOTTE巧克力派－頂級麝香葡萄風味","c":25,"s":"24°~26°","a":"LOTTE巧克力派－頂級麝香葡萄風味","ean":"4903333207121"},"BJ9467":{"i":"BJ9467","n":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)","c":18,"s":"24°~26°","a":"LOTTE千層派分享包－宇治抹茶風味(18袋裝)(進口專用)","ean":"4903333231775"},"BJ9468":{"i":"BJ9468","n":"樂天千層派－濃厚巧克力風味+宇治抹茶風味綜合包(4袋裝)(costco出貨專用)","c":1,"s":"24°~26°","a":"樂天千層派－濃厚巧克力風味+宇治抹茶風味綜合包(4袋裝)(costco出貨專用)","ean":"14903333231772"},"BJ9470":{"i":"BJ9470","n":"LOTTE巧克力派－伯爵檸檬茶風味(6顆裝)(進口專用)","c":25,"s":"24°~26°","a":"LOTTE巧克力派－伯爵檸檬茶風味(6顆裝)(進口專用)","ean":"4903333283996"},"BJ9471":{"i":"BJ9471","n":"樂天巧克力派－伯爵檸檬茶風味(30顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"樂天巧克力派－伯爵檸檬茶風味(30顆裝)(costco出貨專用)","ean":"14903333283993"},"CJ0017":{"i":"CJ0017","n":"LOTTE Ghana加納牛奶可可製品(片裝)50g","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納代可可脂牛奶巧克力片裝55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨,\n進口產品條碼:490333312955,  加工後產品條碼4903333155439","ean":"4903333155439"},"CJ0018":{"i":"CJ0018","n":"LOTTE Ghana加納黑巧克力(片裝)50g添加植物油","c":120,"s":"18°~22°","a":"LOTTE Ghana 加納黑巧克力片裝(可可脂中添加植物油) 55g－>50g\n※(50g中文標+58g舊條碼)2014－12月開始進貨\n進口產品條碼4903333143146 , 加工後產品條碼4903333132287","ean":"4903333132287"},"CJ9371":{"i":"CJ9371","n":"LOTTE 烘焙杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 烘焙杏仁可可球","ean":"4903333282050"},"CJ9372":{"i":"CJ9372","n":"LOTTE 脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE 脆心杏仁可可球","ean":"4903333258529"},"CJ9373":{"i":"CJ9373","n":"LOTTE 夏威夷果仁可可球","c":80,"s":"18°~22°","a":"LOTTE 夏威夷果仁可可球","ean":"4903333251216"},"CJ9377":{"i":"CJ9377","n":"LOTTE 紗紗－原味可可製品","c":80,"s":"18°~22°","a":"LOTTE 紗紗－原味可可製品","ean":"4903333226191"},"CJ9416":{"i":"CJ9416","n":"LOTTE脆心杏仁可可球","c":80,"s":"18°~22°","a":"LOTTE脆心杏仁可可球","ean":"4903333261963"},"CJ9454":{"i":"CJ9454","n":"LOTTE Almond杏仁可可球隨手包－濃脆風味","c":120,"s":"18°~22°","a":"LOTTE Almond杏仁可可球隨手包－濃脆風味","ean":"4903333208678"},"CJ9455":{"i":"CJ9455","n":"LOTTE Crunky脆心可可球－岩鹽焦糖風味","c":120,"s":"18°~22°","a":"LOTTE Crunky脆心可可球－岩鹽焦糖風味","ean":"4903333249251"},"CJ9456":{"i":"CJ9456","n":"LOTTE ZERO冬季限定可可製品","c":80,"s":"18°~22°","a":"LOTTE ZERO冬季限定可可製品","ean":"4903333214549"},"CJ9457":{"i":"CJ9457","n":"LOTTE Zero可可製品","c":80,"s":"18°~22°","a":"LOTTE Zero可可製品","ean":"4903333248735"},"CJ9458":{"i":"CJ9458","n":"LOTTE ZERO巧克力70%(添加植物油)","c":80,"s":"18°~22°","a":"LOTTE ZERO巧克力70%(添加植物油)","ean":"4903333207237"},"DJ9073":{"i":"DJ9073","n":"樂天KOUME小梅糖","c":10,"s":"24°~26°","a":"Cindy 2023/5/18mail: The summer version was discontinued in Aug. 2022.","ean":"4903333035274"},"DJ9074":{"i":"DJ9074","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包","ean":"4903333272860"},"DJ9075":{"i":"DJ9075","n":"LOTTE KOUME小梅糖(50周年紀念)","c":48,"s":"24°~26°","a":"LOTTE KOUME小梅糖(50周年紀念)","ean":"4903333270668"},"DJ9076":{"i":"DJ9076","n":"LOTTE ZERO牛奶硬糖袋裝","c":10,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖袋裝","ean":"4903333219834"},"DJ9078":{"i":"DJ9078","n":"LOTTE春日小梅糖","c":72,"s":"24°~26°","a":"LOTTE春日小梅糖","ean":"4903333253364"},"DJ9079":{"i":"DJ9079","n":"LOTTE白熊沁涼硬糖(袋裝）","c":48,"s":"24°~26°","a":"LOTTE白熊沁涼硬糖(袋裝）","ean":"4903333292639"},"DJ9080":{"i":"DJ9080","n":"LOTTE ZERO牛奶硬糖(迷你包)","c":96,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(迷你包)","ean":"4903333258451"},"DJ9081":{"i":"DJ9081","n":"LOTTE ZERO牛奶硬糖(袋裝)","c":72,"s":"24°~26°","a":"LOTTE ZERO牛奶硬糖(袋裝)","ean":"4903333233205"},"DJ9082":{"i":"DJ9082","n":"LOTTE酸甜小梅糖迷你包","c":96,"s":"24°~26°","a":"LOTTE酸甜小梅糖迷你包","ean":"4903333256815"},"DJ8031":{"i":"DJ8031","n":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－檸檬柑橘風味","ean":"4903333257010"},"DJ8032":{"i":"DJ8032","n":"LOTTE小梅硬軟糖","c":120,"s":"24°~26°","a":"LOTTE小梅硬軟糖","ean":"4903333229406"},"DJ8033":{"i":"DJ8033","n":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味","c":120,"s":"24°~26°","a":"LOTTE ZERO脆皮軟糖－雙漾葡萄風味","ean":"4903333235568"},"DJ8036":{"i":"DJ8036","n":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－蜜柑檸檬風味for FM","ean":"4903333275595"},"DJ8037":{"i":"DJ8037","n":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM","c":80,"s":"24°~26°","a":"LOTTE KAZITTE軟糖－晶彩雙葡風味for FM","ean":"4903333235216"},"DJ8038":{"i":"DJ8038","n":"LOTTE小梅花瓣軟糖","c":80,"s":"24°~26°","a":"LOTTE小梅花瓣軟糖","ean":"4903333279982"},"BK9330":{"i":"BK9330","n":"LOTTE 巧克力派(6顆裝) for PX","c":16,"s":"24°~26°","a":"LOTTE 巧克力派(6顆裝) for PX","ean":"8801062161881"},"BK9331":{"i":"BK9331","n":"LOTTE 巧克力派(12顆裝) for PX","c":8,"s":"24°~26°","a":"LOTTE 巧克力派(12顆裝) for PX","ean":"8801019930744"},"BK0051":{"i":"BK0051","n":"LOTTE 蛋黃派(6顆裝)","c":12,"s":"24°~26°","a":"2026更換成分","ean":"8801062140398"},"BK0052":{"i":"BK0052","n":"LOTTE 蛋黃派(10顆裝)","c":8,"s":"24°~26°","a":"2026更換成分","ean":"8801062244683"},"BK0053":{"i":"BK0053","n":"LOTTE 蛋黃派－香甜草莓風味(6顆裝)","c":12,"s":"24°~26°","a":"2026更換成分","ean":"8801062899623"},"BK9360":{"i":"BK9360","n":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE Pepero白巧克力口味餅乾棒分享盒for PX","ean":"N/A"},"BK0054":{"i":"BK0054","n":"LOTTE 蛋黃派－香甜草莓風味(10顆裝)","c":8,"s":"24°~26°","a":"2026更換成分","ean":"8801062899609"},"BK9287":{"i":"BK9287","n":"LOTTE Pepero巧克力口味餅乾棒47g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"8801062267675"},"BK9274":{"i":"BK9274","n":"LOTTE Pepero巧克力口味餅乾棒47g","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"28801062639483"},"BK9289":{"i":"BK9289","n":"LOTTE Pepero杏仁巧克力口味餅乾棒32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"8801062267712"},"BK9275":{"i":"BK9275","n":"LOTTE Pepero杏仁巧克力口味餅乾棒32g","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"28801062478907"},"BK9291":{"i":"BK9291","n":"LOTTE Pepero白巧克力口味餅乾棒32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"8801062636358"},"BK9318":{"i":"BK9318","n":"LOTTE Pepero巧克力夾心口味餅乾棒45g","c":40,"s":"18°~22°","a":"2023-6月降克數50-->45g","ean":"8801062267699"},"BK9277":{"i":"BK9277","n":"LOTTE Pepero巧克力夾心口味餅乾棒50g","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"68801062639481"},"BK9314":{"i":"BK9314","n":"LOTTE Pepero黑餅乾巧克力口味餅乾棒FOR PX","c":40,"s":"18°~22°","a":"LOTTE Pepero黑餅乾巧克力口味餅乾棒FOR PX","ean":"8801062641260"},"BK9295":{"i":"BK9295","n":"LOTTE Pepero脆心巧克力口味餅乾棒39g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"8801062881741"},"BK9297":{"i":"BK9297","n":"LOTTE Pepero杏仁白巧克力口味餅乾棒 32g－10盒裝","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"8801062880140"},"BK9363":{"i":"BK9363","n":"LOTTE Pepero巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"改成分/設計","ean":"8801062016099"},"BK9359":{"i":"BK9359","n":"LOTTE  Pepero杏仁巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE  Pepero杏仁巧克力口味餅乾棒分享盒for PX","ean":"8801062267798"},"BK9284":{"i":"BK9284","n":"LOTTE Pepero白巧克力口味餅乾棒分享盒","c":9,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"68801062477977 <--（海外版)"},"BK9361":{"i":"BK9361","n":"LOTTE Pepero脆心巧克力口味餅乾棒分享盒for PX","c":9,"s":"18°~22°","a":"LOTTE Pepero脆心巧克力口味餅乾棒分享盒for PX","ean":"8801062880881"},"BK9286":{"i":"BK9286","n":"LOTTE Pepero黑餅乾巧克力口味餅乾棒分享盒","c":9,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"8801062865710"},"BK9288":{"i":"BK9288","n":"LOTTE Pepero杏仁巧克力口味餅乾棒32g FOR PX","c":40,"s":"18°~22°","a":"2022-12月改餅乾棒","ean":"18801062132765"},"BK9313":{"i":"BK9313","n":"LOTTE Pepero草莓脆粒餅乾棒32g－5盒裝","c":40,"s":"18°~22°","a":"減克重為32g","ean":"8801062862535"},"BK9312":{"i":"BK9312","n":"LOTTE 蛋黃派(4顆裝)","c":24,"s":"24°~26°","a":"LOTTE 蛋黃派(4顆裝)","ean":"4712834451403"},"BK9321":{"i":"BK9321","n":"LOTTE ZERO零砂糖可可豆餅乾","c":20,"s":"24°~26°","a":"非中文化, 進保稅","ean":"8801062865680"},"BK9362":{"i":"BK9362","n":"LOTTE ZERO零砂糖可可豆餅乾量販包","c":12,"s":"24°~26°","a":"非中文化, 進保稅 (國內版)","ean":"8801062865673"},"BK9326":{"i":"BK9326","n":"LOTTE Pepero夏日柑橘脆粒風味餅乾棒32g","c":40,"s":"18°~22°","a":"非中文化, 進保稅","ean":"8801062006700"},"BK9332":{"i":"BK9332","n":"LOTTE ZERO 零砂糖可可&香草夾心餅乾96g","c":30,"s":"24°~26°","a":"LOTTE ZERO 零砂糖可可&香草夾心餅乾96g","ean":"8801062859108"},"BK9345":{"i":"BK9345","n":"LOTTE ZERO零砂糖可可&香草夾心餅乾量販包288g","c":12,"s":"24°~26°","a":"LOTTE ZERO零砂糖可可&香草夾心餅乾量販包288g","ean":"8801062859054"},"BK9346":{"i":"BK9346","n":"LOTTE巧克力派-香蕉風味(12顆裝)for PX","c":8,"s":"24°~26°","a":"共版中文化","ean":"845502061407"},"BK9347":{"i":"BK9347","n":"LOTTE 黑巧克力派(12顆裝)for PX","c":8,"s":"24°~26°","a":"LOTTE 黑巧克力派(12顆裝)\n2017/4/14 開始中文化包裝","ean":"8801062475148"},"BK9348":{"i":"BK9348","n":"LOTTE ZERO零砂糖巧克力派(12顆裝)","c":8,"s":"24°~26°","a":"非中文化, 進保稅","ean":"8802259019121"},"BK9350":{"i":"BK9350","n":"LOTTE Pepero餅乾棒棒組FOR PX－2025","c":4,"s":"18°~22°","a":"Pepero 口味: 杏仁32G * 3 + 白巧32G * 3 + 草莓32G * 4","ean":"8801062866816"},"BK9351":{"i":"BK9351","n":"LOTTE夢幻巧克力派－可可風味(12顆裝)(進口專用)","c":8,"s":"24°~26°","a":"LOTTE夢幻巧克力派－可可風味(12顆裝)(進口專用)","ean":"8801062273355"},"BK9352":{"i":"BK9352","n":"LOTTE夢幻巧克力派－可可風味(36顆裝)(Costco 出貨專用)","c":1,"s":"24°~26°","a":"LOTTE夢幻巧克力派－可可風味(36顆裝)(Costco 出貨專用)","ean":"4712834451588"},"CK9032":{"i":"CK9032","n":"LOTTE Crunky 巧克力球(76g)","c":24,"s":"18°~22°","a":"LOTTE Crunky 巧克力球76g進口條碼為:8801062633456加工後條碼:8801062271399\n2015-07月第一批進口,由84g→76g 更改克數\n※(76g中文標+(CK0011)73g舊條碼)","ean":"8801062271399"},"CK9072":{"i":"CK9072","n":"LOTTE ZERO 零砂糖脆心可可球","c":32,"s":"18°~22°","a":"非中文化","ean":"8801062863839"},"DK0019":{"i":"DK0019","n":"LOTTE Anytime 薄荷三層糖60g","c":20,"s":"24°~26°","a":"LOTTE Anytime 薄荷三層糖60g\n-降克數申請新品號\n-MKT將提供不超過0.5公克的糖數值文件(實際0.68公克), 得以零表示, 故不蓋外包裝sugar free","ean":"8801062332113"},"DK9012":{"i":"DK9012","n":"LOTTE檸檬糖17.5g","c":48,"s":"24°~26°","a":"LOTTE檸檬 糖17.5g\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C","ean":"8801062221974"},"DK9084":{"i":"DK9084","n":"LOTTE 檸檬糖65g(罐裝) for PX","c":24,"s":"24°~26°","a":"LOTTE 檸檬糖65g(罐裝) for PX\n2023/12月開始品名拿掉\"C\"字樣, 包裝蓋掉C","ean":"8801062221196"},"DK9085":{"i":"DK9085","n":"LOTTE 青葡萄糖153g for PX","c":20,"s":"24°~26°","a":"中文化\n2018-7月改克重","ean":"8801062009527"},"DK9078":{"i":"DK9078","n":"LOTTE ZERO零砂糖水果風味軟糖","c":40,"s":"24°~26°","a":"非中文化","ean":"8801062870301"},"DK9088":{"i":"DK9088","n":"LOTTE 蜜桃糖153g","c":20,"s":"24°~26°","a":"改成中文化, 改外箱條碼","ean":"8801062863754"},"DK9079":{"i":"DK9079","n":"LOTTE 蜜桃糖153g","c":20,"s":"24°~26°","a":"非中文化","ean":"18801062859198"},"DK9080":{"i":"DK9080","n":"LOTTE Anytime三層糖—檸檬薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化","ean":"8801062332250"},"DK9087":{"i":"DK9087","n":"樂天Anytime三層糖梅子蜜桃薄荷風味超值組(Costco出貨專用)","c":8,"s":"24°~26°","a":"若不用開上蓋. 可以只要一個品號. 但因為要開上蓋, 所以另申請加工後的品號","ean":"8801062335619"},"DK9081":{"i":"DK9081","n":"LOTTE Anytime三層糖—梅子&蜜桃薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化","ean":"38801062335610"},"DK9082":{"i":"DK9082","n":"LOTTE Anytime三層糖—牛奶薄荷風味60g","c":20,"s":"24°~26°","a":"非中文化, 2025/4/21改品名, 牛奶薄荷風味","ean":"8801062239078"},"DK9083":{"i":"DK9083","n":"LOTTE ZERO零砂糖水果風味軟糖量販包","c":18,"s":"24°~26°","a":"非中文化","ean":"8801062865666"},"DK9089":{"i":"DK9089","n":"LOTTE ZERO零砂糖紅豆羊羹量販包300g","c":16,"s":"24°~26°","a":"LOTTE ZERO零砂糖紅豆羊羹量販包300g","ean":"8802259021360"},"DK9090":{"i":"DK9090","n":"LOTTE ZERO零砂糖香柚風味軟糖量販包238g","c":18,"s":"24°~26°","a":"LOTTE ZERO零砂糖香柚風味軟糖量販包238g","ean":"8802259022664"},"BT9116":{"i":"BT9116","n":"樂天小熊餅家庭號－萬聖節限定版195g","c":10,"s":"24°~26°","a":"巧19.5*5包 / 草19.5*5包","ean":"8852008303087"},"GW0156":{"i":"GW0156","n":"樂天小熊餅-巧克力風味分享包96g","c":16,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x8包\n'延用BT0044條碼","ean":"4712834456439"},"BT0060":{"i":"BT0060","n":"樂天小熊餅－巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"8852008300185"},"BT0061":{"i":"BT0061","n":"樂天小熊餅－草莓風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"8852008300215"},"BT0062":{"i":"BT0062","n":"樂天小熊餅－牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"8852008300765"},"BT0065":{"i":"BT0065","n":"樂天小熊餅家庭號－巧克力風味195g","c":10,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"885 2008 300253"},"BT0073":{"i":"BT0073","n":"樂天小熊餅家庭號－巧克力風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。","ean":"5 885 2008 30026 5"},"BT9122":{"i":"BT9122","n":"樂天小熊餅－家庭號草莓風味195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅-家庭號草莓風味195g\n條碼延用","ean":"885 2008 300284"},"BT0067":{"i":"BT0067","n":"樂天小熊餅家庭號－牛奶風味195g","c":10,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"8852008300970"},"BT0075":{"i":"BT0075","n":"樂天小熊餅家庭號－牛奶風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。","ean":"58852008300982"},"BT0063":{"i":"BT0063","n":"樂天小熊餅－濃黑巧克力風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"8852008304848"},"BT9123":{"i":"BT9123","n":"樂天小熊餅家庭號－濃黑巧克力風味195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號-濃厚黑可可風味195g\n全中文化","ean":"8852008304909"},"BT0070":{"i":"BT0070","n":"樂天小熊餅串串包－巧克力風味56g","c":24,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分\n樂天小熊餅串串包-巧克力風味56g\n 6串/中盒 , 4中盒/箱  （4包/串, 銷售單位：串)","ean":"8852008305401"},"BT0071":{"i":"BT0071","n":"樂天小熊餅－宇治抹茶風味33g","c":48,"s":"24°~26°","a":"2026年2月改成分","ean":"8852008305654"},"BT0072":{"i":"BT0072","n":"樂天小熊餅家庭號－宇治抹茶風味175g","c":10,"s":"24°~26°","a":"2026年2月改成分","ean":"8852008305722"},"BT0064":{"i":"BT0064","n":"樂天小熊餅－北海道牛奶風味37g","c":48,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"8852008304879"},"BT0069":{"i":"BT0069","n":"樂天小熊餅家庭號－北海道牛奶風味195g","c":10,"s":"24°~26°","a":"2026年2月SPI = selling price increase+改成分","ean":"8852008304923"},"BT0077":{"i":"BT0077","n":"樂天小熊餅家庭號－北海道牛奶風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。","ean":"58852008304935"},"BT0074":{"i":"BT0074","n":"樂天小熊餅家庭號－草莓風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。","ean":"4712834451687"},"BT0076":{"i":"BT0076","n":"樂天小熊餅家庭號－濃黑巧克力風味195g","c":10,"s":"24°~26°","a":"for 7E建檔用臨時產品條碼\n因為之前7E有上過同樣商品，因此無法以同一組條碼建檔\n上架後客戶會再替換成正確的條碼，到時公司內部系統就能將此條碼刪掉或是用於其他商品申請後再請回覆告知。\n臨時標是因\"舊的還在客戶主檔裡面，如果用舊條碼 系統判定顯示重複, 故\"等舊資料確認刪除後，會再修改為正確的條碼。","ean":"4712834451700"},"BT9131":{"i":"BT9131","n":"樂天小熊餅家庭號－聖誕節限定版195g for PX","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號-聖誕節限定版195g\nchoco19.5g*5+Straw19.5*5","ean":"8852008303131"},"BT9044":{"i":"BT9044","n":"樂天小熊餅家庭號－新年限定版195g","c":10,"s":"24°~26°","a":"choco19.5g*5+Straw19.5*5+揮春*2","ean":"8852008302578"},"BT9115":{"i":"BT9115","n":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK","c":48,"s":"24°~26°","a":"樂天小熊餅萬聖節限定版－巧克力風味37g for OK","ean":"8852008303926"},"BT9120":{"i":"BT9120","n":"樂天小熊餅聖誕節限定版－巧克力風味37g for 7E","c":48,"s":"24°~26°","a":"BT9083 改4入一OPP for 7E","ean":"8852008305371"},"BT9132":{"i":"BT9132","n":"LOTTE Toppo巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化","ean":"8852008510010"},"BT9133":{"i":"BT9133","n":"LOTTE TOPPO濃厚巧克力口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化","ean":"8852008510492"},"BT9134":{"i":"BT9134","n":"LOTTE TOPPO香草草莓口味夾心餅乾棒40g","c":60,"s":"24°~26°","a":"共版中文化","ean":"8852008511239"},"BT9111":{"i":"BT9111","n":"樂天小熊餅伴手禮版－鳳梨口味108g","c":10,"s":"24°~26°","a":"泰國已貼中文標, 進口時中文化\n樂天小熊餅-鳳梨口味12g  x9包","ean":"8852008305845"},"BT9112":{"i":"BT9112","n":"樂天小熊餅伴手禮版－芒果口味108g","c":10,"s":"24°~26°","a":"泰國已貼中文標, 進口時中文化\n樂天小熊餅-芒果口味12g  x9包","ean":"8852008302172"},"BT9117":{"i":"BT9117","n":"樂天小熊餅－唐吉訶德限定120g","c":10,"s":"24°~26°","a":"濃黑12*5包 / 煉12*5包 , 中文化共版","ean":"8852008306132"},"BT9121":{"i":"BT9121","n":"樂天小熊餅復活節限定版－巧克力風味37g","c":48,"s":"24°~26°","a":"新品","ean":"8852008306255"},"BT9124":{"i":"BT9124","n":"樂天小熊餅散裝－巧克力風味12g for Coupang","c":140,"s":"24°~26°","a":"1.BT9124為整箱販售:中標要貼在外箱上\n2.有貼中標外箱需用其它顏色膠帶區分, 以利海關或fda官員查驗","ean":"4712834451571"},"BT9135":{"i":"BT9135","n":"樂天小熊餅－泰奶風味33g","c":48,"s":"24°~26°","a":"樂天小熊餅－泰奶風味33g","ean":"8852008306538"},"BT9136":{"i":"BT9136","n":"樂天小熊餅家庭號－泰奶風味175g","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號－泰奶風味175g","ean":"8852008306583"},"BT9137":{"i":"BT9137","n":"樂天小熊餅手提雲朵包組","c":6,"s":"24°~26°","a":"樂天小熊餅手提雲朵包組","ean":"8852008306569"},"BT9138":{"i":"BT9138","n":"樂天小熊餅家庭號－開學限定版195g","c":10,"s":"24°~26°","a":"樂天小熊餅家庭號－開學限定版195g","ean":"8852008306620"},"BV0007":{"i":"BV0007","n":"LOTTE巧克力布雪蛋糕(6顆裝)","c":16,"s":"24°~26°","a":"2026.4月改成分, 需附PHO","ean":"8935341300729"},"BV0009":{"i":"BV0009","n":"LOTTE巧克力布雪蛋糕(12顆裝) for 和泰汽車","c":8,"s":"24°~26°","a":"2026.4月改成分, 需附PHO","ean":"8935341300620"},"BV0005":{"i":"BV0005","n":"LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)","c":16,"s":"24°~26°","a":"LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)","ean":"8935341301122"},"BV0006":{"i":"BV0006","n":"LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)","c":8,"s":"24°~26°","a":"LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)","ean":"8935341301023"},"BV0010":{"i":"BV0010","n":"LOTTE巧克力派－日式抹茶口味(6顆裝)","c":16,"s":"24°~26°","a":"非中文化","ean":"8935341301528"},"BV0011":{"i":"BV0011","n":"LOTTE巧克力派－日式抹茶口味(12顆裝)","c":8,"s":"24°~26°","a":"非中文化","ean":"8935341301627"},"AV0004":{"i":"AV0004","n":"LOTTE XYLITOL木糖醇無糖口香糖－萊姆薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-萊姆薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)","ean":"8934677000914"},"AV0005":{"i":"AV0005","n":"LOTTE XYLITOL木糖醇無糖口香糖－清新薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-清新薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)","ean":"8934677000938"},"AV0006":{"i":"AV0006","n":"LOTTE XYLITOL木糖醇無糖口香糖－藍莓薄荷風味(26.1g)","c":96,"s":"24°~26°","a":"木糖醇無糖口香糖-藍莓薄荷風味(26.1g)\n(18粒/瓶 RSP:39元,2011-03進口)\n2021-03中盒形式 (紙盒改收縮)","ean":"8934677000921"},"FW0071":{"i":"FW0071","n":"樂天福氣派禮盒(2026CNY)","c":10,"s":"24°~26°","a":"紅巧派 x 6pcs\n黑巧派 x 6pcs \n蛋黃派 x 4pcs\n草莓蛋黃派 22g x4pcs \n(散裝)","ean":"4712834456071"},"FW0076":{"i":"FW0076","n":"樂天小熊好運筒(2025CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*10pcs\nBT9094樂天小熊餅-草莓風味12g*10pcs\nBT9097樂天小熊餅-香濃煉乳12g*5pcs","ean":"4712834456484"},"FW0090":{"i":"FW0090","n":"樂天小熊幸福禮盒(2025CNY)","c":6,"s":"24°~26°","a":"贈品-樂天小熊大餅乾枕(白)(SW9227) / (黑)(SW9226)\n樂天小熊餅-巧克力風味12g*3\n樂天小熊餅-草莓風味 12g*3\n樂天小熊餅-濃黑巧克力風味12g*2","ean":"4712834456729"},"FW0083":{"i":"FW0083","n":"LOTTE PEPERO歡慶禮盒(2025CNY)","c":6,"s":"18°~22","a":"BK9156巧克力棒47g*1\nBK9157 仁巧克力棒32g*1\nBK9158 白巧克力棒32g*1\nBK9071 黑餅乾巧克力棒32g*1\nBK9233 脆心巧克力棒39g*1\nBK9244 杏仁白巧克力棒32g*1","ean":"4712834456903"},"FW0084":{"i":"FW0084","n":"樂天派經典禮盒 (2024CNY)","c":6,"s":"24°~26°","a":"贈品-TBC\n樂天巧克力派 28g*5pcs\n樂天黑巧克力派 28g*5pcs\n樂天蛋黃派 23g*3pcs\n(散裝)","ean":"4712834457054"},"FW0085":{"i":"FW0085","n":"樂天派對禮盒(2026CNY)","c":12,"s":"24°~26°","a":"紅巧派 28g*6 x2pks\n蛋黃派 23g*6 x1pks\n(原品包裝)","ean":"4712834457061"},"FW0086":{"i":"FW0086","n":"樂天派雙喜禮盒(2025CNY)","c":12,"s":"24°~26°","a":"紅巧派 28g*6 x2pks\n蛋黃派 23g*6 x1pks\n(原品包裝)","ean":"4712834457078"},"FW0088":{"i":"FW0088","n":"樂天小熊餅經典六角禮盒(2024CNY)","c":6,"s":"24°~27°","a":"樂天小熊餅-巧克力風味12g x4包\n樂天小熊餅-草莓風味12g x4包\n樂天小熊餅-濃黑巧克力風味12g x4包\nSW9223贈品-樂天小熊旅行分裝瓶","ean":"4712834457115"},"FW0091":{"i":"FW0091","n":"樂天小熊餅經典六角禮盒(2025CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*4pcs\nBT9096樂天小熊餅-濃黑12g*4pcs\nSW9243贈品-樂天小熊和風玻璃杯","ean":"4712834457146"},"FW0092":{"i":"FW0092","n":"樂天派經典禮盒 (2025CNY)","c":12,"s":"24°~26°","a":"紅巧派(28g*6)*2盒\n蛋黃派(23g*6)*1盒","ean":"4712834457238"},"FW0093":{"i":"FW0093","n":"LOTTE PEPERO萬事棒棒禮盒(2025CNY)","c":10,"s":"18°~23°","a":"PEPERO杏仁*2&白巧*2&黑餅乾*2","ean":"4712834457276"},"FW0094":{"i":"FW0094","n":"樂天小熊圓滿禮盒(2025CNY)","c":10,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*6pcs\nBT9094樂天小熊餅-草莓風味12g*6pcs\nBT9096樂天小熊餅-濃黑12g*6pcs","ean":"4712834457283"},"FW0096":{"i":"FW0096","n":"樂天小熊餅經典六角禮盒(2026CNY)","c":6,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*4pcs\nBT9096樂天小熊餅-濃黑12g*4pcs\nSW9270贈品-樂天小熊解壓零錢包","ean":"4712834457399"},"FW0097":{"i":"FW0097","n":"樂天派經典禮盒 (2026CNY)","c":12,"s":"18°~23°","a":"7-11_2026年CNY禮盒:【樂天派經典禮盒】，目前採購正在走建檔流程，但2025年樂天派經典禮盒主檔還存在於客戶系統中\n導致條碼重複無法建檔，再麻煩協助更改2026年CNY禮盒:【樂天派經典禮盒】之商品條碼，以利建檔作業，謝謝\n紅巧派(28g*6)*2盒\n蛋黃派(23g*6)*1盒","ean":"4712834457412"},"FW0098":{"i":"FW0098","n":"樂天小熊餅熊萌陶瓷碗組(2026 CNY FM)","c":12,"s":"24°~26°","a":"BT9093樂天小熊餅-巧克力風味12g*4pcs\nBT9094樂天小熊餅-草莓風味12g*3pcs\nSW9275    贈品-樂天小熊造型陶瓷碗","ean":"4712834457436"},"GW0012":{"i":"GW0012","n":"樂天雙享派超值組合包","c":12,"s":"24°~26°","a":"巧克力派(6顆裝)*1\n蛋黃派(6顆裝)*1","ean":"4712834455111"},"GW0058":{"i":"GW0058","n":"LOTTE XYLITOL護牙分享包(全聯版)","c":48,"s":"24°~26°","a":"LOTTE XYLITOL護牙分享包(全聯版)\n-(萊姆-清新-藍莓 口味包裝(26.1g*3)\n商品/中盒/外箱條碼與GW0017相同\n包材: 商品OPP袋及外箱重新製作。中盒與GW0017共用","ean":"4712834455166"},"GW0060":{"i":"GW0060","n":"樂天小熊餅超值美味組合","c":10,"s":"24°~26°","a":"樂天小熊餅超值美味組合(鈣添加)\nKoala chocolate 37g風味*1+\nKoala strawberry 37g風味*1+\nKoala milk 37g風味*1  (2018/6月換設計)","ean":"4712834455180"},"GW0100":{"i":"GW0100","n":"樂天小熊餅超值分享組","c":12,"s":"24°~26°","a":"樂天小熊餅-濃黑巧克力風味37g*1pcs\n樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1pcs\n樂天小熊餅-牛奶風味37g*1pcs","ean":"4712834456378"},"GW0131":{"i":"GW0131","n":"樂天小熊餅美味分享組","c":12,"s":"24°~26°","a":"BT0053樂天小熊餅-濃黑巧克力風味37g*1\nBT0047樂天小熊餅-巧克力風味37g*1pcs\nBT0048樂天小熊餅-草莓風味37g*1pcs\nBT0058北海道牛奶37g*1pcs","ean":"4712834456828"},"GW0145":{"i":"GW0145","n":"樂天派綜合分享包","c":12,"s":"24°~26°","a":"BK0041巧派6入*2\nBK0017蛋派6入*1","ean":"4712834456972"},"GW0146":{"i":"GW0146","n":"樂天派金平安箱","c":4,"s":"24°~26°","a":"BK0018蛋派10入*3包","ean":"4712834456989"},"GW0147":{"i":"GW0147","n":"LOTTE Pepero綜合享樂組","c":10,"s":"18°~22°","a":"BK9274 巧克力棒47g*2\nBK9275 杏仁巧克力棒32g*2\nBK9276 白巧克力棒32g*2","ean":"4712834456996"},"GW0149":{"i":"GW0149","n":"樂天蛋黃派組合包","c":12,"s":"24°~26°","a":"BK0017蛋派6入*3","ean":"4712834457016"},"GW0152":{"i":"GW0152","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*1&白巧*1&黑餅乾*2&\nSW9216 贈品-LOTTE PEPERO 不鏽鋼水果叉2入裝","ean":"4712834457047"},"GW0157":{"i":"GW0157","n":"樂天小熊餅-草莓風味分享包96g","c":16,"s":"24°~26°","a":"樂天小熊餅-草莓風味12g x8包","ean":"4712834457153"},"GW0178":{"i":"GW0178","n":"樂天小熊餅公仔存錢筒","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x2包、\n樂天小熊餅-草莓風味12g x2包\n樂天小熊餅-濃黑巧克力風味12gx2包\nSW9234贈品-樂天小熊公仔存錢筒","ean":"4712834457160"},"GW0161":{"i":"GW0161","n":"樂天甜蜜雙星組","c":8,"s":"24°~26°","a":"蛋黃派23g*5顆\n布雪27g*10","ean":"4712834457191"},"GW0162":{"i":"GW0162","n":"樂天小熊餅豪飽包","c":8,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9261贈品-樂天小熊保冷保溫瓶","ean":"4712834457207"},"GW0167":{"i":"GW0167","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*1&白巧*2&黑餅乾*1&\nSW9246贈品-LOTTE PEPERO造型隨身鏡手機架","ean":"4712834457269"},"GW0169":{"i":"GW0169","n":"樂天小熊餅巧克力超值豪華組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12克*20pcs","ean":"4712834457313"},"GW0170":{"i":"GW0170","n":"樂天小熊餅圓筒包組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12克*2pcs\n樂天小熊餅-草莓風味12克*2pcs\n樂天小熊餅-濃黑巧克力風味12克*2pcs\nSW9260贈品-樂天小熊造型圓筒包","ean":"4712834457320"},"GW0171":{"i":"GW0171","n":"LOTTE Pepero強棒組_2025","c":1,"s":"18°~22","a":"口味: PEPERO 杏仁128g *1 +白巧128g *1 +草莓32g *1 +黑餅乾32g *1+脆心39g *1","ean":"4712834456835"},"GW0190":{"i":"GW0190","n":"樂天福滿箱","c":1,"s":"18°~22","a":"樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1pcs\nLOTTE蛋黃派6入*1pcs\nLOTTE巧克力派6入*1pcs\nLOTTE Pepero杏仁分享盒*1pcs","ean":"棧板出貨"},"GW0173":{"i":"GW0173","n":"樂天小熊餅置物籃組","c":1,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9265贈品-樂天小熊置物籃","ean":"4712834457344"},"GW0174":{"i":"GW0174","n":"樂天小熊餅大熊桶","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*25pcs","ean":"4712834457351"},"GW0175":{"i":"GW0175","n":"LOTTE Pepero派對包","c":10,"s":"18°~22°","a":"PEPERO杏仁*2&白巧*2\nSW9266贈品-LOTTE PEPERO FRIENDS造型梅森杯","ean":"4712834457368"},"GW0176":{"i":"GW0176","n":"樂天小熊餅暖萌組","c":7,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*2pcs\n樂天小熊餅-草莓風味12g*2pcs\n樂天小熊餅-濃黑風味12g*2pcs\n贈品-樂天小熊晴雨傘","ean":"4712834457375"},"GW0177":{"i":"GW0177","n":"LOTTE Pepero x Stray Kids豪華珍藏組16pk for 7E","c":1,"s":"18°~22","a":"LOTTE PEPERO杏仁巧克力餅乾棒Stray Kids限定版*4\nLOTTE PEPERO白巧克力餅乾棒Stray Kids限定版*4\nLOTTE PEPERO脆心巧克力餅乾棒Stray Kids限定版*4\nLOTTE PEPERO巧克力餅乾棒Stray Kids限定版*4\nSW9268贈品-Stray Kids證件照組*1+SW9267鑰匙圈*4","ean":"4712834457382"},"GW0179":{"i":"GW0179","n":"樂天小熊餅聖誕組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味37g*2pcs \n樂天小熊餅-草莓風味37g*1pcs \n樂天小熊餅-牛奶風味37g*1pcs \n樂天小熊餅-濃黑巧克力風味37g*1pcs \nSW9271贈品-樂天小熊隨身收納包","ean":"4712834457405"},"GW0180":{"i":"GW0180","n":"樂天小熊餅好運袋","c":12,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x3包\n樂天小熊餅-草莓風味12g x3包\nSW9272贈品-樂天小熊熊頭購物袋","ean":"4712834457429"},"GW0181":{"i":"GW0181","n":"樂天小熊餅手提收納籃組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g x6包、\n樂天小熊餅-草莓風味12g x4包\n樂天小熊餅-濃黑巧克力風味12gx4包\nSW9277贈品-樂天小熊手提收納籃","ean":"4712834457443"},"GW0182":{"i":"GW0182","n":"樂天小熊餅開運組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*5pcs\n樂天小熊餅-草莓風味12g*3pcs\n樂天小熊餅-濃黑風味12g*2pcs\nSW9284 贈品-樂天小熊御守","ean":"4712834457450"},"GW0183":{"i":"GW0183","n":"LOTTE PEPERO 派對包","c":10,"s":"18°~22°","a":"LOTTE PEPERO X Stray Kids 聯名收藏套組\n內含: PEPERO  杏仁巧克力餅乾棒32g*1pcs\nPEPERO  白巧克力餅乾棒32g*2pcs\nSW9281贈品-PEPERO FRIENDS 造型原子筆*1","ean":"4712834457467"},"GW0184":{"i":"GW0184","n":"樂天小熊餅豪華雙禮組","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味37g*1pcs\n樂天小熊餅-草莓風味37g*1cs\n樂天小熊餅-牛奶風味37g*1cs\n樂天小熊餅-濃黑風味37g*1pcs\nSW9242 贈品-樂天小熊簇絨墊\nSW9239 贈品-樂天小熊摺疊籃","ean":"4712834457474"},"GW0185":{"i":"GW0185","n":"樂天小熊餅保冷袋組","c":10,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*3pcs\n樂天小熊餅-草莓風味12g*3pcs\nSW9286-贈品-樂天小熊保冷袋","ean":"4712834457481"},"GW0186":{"i":"GW0186","n":"樂天小熊餅豪飽包","c":0,"s":"nan","a":"","ean":"4712834457498"},"GW0187":{"i":"GW0187","n":"樂天小熊餅招牌燈組","c":0,"s":"nan","a":"","ean":"4712834457504"},"GW0188":{"i":"GW0188","n":"樂天黃金雙星組","c":8,"s":"24°~26°","a":"樂天巧克力派 28g*10pcs\n樂天巧克力布雪蛋糕-起司口味 27g*7pcs","ean":"4712834457511"},"GW0189":{"i":"GW0189","n":"樂天小熊餅大熊桶","c":6,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*22pcs","ean":"4712834457528"},"GW0191":{"i":"GW0191","n":"樂天小熊澎湃箱－巧克力風味","c":1,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*26pcs","ean":"4712834456194"},"GW0192":{"i":"GW0192","n":"樂天小熊澎湃包-綜合口味","c":1,"s":"24°~26°","a":"樂天小熊餅-巧克力風味12g*7pcs\n樂天小熊餅-草莓風味12g*7cs\n樂天小熊餅-濃黑風味12g*6pcs\n樂天小熊餅-北海道牛奶風味12g*6pcs","ean":"4712834456200"},"SW9162":{"i":"SW9162","n":"贈品－樂天小熊餅造型存錢桶","c":0,"s":"Dry","a":"尺寸:","ean":"4712834454954"},"SW9186":{"i":"SW9186","n":"贈品－樂天小熊立體造型隨身杯","c":0,"s":"Dry","a":"贈品－樂天小熊立體造型隨身杯","ean":"4712834453667"},"SW9208":{"i":"SW9208","n":"贈品－LOTTE PEPERO FRIENDS萬用提袋","c":0,"s":"Dry","a":"尺寸:18*26*7cm","ean":"4712834453865"},"SW9212":{"i":"SW9212","n":"贈品－樂天小熊造型木盤","c":0,"s":"Dry","a":"尺寸:cm","ean":"4712834453896"},"SW9213":{"i":"SW9213","n":"贈品－LOTTE保冷袋","c":0,"s":"Dry","a":"尺寸:cm","ean":"4712834453902"},"SW9224":{"i":"SW9224","n":"贈品－樂天小熊購物車 (桶色)","c":1,"s":"Dry","a":"尺寸:cm","ean":"4712834459010"},"SW9225":{"i":"SW9225","n":"贈品－樂天小熊華爾滋靠枕","c":1,"s":"Dry","a":"尺寸:cm\n2024 Donki CNY 療癒靠枕組 贈品","ean":"4712834459027"},"SW9226":{"i":"SW9226","n":"贈品－樂天小熊大餅乾枕(黑)","c":1,"s":"Dry","a":"尺寸:cm","ean":"4712834459034"},"SW9227":{"i":"SW9227","n":"贈品－樂天小熊大餅乾枕(白)","c":1,"s":"Dry","a":"尺寸:cm","ean":"4712834459041"},"SW9232":{"i":"SW9232","n":"贈品－LOTTE PEPERO FRIENDS 證件套","c":250,"s":"Dry","a":"尺寸:11*7cm","ean":"4712834459188"},"SW9234":{"i":"SW9234","n":"贈品－樂天小熊公仔存錢筒","c":45,"s":"Dry","a":"尺寸:61*47.7*58.2cm","ean":"4712834459065"},"SW9235":{"i":"SW9235","n":"贈品－樂天小熊造型不鏽鋼湯匙","c":300,"s":"Dry","a":"尺寸:30*20*24.5   cm","ean":"4712834459072"},"SW9237":{"i":"SW9237","n":"贈品－樂天小熊托特袋","c":75,"s":"Dry","a":"","ean":"4712834459096"},"SW9239":{"i":"SW9239","n":"贈品－樂天小熊摺疊籃","c":1,"s":"Dry","a":"?","ean":"4712834459119"},"SW9242-2":{"i":"SW9242-2","n":"贈品－樂天小熊簇絨墊(黃)","c":50,"s":"Dry","a":"PM:進貨廠商分出贈品顏色,SW9242-1藍/SW9242-2黃, 但加工GW0166隨機出貨(順出)\nGA系統只建購一個貨號, 僅在DSV系統分出SW9242-1藍/SW9242-2黃","ean":"4712834459140"},"SW9243":{"i":"SW9243","n":"贈品－樂天小熊和風玻璃杯","c":1,"s":"Dry","a":"","ean":"4712834459157"},"SW9250":{"i":"SW9250","n":"贈品－PEPERO FRIENDS造型馬克杯","c":24,"s":"Dry","a":"9.8*9 cm","ean":"4712834459171"},"SW9256":{"i":"SW9256","n":"贈品-樂天小熊摺疊露營推車","c":1,"s":"Dry","a":"","ean":"4712834459225"},"SW9257":{"i":"SW9257","n":"贈品-樂天小熊證件套","c":1,"s":"Dry","a":"","ean":"4712834459232"},"SW9258":{"i":"SW9258","n":"贈品-樂天小熊造型桌鐘","c":1,"s":"Dry","a":"","ean":"4712834459249"},"SW9259":{"i":"SW9259","n":"贈品-LOTTE掛勾摺疊購物袋","c":1,"s":"Dry","a":"2025 Q2布雪滿額贈贈品","ean":"4712834459256"},"SW9260":{"i":"SW9260","n":"贈品-樂天小熊造型圓筒包","c":1,"s":"Dry","a":"贈品-樂天小熊造型圓筒包","ean":"4712834459263"},"SW9265":{"i":"SW9265","n":"贈品-樂天小熊置物籃","c":1,"s":"Dry","a":"贈品-樂天小熊置物籃","ean":"4712834459317"},"SW9266":{"i":"SW9266","n":"贈品-LOTTE PEPERO FRIENDS造型梅森杯","c":36,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型梅森杯","ean":"4712834459324"},"SW9267":{"i":"SW9267","n":"贈品-LOTTE PEPERO x Stray Kids聯名鑰匙圈","c":500,"s":"Dry","a":"產品尺寸4*7.9 cm","ean":"4712834459331"},"SW9269":{"i":"SW9269","n":"贈品-LOTTE PEPERO x Stray Kids聯名海報_45x62CM","c":250,"s":"Dry","a":"產品尺寸45*62 cm","ean":"4712834459355"},"SW9270":{"i":"SW9270","n":"贈品-樂天小熊解壓零錢包","c":1,"s":"Dry","a":"贈品-樂天小熊解壓零錢包","ean":"4712834459362"},"SW9271":{"i":"SW9271","n":"贈品-樂天小熊隨身收納包","c":200,"s":"Dry","a":"贈品-樂天小熊隨身收納包","ean":"4712834459379"},"SW9272":{"i":"SW9272","n":"贈品-樂天小熊熊頭購物袋","c":1,"s":"Dry","a":"贈品-樂天小熊熊頭購物袋","ean":"4712834459386"},"SW9273":{"i":"SW9273","n":"贈品-樂天小熊法蘭絨毯","c":30,"s":"Dry","a":"贈品-樂天小熊法蘭絨毯","ean":"4712834459393"},"SW9274":{"i":"SW9274","n":"贈品-樂天小熊造型隔熱墊","c":110,"s":"Dry","a":"贈品-樂天小熊造型隔熱墊","ean":"4712834459409"},"SW9275":{"i":"SW9275","n":"贈品-樂天小熊造型陶瓷碗","c":0,"s":"Dry","a":"贈品-樂天小熊造型陶瓷碗","ean":"4712834459416"},"SW9277":{"i":"SW9277","n":"贈品-樂天小熊手提收納籃","c":10,"s":"Dry","a":"贈品-樂天小熊手提收納籃","ean":"4712834459430"},"SW9285":{"i":"SW9285","n":"贈品-樂天小熊茄芷風格網袋(for大創)","c":100,"s":"Dry","a":"贈品－贈品-樂天小熊茄芷風格網袋 for 大創","ean":"4712834459447"},"SW9280":{"i":"SW9280","n":"贈品-LOTTE PEPERO FRIENDS證件套2026","c":250,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS證件套2026","ean":"4712834459461"},"SW9281":{"i":"SW9281","n":"贈品-LOTTE PEPERO FRIENDS造型原子筆2026","c":1000,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型原子筆2026","ean":"4712834459478"},"SW9283":{"i":"SW9283","n":"贈品-LOTTE PEPERO FRIENDS造型襪2026","c":360,"s":"Dry","a":"贈品-LOTTE PEPERO FRIENDS造型襪2026","ean":"4712834459485"},"SW9284":{"i":"SW9284","n":"贈品-樂天小熊御守","c":1,"s":"Dry","a":"贈品-樂天小熊御守","ean":"4712834459492"},"SW9286":{"i":"SW9286","n":"贈品-樂天小熊保冷袋","c":1,"s":"Dry","a":"贈品-樂天小熊保冷袋","ean":"4712834459508"},"SW9287":{"i":"SW9287","n":"贈品-樂天小熊不鏽鋼餐盒","c":1,"s":"Dry","a":"","ean":"4712834459515"},"SW9288":{"i":"SW9288","n":"贈品-樂天小熊招牌燈","c":1,"s":"Dry","a":"","ean":"4712834459522"}};
+const EXP={"BJ9321":36,"BJ9323":24,"BJ9408":72,"BJ9400":60,"BJ9276":60,"BJ9277":48,"BJ9296":36,"BJ9339":36,"BJ9340":120,"BJ9341":24,"BJ9346":24,"BJ9354":36,"BJ9371":60,"BJ9356":60,"BJ9357":24,"BJ9362":60,"BJ9377":120,"BJ9373":60,"BJ9374":144,"BJ9383":72,"BJ9384":24,"BJ9385":48,"BJ9386":120,"BJ9389":96,"BJ9393":72,"BJ9394":48,"BJ9407":60,"BJ9410":96,"BJ9411":36,"BJ9413":36,"BJ9414":120,"BJ9415":36,"BJ9425":96,"BJ9427":96,"BJ9428":72,"BJ9432":24,"BJ9433":144,"BJ9434":36,"BJ9435":120,"BJ9439":36,"BJ9440":72,"BJ9444":96,"BJ9445":60,"BJ9446":36,"BJ9447":24,"BJ9448":60,"BJ9449":72,"BJ9450":36,"BJ9452":60,"BJ9453":36,"BJ9454":120,"BJ9461":72,"BJ9456":144,"BJ9457":96,"BJ9459":48,"BJ9460":96,"BJ9462":96,"BJ9463":60,"BJ9464":72,"BJ9465":36};
+const LOC_POOLS={"BA":["BA242","BA243","BA244","BA245","BA232","BA233","BA234","BA235","BA222","BA223","BA224","BA225","BA212","BA213","BA214","BA215","BA202","BA203","BA204","BA205","BA192","BA193","BA194","BA195","BA182","BA183","BA184","BA185","BA172","BA173","BA174","BA175","BA162","BA163","BA164","BA165","BA152","BA153","BA154","BA155","BA142","BA143","BA144","BA145","BA132","BA133","BA134","BA135","BA122","BA123","BA124","BA125","BA112","BA113","BA114","BA115","BA102","BA103","BA104","BA105","BA092","BA093","BA094","BA095","BA082","BA083","BA084","BA085","BA072","BA073","BA074","BA075","BA062","BA063","BA064","BA065","BA052","BA053","BA054","BA055","BA042","BA043","BA044","BA045","BA032","BA033","BA034","BA035","BA022","BA023","BA024","BA025","BA012","BA013","BA014","BA015","BA002","BA003","BA004","BA005"],"BB":["BB242","BB243","BB244","BB245","BB232","BB233","BB234","BB235","BB222","BB223","BB224","BB225","BB212","BB213","BB214","BB215","BB202","BB203","BB204","BB205","BB192","BB193","BB194","BB195","BB182","BB183","BB184","BB185","BB172","BB173","BB174","BB175","BB162","BB163","BB164","BB165","BB152","BB153","BB154","BB155","BB142","BB143","BB144","BB145","BB132","BB133","BB134","BB135","BB122","BB123","BB124","BB125","BB112","BB113","BB114","BB115","BB102","BB103","BB104","BB105","BB092","BB093","BB094","BB095","BB082","BB083","BB084","BB085","BB072","BB073","BB074","BB075","BB062","BB063","BB064","BB065","BB052","BB053","BB054","BB055","BB042","BB043","BB044","BB045","BB032","BB033","BB034","BB035","BB022","BB023","BB024","BB025","BB012","BB013","BB014","BB015","BB002","BB003","BB004","BB005"],"BC":["BC242","BC243","BC244","BC245","BC232","BC233","BC234","BC235","BC222","BC223","BC224","BC225","BC212","BC213","BC214","BC215","BC202","BC203","BC204","BC205","BC192","BC193","BC194","BC195","BC182","BC183","BC184","BC185","BC172","BC173","BC174","BC175","BC162","BC163","BC164","BC165","BC152","BC153","BC154","BC155","BC142","BC143","BC144","BC145","BC132","BC133","BC134","BC135","BC122","BC123","BC124","BC125","BC112","BC113","BC114","BC115","BC102","BC103","BC104","BC105","BC092","BC093","BC094","BC095","BC082","BC083","BC084","BC085","BC072","BC073","BC074","BC075","BC062","BC063","BC064","BC065","BC052","BC053","BC054","BC055","BC042","BC043","BC044","BC045","BC032","BC033","BC034","BC035","BC022","BC023","BC024","BC025","BC012","BC013","BC014","BC015","BC002","BC003","BC004","BC005"],"BD":["BD242","BD243","BD244","BD245","BD232","BD233","BD234","BD235","BD222","BD223","BD224","BD225","BD212","BD213","BD214","BD215","BD202","BD203","BD204","BD205","BD192","BD193","BD194","BD195","BD182","BD183","BD184","BD185","BD172","BD173","BD174","BD175","BD162","BD163","BD164","BD165","BD152","BD153","BD154","BD155","BD142","BD143","BD144","BD145","BD132","BD133","BD134","BD135","BD122","BD123","BD124","BD125","BD112","BD113","BD114","BD115","BD102","BD103","BD104","BD105","BD092","BD093","BD094","BD095","BD082","BD083","BD084","BD085","BD072","BD073","BD074","BD075","BD062","BD063","BD064","BD065","BD052","BD053","BD054","BD055","BD042","BD043","BD044","BD045","BD032","BD033","BD034","BD035","BD022","BD023","BD024","BD025","BD012","BD013","BD014","BD015","BD002","BD003","BD004","BD005"],"BE":["BE242","BE243","BE244","BE245","BE232","BE233","BE234","BE235","BE222","BE223","BE224","BE225","BE212","BE213","BE214","BE215","BE202","BE203","BE204","BE205","BE192","BE193","BE194","BE195","BE182","BE183","BE184","BE185","BE172","BE173","BE174","BE175","BE162","BE163","BE164","BE165","BE152","BE153","BE154","BE155","BE142","BE143","BE144","BE145","BE132","BE133","BE134","BE135","BE122","BE123","BE124","BE125","BE112","BE113","BE114","BE115","BE102","BE103","BE104","BE105","BE092","BE093","BE094","BE095","BE082","BE083","BE084","BE085","BE072","BE073","BE074","BE075","BE062","BE063","BE064","BE065","BE052","BE053","BE054","BE055","BE042","BE043","BE044","BE045","BE032","BE033","BE034","BE035","BE022","BE023","BE024","BE025","BE012","BE013","BE014","BE015","BE002","BE003","BE004","BE005"],"BF":["BF242","BF243","BF244","BF245","BF232","BF233","BF234","BF235","BF222","BF223","BF224","BF225","BF212","BF213","BF214","BF215","BF202","BF203","BF204","BF205","BF192","BF193","BF194","BF195","BF182","BF183","BF184","BF185","BF172","BF173","BF174","BF175","BF162","BF163","BF164","BF165","BF152","BF153","BF154","BF155","BF142","BF143","BF144","BF145","BF132","BF133","BF134","BF135","BF122","BF123","BF124","BF125","BF112","BF113","BF114","BF115","BF102","BF103","BF104","BF105","BF092","BF093","BF094","BF095","BF082","BF083","BF084","BF085","BF072","BF073","BF074","BF075","BF062","BF063","BF064","BF065","BF052","BF053","BF054","BF055","BF042","BF043","BF044","BF045","BF032","BF033","BF034","BF035","BF022","BF023","BF024","BF025","BF012","BF013","BF014","BF015","BF002","BF003","BF004","BF005"],"BG":["BG242","BG243","BG244","BG245","BG232","BG233","BG234","BG235","BG222","BG223","BG224","BG225","BG212","BG213","BG214","BG215","BG202","BG203","BG204","BG205","BG192","BG193","BG194","BG195","BG182","BG183","BG184","BG185","BG172","BG173","BG174","BG175","BG162","BG163","BG164","BG165","BG152","BG153","BG154","BG155","BG142","BG143","BG144","BG145","BG132","BG133","BG134","BG135","BG122","BG123","BG124","BG125","BG112","BG113","BG114","BG115","BG102","BG103","BG104","BG105","BG092","BG093","BG094","BG095","BG082","BG083","BG084","BG085","BG072","BG073","BG074","BG075","BG062","BG063","BG064","BG065","BG052","BG053","BG054","BG055","BG042","BG043","BG044","BG045","BG032","BG033","BG034","BG035","BG022","BG023","BG024","BG025","BG012","BG013","BG014","BG015","BG002","BG003","BG004","BG005"],"BH":["BH242","BH243","BH244","BH245","BH232","BH233","BH234","BH235","BH222","BH223","BH224","BH225","BH212","BH213","BH214","BH215","BH202","BH203","BH204","BH205","BH192","BH193","BH194","BH195","BH182","BH183","BH184","BH185","BH172","BH173","BH174","BH175","BH162","BH163","BH164","BH165","BH152","BH153","BH154","BH155","BH142","BH143","BH144","BH145","BH132","BH133","BH134","BH135","BH122","BH123","BH124","BH125","BH112","BH113","BH114","BH115","BH102","BH103","BH104","BH105","BH092","BH093","BH094","BH095","BH082","BH083","BH084","BH085","BH072","BH073","BH074","BH075","BH062","BH063","BH064","BH065","BH052","BH053","BH054","BH055","BH042","BH043","BH044","BH045","BH032","BH033","BH034","BH035","BH022","BH023","BH024","BH025","BH012","BH013","BH014","BH015","BH002","BH003","BH004","BH005"],"BI":["BI242","BI243","BI244","BI245","BI232","BI233","BI234","BI235","BI222","BI223","BI224","BI225","BI212","BI213","BI214","BI215","BI202","BI203","BI204","BI205","BI192","BI193","BI194","BI195","BI182","BI183","BI184","BI185","BI172","BI173","BI174","BI175","BI162","BI163","BI164","BI165","BI152","BI153","BI154","BI155","BI142","BI143","BI144","BI145","BI132","BI133","BI134","BI135","BI122","BI123","BI124","BI125","BI112","BI113","BI114","BI115","BI102","BI103","BI104","BI105","BI092","BI093","BI094","BI095","BI082","BI083","BI084","BI085","BI072","BI073","BI074","BI075","BI062","BI063","BI064","BI065","BI052","BI053","BI054","BI055","BI042","BI043","BI044","BI045","BI032","BI033","BI034","BI035","BI022","BI023","BI024","BI025","BI012","BI013","BI014","BI015","BI002","BI003","BI004","BI005"],"BJ":["BJ242","BJ243","BJ244","BJ245","BJ232","BJ233","BJ234","BJ235","BJ222","BJ223","BJ224","BJ225","BJ212","BJ213","BJ214","BJ215","BJ202","BJ203","BJ204","BJ205","BJ192","BJ193","BJ194","BJ195","BJ182","BJ183","BJ184","BJ185","BJ172","BJ173","BJ174","BJ175","BJ162","BJ163","BJ164","BJ165","BJ152","BJ153","BJ154","BJ155","BJ142","BJ143","BJ144","BJ145","BJ132","BJ133","BJ134","BJ135","BJ122","BJ123","BJ124","BJ125","BJ112","BJ113","BJ114","BJ115","BJ102","BJ103","BJ104","BJ105","BJ092","BJ093","BJ094","BJ095","BJ082","BJ083","BJ084","BJ085","BJ072","BJ073","BJ074","BJ075","BJ062","BJ063","BJ064","BJ065","BJ052","BJ053","BJ054","BJ055","BJ042","BJ043","BJ044","BJ045","BJ032","BJ033","BJ034","BJ035","BJ022","BJ023","BJ024","BJ025","BJ012","BJ013","BJ014","BJ015","BJ002","BJ003","BJ004","BJ005"],"BK":["BK242","BK243","BK244","BK245","BK232","BK233","BK234","BK235","BK222","BK223","BK224","BK225","BK212","BK213","BK214","BK215","BK202","BK203","BK204","BK205","BK192","BK193","BK194","BK195","BK182","BK183","BK184","BK185","BK172","BK173","BK174","BK175","BK162","BK163","BK164","BK165","BK152","BK153","BK154","BK155","BK142","BK143","BK144","BK145","BK132","BK133","BK134","BK135","BK122","BK123","BK124","BK125","BK112","BK113","BK114","BK115","BK102","BK103","BK104","BK105","BK092","BK093","BK094","BK095","BK082","BK083","BK084","BK085","BK072","BK073","BK074","BK075","BK062","BK063","BK064","BK065","BK052","BK053","BK054","BK055","BK042","BK043","BK044","BK045","BK032","BK033","BK034","BK035","BK022","BK023","BK024","BK025","BK012","BK013","BK014","BK015","BK002","BK003","BK004","BK005"],"BL":["BL242","BL243","BL244","BL245","BL232","BL233","BL234","BL235","BL222","BL223","BL224","BL225","BL212","BL213","BL214","BL215","BL202","BL203","BL204","BL205","BL192","BL193","BL194","BL195","BL182","BL183","BL184","BL185","BL172","BL173","BL174","BL175","BL162","BL163","BL164","BL165","BL152","BL153","BL154","BL155","BL142","BL143","BL144","BL145","BL132","BL133","BL134","BL135","BL122","BL123","BL124","BL125","BL112","BL113","BL114","BL115","BL102","BL103","BL104","BL105","BL092","BL093","BL094","BL095","BL082","BL083","BL084","BL085","BL072","BL073","BL074","BL075","BL062","BL063","BL064","BL065","BL052","BL053","BL054","BL055","BL042","BL043","BL044","BL045","BL032","BL033","BL034","BL035","BL022","BL023","BL024","BL025","BL012","BL013","BL014","BL015","BL002","BL003","BL004","BL005"],"BM":["BM242","BM243","BM244","BM245","BM232","BM233","BM234","BM235","BM222","BM223","BM224","BM225","BM212","BM213","BM214","BM215","BM202","BM203","BM204","BM205","BM192","BM193","BM194","BM195","BM182","BM183","BM184","BM185","BM172","BM173","BM174","BM175","BM162","BM163","BM164","BM165","BM152","BM153","BM154","BM155","BM142","BM143","BM144","BM145","BM132","BM133","BM134","BM135","BM122","BM123","BM124","BM125","BM112","BM113","BM114","BM115","BM102","BM103","BM104","BM105","BM092","BM093","BM094","BM095","BM082","BM083","BM084","BM085","BM072","BM073","BM074","BM075","BM062","BM063","BM064","BM065","BM052","BM053","BM054","BM055","BM042","BM043","BM044","BM045","BM032","BM033","BM034","BM035","BM022","BM023","BM024","BM025","BM012","BM013","BM014","BM015","BM002","BM003","BM004","BM005"],"BN":["BN242","BN243","BN244","BN245","BN232","BN233","BN234","BN235","BN222","BN223","BN224","BN225","BN212","BN213","BN214","BN215","BN202","BN203","BN204","BN205","BN192","BN193","BN194","BN195","BN182","BN183","BN184","BN185","BN172","BN173","BN174","BN175","BN162","BN163","BN164","BN165","BN152","BN153","BN154","BN155","BN142","BN143","BN144","BN145","BN132","BN133","BN134","BN135","BN122","BN123","BN124","BN125","BN112","BN113","BN114","BN115","BN102","BN103","BN104","BN105","BN092","BN093","BN094","BN095","BN082","BN083","BN084","BN085","BN072","BN073","BN074","BN075","BN062","BN063","BN064","BN065","BN052","BN053","BN054","BN055","BN042","BN043","BN044","BN045","BN032","BN033","BN034","BN035","BN022","BN023","BN024","BN025","BN012","BN013","BN014","BN015","BN002","BN003","BN004","BN005"],"BO":["BO242","BO243","BO244","BO245","BO232","BO233","BO234","BO235","BO222","BO223","BO224","BO225","BO212","BO213","BO214","BO215","BO202","BO203","BO204","BO205","BO192","BO193","BO194","BO195","BO182","BO183","BO184","BO185","BO172","BO173","BO174","BO175","BO162","BO163","BO164","BO165","BO152","BO153","BO154","BO155","BO142","BO143","BO144","BO145","BO132","BO133","BO134","BO135","BO122","BO123","BO124","BO125","BO112","BO113","BO114","BO115","BO102","BO103","BO104","BO105","BO092","BO093","BO094","BO095","BO082","BO083","BO084","BO085","BO072","BO073","BO074","BO075","BO062","BO063","BO064","BO065","BO052","BO053","BO054","BO055","BO042","BO043","BO044","BO045","BO032","BO033","BO034","BO035","BO022","BO023","BO024","BO025","BO012","BO013","BO014","BO015","BO002","BO003","BO004","BO005"],"BP":["BP242","BP243","BP244","BP245","BP232","BP233","BP234","BP235","BP222","BP223","BP224","BP225","BP212","BP213","BP214","BP215","BP202","BP203","BP204","BP205","BP192","BP193","BP194","BP195","BP182","BP183","BP184","BP185","BP172","BP173","BP174","BP175","BP162","BP163","BP164","BP165","BP152","BP153","BP154","BP155","BP142","BP143","BP144","BP145","BP132","BP133","BP134","BP135","BP122","BP123","BP124","BP125","BP112","BP113","BP114","BP115","BP102","BP103","BP104","BP105","BP092","BP093","BP094","BP095","BP082","BP083","BP084","BP085","BP072","BP073","BP074","BP075","BP062","BP063","BP064","BP065","BP052","BP053","BP054","BP055","BP042","BP043","BP044","BP045","BP032","BP033","BP034","BP035","BP022","BP023","BP024","BP025","BP012","BP013","BP014","BP015","BP002","BP003","BP004","BP005"]};
+</script>
+<script>
+var AISLES = ['BA','BB','BC','BD','BE','BF','BG','BH','BI','BJ','BK','BL','BM','BN','BO','BP'];
+
+/* STATE */
+var ST = {
+  truck:'', aisle:'', overflow:'', trip:0, tail:false,
+  pallets:{}, curPallet:null, curSKU:null, closed:false,
+  locIdx:{}, sealTarget:null, sealStatus:'', _pendingLoc:null
+};
+AISLES.forEach(function(a){ ST.locIdx[a]=0; });
+
+/* ══ INIT AISLE GRIDS ══ */
+function buildAisleGrid(containerId, onClickFn, selectedVal) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = AISLES.map(function(a) {
+    var pool = LOC_POOLS[a] || [];
+    var avail = pool.length - (ST.locIdx[a]||0);
+    var cls = (a === selectedVal) ? ' on' : '';
+    return '<button class="aisle-btn' + cls + '" id="' + containerId + '-' + a + '"' +
+      ' onclick="' + onClickFn + '(\'' + a + '\')">' +
+      a + '<span class="ac">' + avail + '格</span></button>';
+  }).join('');
+}
+
+function initAisleGrids() {
+  buildAisleGrid('aisle-grid', 'pickAisle', ST.aisle);
+  buildAisleGrid('overflow-grid', 'pickOverflow', ST.overflow);
+}
+
+/* ══ SETUP ══ */
+function onTruckChange() {
+  var v = document.getElementById('truck-sel').value;
+  var otherWrap = document.getElementById('truck-other-wrap');
+  var info = document.getElementById('truck-info');
+  if (v === 'OTHER') {
+    otherWrap.style.display = 'block';
+    ST.truck = '';
+  } else {
+    otherWrap.style.display = 'none';
+    ST.truck = v;
+  }
+  if (v && v !== 'OTHER') {
+    info.style.display = 'block';
+    info.textContent = '✓ 車號已選：' + v;
+    info.style.color = 'var(--green)';
+  } else {
+    info.style.display = 'none';
+  }
+  checkStart();
+}
+
+function onTruckOther() {
+  ST.truck = document.getElementById('truck-other').value.trim();
+  checkStart();
+}
+
+function pickAisle(a) {
+  ST.aisle = a;
+  buildAisleGrid('aisle-grid', 'pickAisle', a);
+  var pool = LOC_POOLS[a] || [];
+  var avail = pool.length - (ST.locIdx[a]||0);
+  var warn = document.getElementById('cap-warn');
+  var info = document.getElementById('cap-info');
+  var ow = document.getElementById('overflow-wrap');
+  info.style.display = 'block';
+  info.textContent = a + ' 走道：' + avail + ' 格可用（共 ' + pool.length + ' 格，第1層已排除）';
+  if (avail < 32) {
+    warn.textContent = '⚠️ ' + a + ' 走道剩 ' + avail + ' 格，本趟32板不足，請指定溢出走道';
+    warn.style.display = 'block';
+    ow.style.display = 'block';
+    buildAisleGrid('overflow-grid', 'pickOverflow', ST.overflow);
+  } else {
+    warn.style.display = 'none';
+    ow.style.display = 'none';
+  }
+  checkStart();
+}
+
+function pickOverflow(a) {
+  if (a === ST.aisle) { toast('溢出走道不能與主走道相同', true); return; }
+  ST.overflow = a;
+  buildAisleGrid('overflow-grid', 'pickOverflow', a);
+}
+
+function pickTrip(n, idx) {
+  document.querySelectorAll('[id^="tc"]').forEach(function(c){ c.classList.remove('on'); });
+  document.getElementById('tc'+idx).classList.add('on');
+  ST.trip = n;
+  checkStart();
+}
+
+function checkStart() {
+  var ok = ST.truck && ST.aisle && ST.trip > 0;
+  document.getElementById('start-btn').disabled = !ok;
+}
+
+function doStart() {
+  ST.tail = document.getElementById('tail-chk').checked;
+  ST.overflow = ST.overflow || '';
+  var truckShort = ST.truck.replace('-','').slice(0,6);
+  document.getElementById('s1title').textContent = truckShort + ' 趟' + ST.trip + ' · ' + ST.aisle;
+  updS1Badge();
+  goS(1);
+}
+
+/* ══ SCAN ══ */
+function qs(v) { document.getElementById('ean-in').value = v; doLookup(); }
+
+function doLookup() {
+  var v = document.getElementById('ean-in').value.trim();
+  if (!v) { toast('請輸入EAN或品號', true); return; }
+  var sku = EAN_MAP[v] || ITEM_MAP[v.toUpperCase()];
+  if (!sku) { toast('找不到: ' + v, true); return; }
+  ST.curSKU = Object.assign({}, sku, {ean: v});
+  document.getElementById('sku-code').textContent = sku.i;
+  document.getElementById('sku-name').textContent = sku.n;
+  var isC = sku.s && (sku.s.indexOf('冷') >= 0);
+  var te = document.getElementById('sku-temp');
+  te.textContent = isC ? 'C 恆溫' : 'N 常溫';
+  te.className = isC ? 'tc' : 'tn';
+  document.getElementById('sku-store').textContent = sku.s || '';
+  document.getElementById('sku-cp').textContent = (sku.c || '?') + ' ';
+  document.getElementById('sku-card').style.display = 'block';
+  document.getElementById('qty-v').value = 1;
+  document.getElementById('qty-v').max = EXP[sku.i] || 9999;
+  document.getElementById('qty-card').style.display = 'block';
+  qHint();
+  document.getElementById('psel-card').style.display = 'block';
+  renderPChips();
+  document.getElementById('add-wrap').style.display = 'block';
+  document.getElementById('ean-in').value = '';
+}
+
+function qHint() {
+  var qty = parseInt(document.getElementById('qty-v').value) || 0;
+  var sku = ST.curSKU; if (!sku) return;
+  var exp = EXP[sku.i] || null;
+  var pcs = qty * (sku.c || 1);
+  document.getElementById('pcs-prev').textContent = '= ' + pcs.toLocaleString() + ' PCS';
+  var h = document.getElementById('qty-h');
+  if (exp) {
+    var sc = getScanned(sku.i);
+    var after = sc + qty;
+    var diff = after - exp;
+    if (diff > 0) {
+      h.textContent = '❌ 超出預期！最多再加 ' + Math.max(0, exp - sc) + ' 箱';
+      h.className = 'qhint qhe';
+      document.getElementById('qty-v').value = Math.max(1, exp - sc);
+    } else if (diff === 0) {
+      h.textContent = '✅ 加入後將達預期 ' + exp + ' 箱';
+      h.className = 'qhint qhok';
+    } else {
+      h.textContent = '已掃 ' + sc + ' / 預期 ' + exp + '（差 ' + Math.abs(diff) + ' 箱）';
+      h.className = 'qhint qhw';
+    }
+  } else {
+    h.textContent = '此品號無預期數量資料';
+    h.className = 'qhint';
+  }
+}
+
+function getScanned(ic) {
+  var t = 0;
+  Object.values(ST.pallets).forEach(function(p) {
+    p.items.forEach(function(it) { if (it.item_code === ic) t += it.qty; });
+  });
+  return t;
+}
+
+function adjQ(d) {
+  var el = document.getElementById('qty-v');
+  var mx = parseInt(el.max) || 9999;
+  el.value = Math.max(1, Math.min(mx, (parseInt(el.value)||1) + d));
+  qHint();
+}
+
+/* ══ PALLETS ══ */
+function genId() {
+  var pre = ST.truck.replace(/[^A-Z0-9]/gi,'').slice(0,4).toUpperCase() + String(ST.trip) + '-';
+  var nums = Object.keys(ST.pallets)
+    .filter(function(k){ return k.startsWith(pre); })
+    .map(function(k){ return parseInt(k.split('-').pop())||0; });
+  var next = (nums.length ? Math.max.apply(null, nums) : 0) + 1;
+  return pre + String(next).padStart(3,'0');
+}
+
+function newPallet() {
+  // Bug 1 fix: 不允許有 open 棧板時新建
+  var openPallets = Object.values(ST.pallets).filter(function(p){ return p.status==='open'; });
+  if (openPallets.length > 0) {
+    var openId = openPallets[0].id;
+    toast('請先封板 ' + openId + ' 再新建', true);
+    // 自動切換到那個棧板
+    ST.curPallet = openId;
+    renderPChips();
+    return;
+  }
+  var id = genId();
+  ST.pallets[id] = {id:id, items:[], status:'open', loc:'', sStatus:'', reason:''};
+  ST.curPallet = id;
+  renderPChips();
+  toast('新建 ' + id);
+}
+
+function selPallet(id) { ST.curPallet = id; renderPChips(); }
+
+function renderPChips() {
+  var open = Object.values(ST.pallets).filter(function(p){ return p.status==='open'; });
+  document.getElementById('pchips').innerHTML = open.map(function(p) {
+    var cls = ST.curPallet === p.id ? ' on' : '';
+    return '<div class="pchip' + cls + '" onclick="selPallet(\'' + p.id + '\')">' +
+      p.id + '<br><span style="font-weight:400;color:var(--muted);font-size:9px">' +
+      p.items.length + 'SKU</span></div>';
+  }).join('');
+}
+
+function addItem() {
+  if (!ST.curSKU) { toast('請先掃描商品', true); return; }
+  if (!ST.curPallet) { newPallet(); }
+  // Bug 2 fix: 封板後不能再寫入
+  if (ST.curPallet && ST.pallets[ST.curPallet] && ST.pallets[ST.curPallet].status === 'locked') {
+    toast('棧板 ' + ST.curPallet + ' 已封板，請新建棧板', true);
+    ST.curPallet = null;
+    renderPChips();
+    return;
+  }
+  var qty = parseInt(document.getElementById('qty-v').value) || 1;
+  var sku = ST.curSKU;
+  var exp = EXP[sku.i];
+  if (exp && getScanned(sku.i) + qty > exp) { toast('超出預期上限 ' + exp + ' 箱', true); return; }
+  var p = ST.pallets[ST.curPallet];
+  var ex = p.items.find(function(x){ return x.item_code === sku.i; });
+  if (ex) { ex.qty += qty; }
+  else p.items.push({item_code:sku.i, name:sku.n, case_pack:sku.c, qty:qty, ean:sku.ean, storage:sku.s});
+  toast('已加入 ' + ST.curPallet + ' ✓');
+  document.getElementById('sku-card').style.display = 'none';
+  document.getElementById('qty-card').style.display = 'none';
+  document.getElementById('psel-card').style.display = 'none';
+  document.getElementById('add-wrap').style.display = 'none';
+  ST.curSKU = null;
+  renderPChips();
+  updS1Badge();
+}
+
+/* ══ BATCH ══ */
+function toggleBatch() {
+  document.getElementById('batch-box').style.display =
+    document.getElementById('batch-chk').checked ? 'block' : 'none';
+}
+
+function doBatch() {
+  var iv = document.getElementById('batch-item').value.trim();
+  var tot = parseInt(document.getElementById('batch-total').value) || 0;
+  var per = parseInt(document.getElementById('batch-per').value) || 0;
+  if (!iv || !tot || !per) { toast('請填寫品號、總箱數、每板上限', true); return; }
+  var sku = EAN_MAP[iv] || ITEM_MAP[iv.toUpperCase()];
+  if (!sku) { toast('找不到: ' + iv, true); return; }
+  var plates = Math.ceil(tot / per);
+  for (var i = 0; i < plates; i++) {
+    var id = genId();
+    var qty = (i === plates-1) ? (tot % per || per) : per;
+    ST.pallets[id] = {id:id, items:[{item_code:sku.i, name:sku.n, case_pack:sku.c,
+      qty:qty, ean:sku.ean||iv, storage:sku.s}], status:'open', loc:'', sStatus:'', reason:''};
+  }
+  document.getElementById('batch-res').textContent = '✅ 已建立 ' + plates + ' 個棧板，每板 ' + per + ' 箱';
+  toast('批量建立 ' + plates + ' 板 ✓');
+  updS1Badge();
+  document.getElementById('batch-chk').checked = false;
+  document.getElementById('batch-box').style.display = 'none';
+  ['batch-item','batch-total','batch-per'].forEach(function(id){ document.getElementById(id).value=''; });
+  setTimeout(function(){ document.getElementById('batch-res').textContent = ''; }, 3000);
+}
+
+/* ══ PALLET LIST ══ */
+function renderPList() {
+  var pallets = Object.values(ST.pallets);
+  document.getElementById('s2badge').textContent = pallets.length + '板';
+  if (!pallets.length) {
+    document.getElementById('plist').innerHTML =
+      '<div style="text-align:center;color:var(--muted);padding:40px 0;font-size:13px;">尚無棧板，請先點驗</div>';
+    return;
+  }
+  document.getElementById('plist').innerHTML = pallets.map(function(p) {
+    var tq = p.items.reduce(function(s,i){ return s+i.qty; }, 0);
+    var lk = p.status === 'locked';
+    var isCur = ST.curPallet === p.id;
+    var pclass = 'pcard expanded' + (lk ? ' locked' : '') + (isCur ? ' active' : '');
+    var rows = p.items.map(function(it) {
+      return '<div class="pcard-item"><span class="pi-code">' + it.item_code + '</span>' +
+        '<span class="pi-name">' + (it.name.length>16?it.name.slice(0,16)+'…':it.name) + '</span>' +
+        '<span class="pi-qty">' + it.qty + '箱</span></div>';
+    }).join('');
+    var sBtn = lk ? '' :
+      '<button class="btn btn-g" style="margin-top:8px;font-size:11px;padding:9px" onclick="openSeal(\'' + p.id + '\')">🔒 封板</button>';
+    var locTxt = p.loc ?
+      '<div class="pcard-loc">📍 ' + p.loc + '</div>' :
+      '<div class="pcard-loc" style="color:var(--amber)">儲位待分配</div>';
+    var sBadge = lk ?
+      '<span class="badge bgn">已封板</span>' :
+      '<span class="badge bamb">進行中</span>';
+    return '<div class="' + pclass + '">' +
+      '<div class="pcard-hdr">' +
+        '<div><div class="pcard-id">' + p.id + '</div>' + locTxt + '</div>' +
+        sBadge +
+        '<div style="margin-left:auto;font-family:Chakra Petch,monospace;font-size:11px;color:var(--muted)">' + p.items.length + 'SKU/' + tq + '箱</div>' +
+      '</div>' +
+      '<div class="pcard-body">' + rows + sBtn + '</div>' +
+    '</div>';
+  }).join('');
+  setTimeout(makePcardsExpandable, 50);
+}
+
+function tPBody(h) {
+  var b = h.nextElementSibling;
+  b.style.display = b.style.display === 'block' ? 'none' : 'block';
+}
+
+/* ══ SEAL ══ */
+function assignLoc() {
+  var a = ST.aisle;
+  var pool = LOC_POOLS[a] || [];
+  var idx = ST.locIdx[a] || 0;
+  if (idx >= pool.length) {
+    if (ST.overflow && ST.overflow !== a) {
+      var op = LOC_POOLS[ST.overflow] || [];
+      var oi = ST.locIdx[ST.overflow] || 0;
+      if (oi < op.length) {
+        var l2 = op[oi] + '(溢)';
+        ST.locIdx[ST.overflow] = oi + 1;
+        return l2;
+      }
+    }
+    toast('走道已無空格！', true);
+    return '無空格';
+  }
+  var loc = pool[idx];
+  ST.locIdx[a] = idx + 1;
+  return loc;
+}
+
+function openSeal(pid) {
+  ST.sealTarget = pid;
+  ST.sealStatus = '';
+  ST._pendingLoc = null;
+  var p = ST.pallets[pid];
+  document.getElementById('s3title').textContent = '封板 · ' + pid;
+  var tq = p.items.reduce(function(s,i){ return s+i.qty; }, 0);
+  document.getElementById('s3items').innerHTML = p.items.map(function(it) {
+    var exp = EXP[it.item_code];
+    var sc = getScanned(it.item_code);
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;">' +
+      '<div style="color:var(--gold);font-family:Chakra Petch,monospace;font-size:10px">' + it.item_code + '</div>' +
+      '<div style="color:var(--white);margin:2px 0">' + it.name.slice(0,22) + '</div>' +
+      '<div style="display:flex;justify-content:space-between">' +
+        '<span style="color:var(--muted)">' + (exp?'預期'+exp+'箱/已掃'+sc+'箱':'無預期資料') + '</span>' +
+        '<strong style="color:var(--green)">' + it.qty + ' 箱</strong>' +
+      '</div></div>';
+  }).join('') +
+    '<div style="text-align:right;padding-top:6px;font-size:12px;color:var(--text)">合計 <strong style="color:var(--gold)">' + tq + '</strong> 箱</div>';
+  document.querySelectorAll('.sopt').forEach(function(o){ o.classList.remove('on'); });
+  document.getElementById('reason-wrap').style.display = 'none';
+  document.getElementById('reason-txt').value = '';
+  document.getElementById('loc-box').style.display = 'none';
+  document.getElementById('seal-btn').disabled = true;
+  document.getElementById('seal-btn').textContent = '🔒 確認封板';
+  goS(3);
+}
+
+function pickSt(status, idx) {
+  ST.sealStatus = status;
+  document.querySelectorAll('.sopt').forEach(function(o){ o.classList.remove('on'); });
+  document.getElementById('so'+idx).classList.add('on');
+  var nr = ['diff','damage','merge','other'].indexOf(status) >= 0;
+  document.getElementById('reason-wrap').style.display = nr ? 'block' : 'none';
+  document.getElementById('seal-btn').disabled = false;
+  if (status === 'ok') {
+    var loc = assignLoc();
+    ST._pendingLoc = loc;
+    document.getElementById('loc-val').textContent = loc;
+    document.getElementById('loc-box').style.display = 'block';
+  } else {
+    document.getElementById('loc-box').style.display = 'none';
+    ST._pendingLoc = null;
+  }
+}
+
+function doSeal() {
+  var pid = ST.sealTarget; if (!pid) return;
+  var nr = ['diff','damage','merge','other'].indexOf(ST.sealStatus) >= 0;
+  if (nr) {
+    var r = document.getElementById('reason-txt').value.trim();
+    if (!r) { toast('請填寫說明原因', true); return; }
+    ST.pallets[pid].reason = r;
+  }
+  var loc = ST._pendingLoc || assignLoc();
+  ST.pallets[pid].loc = loc;
+  ST.pallets[pid].status = 'locked';
+  ST.pallets[pid].sStatus = ST.sealStatus;
+  document.getElementById('loc-val').textContent = loc;
+  document.getElementById('loc-box').style.display = 'block';
+  document.getElementById('seal-btn').disabled = true;
+  document.getElementById('seal-btn').textContent = '✅ 已封板';
+  toast(pid + ' 封板完成 → ' + loc);
+  updS1Badge();
+  // Bug 2 fix: 清空 curPallet，下次加貨必須新建棧板
+  ST.curPallet = null;
+  // refresh aisle grid to show updated counts
+  buildAisleGrid('aisle-grid', 'pickAisle', ST.aisle);
+  setTimeout(function(){ goS(2); }, 1600);
+}
+
+/* ══ SUMMARY ══ */
+function renderSummary() {
+  var pallets = Object.values(ST.pallets);
+  var lk = pallets.filter(function(p){ return p.status==='locked'; });
+  var op = pallets.filter(function(p){ return p.status==='open'; });
+  var cs = pallets.reduce(function(s,p){ return s+p.items.reduce(function(ss,i){ return ss+i.qty; },0); },0);
+  document.getElementById('stats').innerHTML =
+    '<div class="sb"><div class="sv" style="color:var(--gold)">' + pallets.length + '</div><div class="sl">棧板總數</div></div>' +
+    '<div class="sb"><div class="sv" style="color:var(--green)">' + lk.length + '</div><div class="sl">已封板</div></div>' +
+    '<div class="sb"><div class="sv" style="color:' + (op.length?'#FF8080':'var(--green)') + '">' + op.length + '</div><div class="sl">未封板</div></div>' +
+    '<div class="sb"><div class="sv" style="color:var(--gold)">' + cs + '</div><div class="sl">總箱數</div></div>';
+  var scanned = {};
+  pallets.forEach(function(p){
+    p.items.forEach(function(it){ scanned[it.item_code] = (scanned[it.item_code]||0) + it.qty; });
+  });
+  var items = {};
+  Object.keys(scanned).forEach(function(k){ items[k]=1; });
+  Object.keys(EXP).slice(0,20).forEach(function(k){ if(scanned[k]||EXP[k]) items[k]=1; });
+  var hasDiff = false;
+  var rows = '';
+  Object.keys(items).sort().forEach(function(ic) {
+    var act = scanned[ic]||0; var exp = EXP[ic]||null;
+    if (!act && !exp) return;
+    var diff = exp!==null ? act-exp : null;
+    if (diff!==0 && diff!==null) hasDiff=true;
+    var dc = diff===0||diff===null ? 'var(--green)' : '#FF8080';
+    rows += '<div class="diff-row">' +
+      '<span style="font-size:11px">' + ic + '</span>' +
+      '<span style="font-size:10px;color:var(--muted)">' + (exp!==null?'預'+exp:'-') + '</span>' +
+      '<span style="font-size:11px;font-weight:700;color:var(--white)">掃' + act + '</span>' +
+      '<span style="font-size:11px;font-weight:700;color:' + dc + '">' +
+        (diff===null?'—':diff===0?'✅':(diff>0?'+'+diff:''+diff)) + '</span></div>';
+  });
+  document.getElementById('diff-tbl').innerHTML = rows ||
+    '<div style="color:var(--muted);font-size:12px;padding:8px 0">尚無掃描資料</div>';
+  var cw = document.getElementById('close-warn-box');
+  var cb = document.getElementById('close-btn');
+  if (ST.closed) {
+    cb.textContent='✅ 已關單'; cb.disabled=true;
+    document.getElementById('s4badge').textContent='已關單';
+    document.getElementById('s4badge').className='badge bgn';
+    cw.style.display='none';
+  } else if (!pallets.length) {
+    cw.style.display='none'; cb.disabled=true;
+  } else if (op.length > 0) {
+    cw.innerHTML='<div class="ae">⚠️ 還有 '+op.length+' 個棧板未封板</div>';
+    cw.style.display='block'; cb.disabled=true; cb.textContent='🔒 關單上車';
+  } else if (hasDiff) {
+    cw.innerHTML='<div class="aw">⚠️ 有差異品項，確認後可強制關單</div>';
+    cw.style.display='block'; cb.disabled=false; cb.textContent='🔒 確認差異並關單';
+  } else {
+    cw.style.display='none'; cb.disabled=false; cb.textContent='🔒 關單上車';
+  }
+}
+
+function doClose() {
+  if (!window.confirm('確定關單？')) return;
+  ST.closed = true;
+  toast('✅ 已關單！通知行政建 ' + Object.keys(ST.pallets).length + ' 張入庫單');
+  renderSummary();
+}
+
+/* ══ NAV ══ */
+function goS(n) {
+  for (var i=0; i<5; i++) {
+    var el = document.getElementById('s'+i);
+    if (el) el.classList.toggle('active', i===n);
+  }
+  if (n===2) renderPList();
+  if (n===4) renderSummary();
+}
+
+function updS1Badge() {
+  var all=Object.keys(ST.pallets).length;
+  var lk=Object.values(ST.pallets).filter(function(p){return p.status==='locked';}).length;
+  document.getElementById('s1badge').textContent = lk+'/'+all+'板封板';
+}
+
+/* ══ TOAST ══ */
+var _tt;
+function toast(msg, err) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err?' err':'');
+  clearTimeout(_tt);
+  _tt = setTimeout(function(){ el.className='toast'; }, 2400);
+}
+
+/* ══ CLOCK ══ */
+function tick() {
+  var d = new Date();
+  document.getElementById('clk').textContent =
+    ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+tick(); setInterval(tick, 30000);
+
+/* ══ NETWORK MONITOR ══ */
+function initNetworkMonitor() {
+  function updateNetStatus() {
+    var ind = document.getElementById('networkInd');
+    if (navigator.onLine) {
+      ind.className = 'network-indicator';
+      ind.title = '在線';
+    } else {
+      ind.className = 'network-indicator offline';
+      ind.title = '離線';
+    }
+  }
+  window.addEventListener('online', updateNetStatus);
+  window.addEventListener('offline', updateNetStatus);
+  updateNetStatus();
+}
+
+/* ══ PCARD EXPAND ══ */
+function makePcardsExpandable() {
+  document.querySelectorAll('.pcard-hdr').forEach(function(hdr) {
+    hdr.addEventListener('click', function() {
+      var pcard = hdr.closest('.pcard');
+      if (pcard) pcard.classList.toggle('expanded');
+    });
+  });
+}
+
+/* ══ FIREBASE & GOOGLE SHEETS INTEGRATION ══ */
+const firebaseConfig = {
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET.appspot.com",
+  appId: "YOUR_APP_ID"
+};
+
+const GOOGLE_SHEETS_API_KEY = "YOUR_GOOGLE_SHEETS_API_KEY";
+const GOOGLE_SHEETS_ID = "YOUR_SHEET_ID";
+
+let firebaseInitialized = false;
+let storage = null;
+
+// Initialize Firebase
+try {
+  if (firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY") {
+    firebase.initializeApp(firebaseConfig);
+    storage = firebase.storage();
+    firebaseInitialized = true;
+    toast('✅ Firebase 已連接', false);
+  } else {
+    toast('⚠️ Firebase 未配置', true);
+  }
+} catch (error) {
+  console.error('Firebase 初始化失敗:', error);
+}
+
+/* ══ LOG MANAGEMENT ══ */
+let operationLog = [];
+
+function addLog(action, details) {
+  var timestamp = new Date().toLocaleString('zh-TW', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  var logEntry = {
+    timestamp: timestamp,
+    action: action,
+    details: details || '',
+    palletCount: Object.keys(ST.pallets).length,
+    scannedItems: Object.keys(ST.items).length
+  };
+  operationLog.push(logEntry);
+  renderLogPanel();
+  return logEntry;
+}
+
+function renderLogPanel() {
+  var panel = document.getElementById('log-panel');
+  if (!panel) return;
+
+  var html = operationLog.slice(-20).reverse().map(function(entry) {
+    return '<div class="log-entry">' +
+      '<span class="log-time">[' + entry.timestamp + ']</span> ' +
+      '<span class="log-action">' + entry.action + '</span>' +
+      (entry.details ? ' - ' + entry.details : '') +
+      '</div>';
+  }).join('');
+
+  panel.innerHTML = html || '<div style="color:var(--muted);font-size:9px;">暫無操作記錄</div>';
+}
+
+/* ══ GOOGLE SHEETS SYNC ══ */
+async function syncToGoogleSheets() {
+  if (GOOGLE_SHEETS_API_KEY === "YOUR_GOOGLE_SHEETS_API_KEY") {
+    toast('❌ Google Sheets 未配置', true);
+    return;
+  }
+
+  try {
+    toast('🔄 正在同步到 Google Sheets...', false);
+
+    var pallets = Object.values(ST.pallets);
+    var rows = pallets.map(function(pallet) {
+      return [
+        new Date().toLocaleString('zh-TW'),
+        ST.truck || 'N/A',
+        pallet.id,
+        pallet.location || 'N/A',
+        pallet.items ? Object.keys(pallet.items).length : 0,
+        pallet.status,
+        operationLog.length > 0 ? operationLog[operationLog.length - 1].timestamp : 'N/A'
+      ];
+    });
+
+    // Google Sheets API v4 - Append values
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/' + GOOGLE_SHEETS_ID + '/values/移倉記錄!A:G:append?key=' + GOOGLE_SHEETS_API_KEY;
+
+    var response = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        values: rows,
+        majorDimension: 'ROWS'
+      })
+    });
+
+    if (response.ok) {
+      toast('✅ Google Sheets 已同步', false);
+      addLog('Google Sheets 同步', '已上傳 ' + rows.length + ' 筆棧板記錄');
+    } else {
+      toast('❌ 同步失敗', true);
+    }
+  } catch (error) {
+    console.error('Google Sheets 同步錯誤:', error);
+    toast('❌ 同步失敗: ' + error.message, true);
+  }
+}
+
+/* ══ PHOTO UPLOAD ══ */
+let currentPhotoIndex = 0;
+
+function triggerPhotoCapture(index) {
+  currentPhotoIndex = index;
+  var input = document.getElementById('photoInput');
+  if (!input) {
+    input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'photoInput';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    input.onchange = handlePhotoUpload;
+    document.body.appendChild(input);
+  }
+  input.click();
+}
+
+async function handlePhotoUpload(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+
+  if (!firebaseInitialized) {
+    toast('❌ Firebase 未連接，無法上傳照片', true);
+    return;
+  }
+
+  try {
+    toast('📷 上傳中...', false);
+
+    var timestamp = Date.now();
+    var filename = 'warehouse/' + (ST.truck || 'unknown') + '/' + timestamp + '_photo_' + currentPhotoIndex + '.jpg';
+    var storageRef = storage.ref(filename);
+
+    var snapshot = await storageRef.put(file);
+    var downloadURL = await snapshot.ref.getDownloadURL();
+
+    // Display preview
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var photoEl = document.getElementById('photo-' + currentPhotoIndex);
+      if (photoEl) {
+        photoEl.innerHTML = '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;">';
+      }
+    };
+    reader.readAsDataURL(file);
+
+    toast('✅ 照片已上傳至 Firebase', false);
+    addLog('照片上傳', '索引 ' + currentPhotoIndex);
+  } catch (error) {
+    console.error('照片上傳失敗:', error);
+    toast('❌ 上傳失敗: ' + error.message, true);
+  }
+}
+
+/* ══ QR CODE GENERATION ══ */
+function generateQRCodeSVG(text) {
+  // 使用簡單的SVG QR Code生成方法
+  // 或使用第三方API
+  var container = document.createElement('div');
+  container.id = 'temp-qr-' + Date.now();
+  document.body.appendChild(container);
+
+  try {
+    // 使用 qrcode.js 庫
+    new QRCode(container.id, {
+      text: text,
+      width: 180,
+      height: 180,
+      correctLevel: QRCode.CorrectLevel.H
+    });
+
+    var svgElement = container.querySelector('svg');
+    if (svgElement) {
+      var svgString = svgElement.outerHTML;
+      document.body.removeChild(container);
+      return svgString;
+    }
+  } catch (e) {
+    console.error('QR Code generation error:', e);
+  }
+
+  document.body.removeChild(container);
+  return '<svg></svg>';
+}
+
+function displayPalletQRCode(palletId) {
+  ST.selectedPallet = palletId;
+
+  var qrData = JSON.stringify({
+    truck: ST.truck,
+    pallet: palletId,
+    location: (ST.pallets[palletId] && ST.pallets[palletId].location) || 'N/A',
+    timestamp: new Date().toISOString()
+  });
+
+  var qrContainer = document.getElementById('qr-code-container');
+  if (qrContainer) {
+    var qrImageUrl = generateQRCodeImage(qrData);
+    qrContainer.innerHTML = '<img src="' + qrImageUrl + '" alt="QR Code" style="width:100%;height:100%;border-radius:8px;">';
+  }
+
+  var qrId = document.getElementById('qr-pallet-id');
+  if (qrId) {
+    qrId.textContent = palletId + ' @ ' + ((ST.pallets[palletId] && ST.pallets[palletId].location) || 'N/A');
+  }
+
+  addLog('QR Code 生成', '棧板 ' + palletId);
+}
+
+function downloadQRCodeSVG(palletId) {
+  if (!palletId) {
+    toast('請先選擇棧板', true);
+    return;
+  }
+
+  var qrData = JSON.stringify({
+    truck: ST.truck,
+    pallet: palletId,
+    location: (ST.pallets[palletId] && ST.pallets[palletId].location) || 'N/A',
+    timestamp: new Date().toISOString()
+  });
+
+  var qrImageUrl = generateQRCodeImage(qrData);
+
+  // 下載圖片
+  var link = document.createElement('a');
+  link.href = qrImageUrl;
+  link.download = 'QRCode_' + palletId + '_' + Date.now() + '.png';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  addLog('QR Code 下載', '棧板 ' + palletId);
+  toast('✅ QR Code 已下載', false);
+}
+
+/* ══ LOCATION MODAL - v6 UX IMPROVEMENT ══ */
+function showLocationModal(location, palletId) {
+  var overlay = document.getElementById('location-modal-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'location-modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = '<div class="location-modal">' +
+      '<div class="success-icon">✅</div>' +
+      '<div class="modal-label">✓ 棧板已確認並封板</div>' +
+      '<div class="location-code" id="modal-location-code">BA242</div>' +
+      '<div class="location-desc">儲位已分配<br>請確保標籤已貼上</div>' +
+      '<div class="action-text">即將轉到下一個棧板...</div>' +
+      '<div class="auto-next" style="font-size:9px;margin-top:8px;">2秒後自動進行</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+  }
+
+  var codeEl = document.getElementById('modal-location-code');
+  if (codeEl) codeEl.textContent = location;
+
+  overlay.classList.add('show');
+  addLog('顯示位置 Modal', '棧板 ' + palletId + ' - 位置 ' + location);
+
+  // 2秒後自動關閉並進到下一棧板
+  setTimeout(function() {
+    overlay.classList.remove('show');
+    goNextPallet();
+  }, 2000);
+}
+
+function closeLocationModal() {
+  var overlay = document.getElementById('location-modal-overlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+  }
+}
+
+function goNextPallet() {
+  // 找到下一個未完成的棧板
+  var pallets = Object.keys(ST.pallets).sort();
+  var currentIdx = pallets.indexOf(ST.curPallet);
+
+  if (currentIdx >= 0 && currentIdx < pallets.length - 1) {
+    // 有下一個棧板
+    var nextPallet = pallets[currentIdx + 1];
+    ST.curPallet = nextPallet;
+    goS(1); // 回到S1掃描下一棧板
+    // 回到S1继续扫描
+    toast('➡️ 已進到下一個棧板: ' + nextPallet, false);
+    addLog('自動進到下一棧板', nextPallet);
+  } else {
+    // 所有棧板都完成
+    goS(4); // 轉到S4摘要
+    toast('✅ 所有棧板已完成！進到摘要檢查', false);
+    addLog('所有棧板完成', '已轉到S4摘要');
+  }
+}
+
+/* ══ CONFIRM & SEAL PALLET - v6 UX WORKFLOW ══ */
+function confirmAndSealPallet() {
+  var palletId = ST.curPallet;
+  if (!palletId) {
+    toast('❌ 請先選擇棧板', true);
+    return;
+  }
+
+  var pallet = ST.pallets[palletId];
+  if (!pallet) {
+    toast('❌ 棧板不存在', true);
+    return;
+  }
+
+  // 分配位置（如果未分配）
+  var loc = pallet.loc || ST._pendingLoc || assignLoc();
+  if (!loc) {
+    toast('❌ 位置分配失敗', true);
+    return;
+  }
+
+  // 確認對點並封板
+  pallet.loc = loc;
+  pallet.status = 'locked';
+  updS1Badge();
+
+  addLog('✅ 確認對點並封板', '棧板 ' + palletId + ' - 位置 ' + loc);
+
+  // 顯示位置 Modal (自動2秒後進到下一棧板)
+  showLocationModal(loc, palletId);
+}
+
+
+/* ══ v6.2 DEBUG & TEST ══ */
+function testWorkflow() {
+  console.log("%c【ALLY LOTTE v6.2 工作流检查】", "color: #00C896; font-size: 14px; font-weight: bold;");
+  console.log("✅ 当前棧板:", ST.curPallet);
+  console.log("✅ 确认按钮:", document.getElementById("confirm-seal-btn"));
+  console.log("✅ Modal 容器:", document.getElementById("location-modal-overlay"));
+  console.log("");
+  console.log("%c📋 测试步骤:", "color: #FFD700");
+  console.log("1. 掃描棧板 → 進到S1");
+  console.log("2. 點擊示範按鈕選擇商品");
+  console.log("3. 進到S3對點");
+  console.log("4. 點「✅ 確認對點並封板」看位置Modal");
+  console.log("5. 2秒後應自動回到S1");
+}
+
+console.log("%c✅ ALLY LOTTE v6.2 已加載！在控制台執行: testWorkflow()", "color: #00C896; font-size: 13px; font-weight: bold;");
+
+/* ══ BOOT ══ */
+initAisleGrids();
+initNetworkMonitor();
+makePcardsExpandable();
+
+// Add initial log entry
+addLog('系統啟動', '應用程式載入完成');
+</script>
+</body>
+</html>
