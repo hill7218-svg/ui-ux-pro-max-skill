@@ -511,7 +511,7 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
           <div class="sku-tags">
             <span id="sku-temp" class="tn"></span>
             <span id="sku-store" style="font-size:10px;color:var(--muted);"></span>
-            <span style="font-size:10px;color:var(--muted);">每箱<strong id="sku-cp" style="color:var(--white);"></strong>PCS</span>
+            <span id="sku-cp-wrap" style="font-size:10px;color:var(--muted);"></span>
           </div>
         </div>
       </div>
@@ -538,13 +538,9 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
       <div id="add-wrap" style="display:none;margin-bottom:10px;">
         <button class="btn" onclick="addItem()">✓ 加入棧板</button>
       </div>
-    </div>
-    <div class="tabs">
-      <button class="tab on" onclick="goS(1)"><span class="ti">📷</span>點驗</button>
-      <button class="tab" onclick="goS(2)"><span class="ti">🗂️</span>棧板</button>
-      <button class="tab" onclick="goS(4)"><span class="ti">📊</span>彙總</button>
-      <!-- 新增功能: 照片、QR Code、LOG -->
-      <div class="card" style="margin-top:16px;border-top:2px solid var(--gold);padding-top:14px;">
+
+      <!-- 照片 / QR / LOG 功能區 -->
+      <div class="card" style="margin-top:4px;border-top:2px solid var(--gold);padding-top:14px;">
         <div class="sec" style="color:var(--gold);">🆕 集成功能</div>
 
         <!-- 照片區 -->
@@ -582,6 +578,11 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         <!-- 同步按鈕 -->
         <button class="btn btn-g" style="margin-top:8px;" onclick="syncToGoogleSheets()">☁️ 同步 Google Sheets</button>
       </div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" onclick="goS(1)"><span class="ti">📷</span>點驗</button>
+      <button class="tab" onclick="goS(2)"><span class="ti">🗂️</span>棧板</button>
+      <button class="tab" onclick="goS(4)"><span class="ti">📊</span>彙總</button>
     </div>
   </div>
 
@@ -908,7 +909,7 @@ function doLookup() {
   te.className = isC ? 'tc' : 'tn';
   document.getElementById('sku-store').textContent = sku.s || '';
   var uqLabel = sku.uq && sku.unitType ? ('每' + sku.unitType + ' ' + sku.uq + (sku.unit||'片')) : ((sku.c||'?') + ' PCS/箱');
-  document.getElementById('sku-cp').textContent = uqLabel;
+  document.getElementById('sku-cp-wrap').textContent = uqLabel;
   document.getElementById('sku-card').style.display = 'block';
   document.getElementById('qty-v').value = 1;
   document.getElementById('qty-v').max = EXP[sku.i] || 9999;
@@ -1161,17 +1162,21 @@ function openSeal(pid) {
   document.getElementById('s3title').textContent = '封板 · ' + pid;
   var tq = p.items.reduce(function(s,i){ return s+i.qty; }, 0);
   document.getElementById('s3items').innerHTML = p.items.map(function(it) {
-    var exp = EXP[it.item_code];
-    var sc = getScanned(it.item_code);
+    var expPcs = getExpPcs(it.item_code);
+    var uq = it.uq || it.case_pack || 1;
+    var unitLabel = it.unitType || '箱';
+    var expBoxes = expPcs ? Math.round(expPcs / uq) : null;
+    var scBoxes = Math.round(it.qty / uq);
+    var expInfo = expBoxes ? ('預期'+expBoxes+unitLabel+' / 本板'+scBoxes+unitLabel) : '無預期資料';
     return '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;">' +
       '<div style="color:var(--gold);font-family:Chakra Petch,monospace;font-size:10px">' + it.item_code + '</div>' +
       '<div style="color:var(--white);margin:2px 0">' + it.name.slice(0,22) + '</div>' +
       '<div style="display:flex;justify-content:space-between">' +
-        '<span style="color:var(--muted)">' + (exp?'預期'+exp+'箱/已掃'+sc+'箱':'無預期資料') + '</span>' +
-        '<strong style="color:var(--green)">' + it.qty + (it.unit||'片') + '</strong>' +
+        '<span style="color:var(--muted)">' + expInfo + '</span>' +
+        '<strong style="color:var(--green)">' + it.qty + (it.unit||'PCS') + '</strong>' +
       '</div></div>';
   }).join('') +
-    '<div style="text-align:right;padding-top:6px;font-size:12px;color:var(--text)">合計 <strong style="color:var(--gold)">' + tq + '</strong> 箱</div>';
+    '<div style="text-align:right;padding-top:6px;font-size:12px;color:var(--text)">合計 <strong style="color:var(--gold)">' + tq + '</strong> PCS</div>';
   document.querySelectorAll('.sopt').forEach(function(o){ o.classList.remove('on'); });
   document.getElementById('reason-wrap').style.display = 'none';
   document.getElementById('reason-txt').value = '';
@@ -1350,7 +1355,7 @@ function renderSummary() {
     cw.style.display='block'; cb.disabled=true; cb.textContent='🔒 關單上車';
   } else if (hasDiff) {
     cw.innerHTML='<div class="aw">⚠️ 有差異品項，確認後可強制關單</div>';
-    cw.style.display='block'; cb.disabled=false; cb.textContent='🔒 確認差異並關單';
+    cw.style.display='block'; cb.disabled=false; cb.textContent='🔒 確認車輛裝滿 關單發車';
   } else {
     cw.style.display='none'; cb.disabled=false; cb.textContent='🔒 關單上車';
   }
