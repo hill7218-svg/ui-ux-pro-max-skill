@@ -386,6 +386,17 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
 }
 .s1-info-chip .ic{font-size:11px;}
 .s1-info-chip .val{color:var(--gold);font-weight:700;}
+
+.menu-btn {
+  width:100%;padding:20px;border-radius:12px;border:2px solid;
+  background-color:var(--card);color:var(--text);cursor:pointer;
+  font-family:"Noto Sans TC",sans-serif;font-size:14px;font-weight:600;
+  display:flex;flex-direction:column;align-items:center;
+  transition:all 0.2s ease;
+}
+.menu-btn:hover { opacity:0.9; transform:scale(1.02); }
+.menu-btn:active { transform:scale(0.98); }
+
 </style>
 </head>
 <body>
@@ -400,61 +411,102 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
 
   <!-- ══ S0: 開工設定 ══ -->
   <div class="scr active" id="s0">
-    <div class="body">
-      <div style="text-align:center;padding:20px 0 14px;">
-        <div style="font-family:'Chakra Petch',monospace;font-size:17px;font-weight:700;color:var(--white)">ALLY × LOTTE 移倉</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;">對點系統 Demo · 艾立供應鏈</div>
+    <div class="body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px 20px;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-family:'Chakra Petch',monospace;font-size:20px;font-weight:700;color:var(--white);">ALLY × LOTTE</div>
+        <div style="font-size:13px;color:var(--gold);margin-top:2px;">移倉對點系統</div>
       </div>
 
-      <!-- 車號下拉 -->
-      <div class="card">
-        <div class="sec">① 車號</div>
-        <select class="sel" id="truck-sel" onchange="onTruckChange()">
-          <option value="">-- 選擇車號 --</option>
-          <option value="BBB-2262">🚛 BBB-2262</option>
-          <option value="BXC-2262">🚛 BXC-2262</option>
-          <option value="BCK-8801">🚛 BCK-8801</option>
-          <option value="BDF-3390">🚛 BDF-3390</option>
-          <option value="OTHER">🚛 其他車號</option>
-        </select>
-        <div id="truck-other-wrap" style="display:none;margin-top:8px;">
-          <input class="input" id="truck-other" placeholder="輸入車號..." oninput="onTruckOther()">
-        </div>
-        <div id="truck-info" style="font-size:10px;color:var(--muted);margin-top:8px;display:none;"></div>
-        <div id="driver-badge" class="driver-badge idle" style="margin-top:6px;">👤 請選擇車號</div>
-      </div>
+      <!-- A 按鈕 -->
+      <button class="menu-btn" onclick="goS(1)" style="background:rgba(0,200,150,.2);border-color:var(--teal);color:var(--teal);">
+        <div style="font-size:24px;margin-bottom:8px;">📋</div>
+        <div style="font-weight:700;font-size:14px;">A. 移倉點驗</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">掃描 + 封板</div>
+      </button>
 
-      <!-- 走道 BA-BP -->
-      <div class="card">
-        <div class="sec">② 作業走道（BA～BP）</div>
-        <div class="aisle-grid" id="aisle-grid"></div>
-        <div id="cap-info" style="font-size:10px;color:var(--muted);margin-bottom:6px;display:none;"></div>
-        <div id="cap-warn" class="aw" style="display:none;"></div>
-        <div id="overflow-wrap" style="display:none;">
-          <div class="lbl">溢出走道</div>
-          <div class="aisle-grid" id="overflow-grid" style="margin-bottom:0;"></div>
-        </div>
-      </div>
+      <!-- B 按鈕 -->
+      <button class="menu-btn" onclick="goS(2)" style="background:rgba(255,215,0,.15);border-color:var(--gold);color:var(--gold);">
+        <div style="font-size:24px;margin-bottom:8px;">🔍</div>
+        <div style="font-weight:700;font-size:14px;">B. 核查功能</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">詳點 + 拍照 + 同步</div>
+      </button>
 
-      <!-- 趟次 -->
-      <div class="card">
-        <div class="sec">③ 趟次</div>
-        <div class="chip-row">
-          <div class="chip" id="tc0" onclick="pickTrip(1,0)">第1趟</div>
-          <div class="chip" id="tc1" onclick="pickTrip(2,1)">第2趟</div>
-          <div class="chip" id="tc2" onclick="pickTrip(3,2)">第3趟</div>
-        </div>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;">
-          <input type="checkbox" id="tail-chk" style="width:16px;height:16px;accent-color:var(--amber)">
-          <span style="font-size:12px;color:var(--muted)">尾數趟次（允許少於32板）</span>
-        </label>
-      </div>
+      <!-- C 按鈕 -->
+      <button class="menu-btn" onclick="goS(7)" style="background:rgba(192,0,0,.15);border-color:#FF8080;color:#FF8080;">
+        <div style="font-size:24px;margin-bottom:8px;">✏️</div>
+        <div style="font-weight:700;font-size:14px;">C. 修改數量</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">主管驗證後編輯</div>
+      </button>
 
-
-      <button class="btn" id="start-btn" onclick="doStart()" disabled>✓ 確認設定，開始點驗</button>
-      <div style="height:16px;"></div>
+      <!-- 開工設定按鈕 -->
+      <button class="menu-btn" onclick="goS(6)" style="background:rgba(45,85,185,.2);border-color:#5B9BFF;color:#5B9BFF;margin-top:20px;">
+        <div style="font-size:20px;margin-bottom:6px;">⚙️</div>
+        <div style="font-weight:700;font-size:13px;">開工設定</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:3px;">車號 / 走道 / 趟次</div>
+      </button>
     </div>
   </div>
+
+  <!-- S6: 開工設定（原 S0） -->
+  <div class="scr" id="s6">
+    <div class="topbar">
+      <button class="btn-back" onclick="goS(0)">←</button>
+      <div class="ttitle">開工設定</div>
+    </div>
+    <div class="body">
+      <div style="text-align:center;padding:14px 0;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--white)">車號、走道、趟次</div>
+      </div>
+      <!-- 車號下拉 -->
+            <div class="card">
+              <div class="sec">① 車號</div>
+              <select class="sel" id="truck-sel" onchange="onTruckChange()">
+                <option value="">-- 選擇車號 --</option>
+                <option value="BBB-2262">🚛 BBB-2262</option>
+                <option value="BXC-2262">🚛 BXC-2262</option>
+                <option value="BCK-8801">🚛 BCK-8801</option>
+                <option value="BDF-3390">🚛 BDF-3390</option>
+                <option value="OTHER">🚛 其他車號</option>
+              </select>
+              <div id="truck-other-wrap" style="display:none;margin-top:8px;">
+                <input class="input" id="truck-other" placeholder="輸入車號..." oninput="onTruckOther()">
+              </div>
+              <div id="truck-info" style="font-size:10px;color:var(--muted);margin-top:8px;display:none;"></div>
+              <div id="driver-badge" class="driver-badge idle" style="margin-top:6px;">👤 請選擇車號</div>
+            </div>
+      
+            <!-- 走道 BA-BP -->
+            <div class="card">
+              <div class="sec">② 作業走道（BA～BP）</div>
+              <div class="aisle-grid" id="aisle-grid"></div>
+              <div id="cap-info" style="font-size:10px;color:var(--muted);margin-bottom:6px;display:none;"></div>
+              <div id="cap-warn" class="aw" style="display:none;"></div>
+              <div id="overflow-wrap" style="display:none;">
+                <div class="lbl">溢出走道</div>
+                <div class="aisle-grid" id="overflow-grid" style="margin-bottom:0;"></div>
+              </div>
+            </div>
+      
+            <!-- 趟次 -->
+            <div class="card">
+              <div class="sec">③ 趟次</div>
+              <div class="chip-row">
+                <div class="chip" id="tc0" onclick="pickTrip(1,0)">第1趟</div>
+                <div class="chip" id="tc1" onclick="pickTrip(2,1)">第2趟</div>
+                <div class="chip" id="tc2" onclick="pickTrip(3,2)">第3趟</div>
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;">
+                <input type="checkbox" id="tail-chk" style="width:16px;height:16px;accent-color:var(--amber)">
+                <span style="font-size:12px;color:var(--muted)">尾數趟次（允許少於32板）</span>
+              </label>
+            </div>
+      
+      
+            <button class="btn" id="start-btn" onclick="doStart()" disabled>✓ 確認設定，開始點驗</button>
+    </div>
+  </div>
+
+  
 
   <!-- ══ S1: 點驗 ══ -->
   <div class="scr" id="s1">
@@ -714,6 +766,28 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
     </div>
   </div>
 
+  <!-- S7: 修改數量（新增） -->
+  <div class="scr" id="s7">
+    <div class="topbar">
+      <button class="btn-back" onclick="goS(0)">←</button>
+      <div class="ttitle">修改數量</div>
+    </div>
+    <div class="body">
+      <div id="s7-pin-panel">
+        <div class="card" style="margin-top:40px;">
+          <div class="sec">主管工號驗證</div>
+          <input class="input" id="pin-input" type="password" placeholder="輸入 4 位工號" maxlength="4" style="font-size:20px;letter-spacing:6px;text-align:center;">
+          <button class="btn btn-g" style="margin-top:14px;width:100%;" onclick="verifyPin()">確認</button>
+          <div id="pin-error" style="color:#FF8080;font-size:11px;margin-top:8px;display:none;text-align:center;"></div>
+        </div>
+      </div>
+      <div id="s7-edit-panel" style="display:none;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;text-align:center;">已驗證。可編輯已封板棧板</div>
+        <div id="s7-pallet-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 </div>
 <div class="demo-note">ALLY × LOTTE 移倉對點 APP Demo · 艾立供應鏈</div>
@@ -741,6 +815,13 @@ const ISOLATION_LOCS = ["QA-HOLD-01","QA-HOLD-02","QA-HOLD-03","QA-HOLD-04","QA-
 
 
 /* STATE */
+
+// ══ 新增全域狀態：司機+趟次記憶、儲位扣減、操作日誌 ══
+var CLOSED_TRIPS = {};  // { "BBB-2262": [1, 3], ... }
+var operationLog = [];  // 操作時間記錄
+
+// 替代舊的 locIdx → 改為扣減已用格數
+var USED_CELLS = {};
 var ST = {
   truck:'', aisle:'', overflow:'', trip:0, tail:false,
   pallets:{}, curPallet:null, curSKU:null, closed:false,
@@ -1728,6 +1809,91 @@ function addLog(action, details) {
   return logEntry;
 }
 
+function initClosedTrips() {
+  try {
+    var saved = localStorage.getItem('_closedTrips');
+    CLOSED_TRIPS = saved ? JSON.parse(saved) : {};
+  } catch(e) { CLOSED_TRIPS = {}; }
+}
+
+function saveClosedTrip(truck, trip) {
+  if (!CLOSED_TRIPS[truck]) CLOSED_TRIPS[truck] = [];
+  if (CLOSED_TRIPS[truck].indexOf(trip) < 0) {
+    CLOSED_TRIPS[truck].push(trip);
+    try { localStorage.setItem('_closedTrips', JSON.stringify(CLOSED_TRIPS)); } catch(e) {}
+  }
+}
+
+function isTripsCompleted(truck, trip) {
+  return CLOSED_TRIPS[truck] && CLOSED_TRIPS[truck].indexOf(trip) >= 0;
+}
+
+function initUsedCells() {
+  try {
+    var saved = localStorage.getItem('_usedCells');
+    USED_CELLS = saved ? JSON.parse(saved) : {};
+  } catch(e) { USED_CELLS = {}; }
+  AISLES.forEach(function(a){ if (!USED_CELLS[a]) USED_CELLS[a] = 0; });
+}
+
+function addUsedCell(aisle) {
+  USED_CELLS[aisle] = (USED_CELLS[aisle] || 0) + 1;
+  try { localStorage.setItem('_usedCells', JSON.stringify(USED_CELLS)); } catch(e) {}
+}
+
+function getAvailableCells(aisle) {
+  return 72 - (USED_CELLS[aisle] || 0);
+}
+
+function verifyPin() {
+  var pin = document.getElementById('pin-input').value;
+  if (pin === '9999') {
+    document.getElementById('s7-pin-panel').style.display = 'none';
+    document.getElementById('s7-edit-panel').style.display = 'block';
+    buildS7EditPanel();
+    addLog('進入修改數量', '主管驗證成功');
+    toast('✓ 已驗證');
+  } else {
+    var err = document.getElementById('pin-error');
+    err.textContent = '❌ 工號錯誤（提示：9999）';
+    err.style.display = 'block';
+  }
+}
+
+function buildS7EditPanel() {
+  var list = document.getElementById('s7-pallet-list');
+  var pallets = Object.values(ST.pallets || {}).filter(function(p){ return p && p.status === 'locked'; });
+  if (pallets.length === 0) {
+    list.innerHTML = '<div class="card" style="text-align:center;color:var(--muted);padding:20px;">無已封板棧板</div>';
+    return;
+  }
+  list.innerHTML = pallets.map(function(p,pi){
+    return '<div class="card" style="margin-bottom:8px;">' +
+      '<div class="sec">' + p.id + ' @ ' + p.loc + '</div>' +
+      '<div style="font-size:11px;color:var(--text);line-height:1.8;">' +
+      ((p.items && p.items.length > 0) ? (p.items.map(function(it,i){
+        return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">' +
+          '<div><strong>' + it.item_code + '</strong> ' + (it.name || '').substring(0,20) + '</div>' +
+          '<div style="display:flex;gap:8px;margin-top:4px;align-items:center;">' +
+          '<span style="color:var(--muted);font-size:10px;">數量：</span>' +
+          '<input class="input" id="qty-' + pi + '-' + i + '" value="' + (it.qty || 0) + '" type="number" style="width:70px;" onchange="updateItemQty(\'' + p.id + '\',' + i + ',this.value)">' +
+          '</div></div>';
+      }).join('')) : '<div style="color:var(--muted);text-align:center;padding:10px;">無品項</div>') +
+      '</div></div>';
+  }).join('');
+}
+
+function updateItemQty(palletId, itemIdx, newQty) {
+  var p = ST.pallets && ST.pallets[palletId];
+  if (p && p.items && p.items[itemIdx]) {
+    p.items[itemIdx].qty = Math.max(0, parseInt(newQty) || 0);
+    try { localStorage.setItem('_ST', JSON.stringify(ST)); } catch(e) {}
+    toast('✓ 已更新');
+    addLog('修改品項數量', 'pallet=' + palletId + ' item=' + itemIdx);
+  }
+}
+
+
 function renderLogPanel() {
   var panel = document.getElementById('log-panel');
   if (!panel) return;
@@ -2308,6 +2474,9 @@ console.log("%c✅ ALLY LOTTE v6.2 已加載！在控制台執行: testWorkflow(
 /* ══ BOOT ══ */
 initAisleGrids();
 rebuildWarehouseDropdown();
+
+initClosedTrips();
+initUsedCells();
 initNetworkMonitor();
 makePcardsExpandable();
 
