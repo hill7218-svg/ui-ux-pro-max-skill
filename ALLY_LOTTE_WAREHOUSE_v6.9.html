@@ -488,6 +488,13 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         </div>
       </div>
 
+      <!-- 倉別（刷貨號前選擇，決定入庫單虛擬倉）-->
+      <div class="card" style="margin-bottom:8px;">
+        <div class="sec">📦 入庫倉別（虛擬倉）</div>
+        <select class="sel" id="wh-sel" onchange="onWarehouseChange()"></select>
+        <div style="font-size:10px;color:var(--muted);margin-top:5px;">此倉別會寫入入庫單，刷貨號前先確認</div>
+      </div>
+
       <!-- scan -->
       <div class="card">
         <div class="sec">掃EAN / 輸入品號</div>
@@ -697,7 +704,8 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         </div>
       </div>
       <div id="close-warn-box" style="display:none;margin-bottom:8px;"></div>
-      <button class="btn btn-r" id="close-btn" onclick="doClose()" disabled style="margin-bottom:16px;">🔒 關單上車</button>
+      <button class="btn btn-r" id="close-btn" onclick="doClose()" disabled style="margin-bottom:8px;">🔒 關單上車</button>
+      <button class="btn" onclick="downloadWmsCsv()" style="margin-bottom:16px;background:rgba(0,123,111,.12);border-color:var(--teal);color:var(--teal);">📋 下載入庫單 CSV（行政備援）</button>
     </div>
     <div class="tabs">
       <button class="tab" onclick="goS(1)"><span class="ti">📷</span>點驗</button>
@@ -739,7 +747,8 @@ var ST = {
   locIdx:{}, sealTarget:null, sealStatus:'', _pendingLoc:null,
   palletPhotos:{},   // { palletId: [{url, index, timestamp}] }
   s3PhotoCount:0,    // 目前 S3 已拍照片數
-  driverName:''      // 司機姓名（車號自動帶入）
+  driverName:'',     // 司機姓名（車號自動帶入）
+  warehouse:''       // 目前入庫倉別（虛擬倉，刷貨號前選擇）
 };
 AISLES.forEach(function(a){ ST.locIdx[a]=0; });
 
@@ -771,6 +780,33 @@ function rebuildTruckDropdown() {
       return '<option value="' + t + '">🚛 ' + t + ' · ' + TRUCK_DRIVER[t].name + '</option>';
     }).join('') +
     '<option value="OTHER">🚛 其他車號</option>';
+}
+
+/* ══ 倉別（虛擬倉）══ */
+function rebuildWarehouseDropdown() {
+  var sel = document.getElementById('wh-sel');
+  if (!sel) return;
+  var list = (CONFIG.wms.warehouses && CONFIG.wms.warehouses.length)
+    ? CONFIG.wms.warehouses : [CONFIG.wms.defaultWarehouse];
+  if (!ST.warehouse) ST.warehouse = CONFIG.wms.defaultWarehouse || list[0];
+  sel.innerHTML = list.map(function(w){
+    return '<option value="' + w + '"' + (w === ST.warehouse ? ' selected' : '') + '>🏬 ' + w + '</option>';
+  }).join('') + '<option value="OTHER">➕ 其他倉別…</option>';
+}
+
+function onWarehouseChange() {
+  var v = document.getElementById('wh-sel').value;
+  if (v === 'OTHER') {
+    var custom = window.prompt('輸入倉別代碼（例：A47）', ST.warehouse || '');
+    if (custom && custom.trim()) {
+      custom = custom.trim().toUpperCase();
+      if (CONFIG.wms.warehouses.indexOf(custom) < 0) CONFIG.wms.warehouses.push(custom);
+      ST.warehouse = custom;
+    }
+    rebuildWarehouseDropdown();
+  } else {
+    ST.warehouse = v;
+  }
 }
 
 /* ══ SETUP ══ */
@@ -1037,8 +1073,9 @@ function addItem() {
   if (expPcs && getScanned(sku.i) + pcsAdded > expPcs) { toast('超出預期上限', true); return; }
   var p = ST.pallets[ST.curPallet];
   var ex = p.items.find(function(x){ return x.item_code === sku.i; });
+  var wh = ST.warehouse || CONFIG.wms.defaultWarehouse;
   if (ex) { ex.qty += pcsAdded; }
-  else p.items.push({item_code:sku.i, name:sku.n, case_pack:sku.c, qty:pcsAdded, uq:uq, unitType:sku.unitType||'箱', unit:sku.unit||'片', ean:sku.ean, storage:sku.s});
+  else p.items.push({item_code:sku.i, name:sku.n, case_pack:sku.c, qty:pcsAdded, uq:uq, unitType:sku.unitType||'箱', unit:sku.unit||'片', ean:sku.ean, storage:sku.s, warehouse:wh});
   toast('已加入 ' + ST.curPallet + ' ✓');
   document.getElementById('sku-card').style.display = 'none';
   document.getElementById('qty-card').style.display = 'none';
@@ -1332,18 +1369,20 @@ function renderSummary() {
   }
 }
 
-function doClose() {
-  if (!window.confirm('確定關單？車輛裝滿，即將同步資料並重置系統。')) return;
+async function doClose() {
+  if (!window.confirm('確定關單？車輛裝滿，即將同步資料、產生入庫單並重置系統。')) return;
   ST.closed = true;
   renderSummary();
-  toast('✅ 已關單，正在同步 Google Sheets...');
-  syncToGoogleSheets().then(function(){
-    toast('☁️ 資料已上傳，3秒後返回開工頁面');
+  toast('✅ 已關單，正在同步資料...');
+  try {
+    await syncToGoogleSheets();      // 1) 移倉記錄（原始流水）
+    await exportWmsToSheet();        // 2) 入庫單（WMS 格式，供行政核對匯出）
+    toast('☁️ 移倉記錄 + 入庫單已上傳，3秒後返回開工頁面');
     setTimeout(resetForNewTrip, 3000);
-  }).catch(function(){
+  } catch (e) {
     toast('⚠️ 同步失敗，請手動按「同步」後再返回', true);
     setTimeout(resetForNewTrip, 5000);
-  });
+  }
 }
 
 function resetForNewTrip() {
@@ -1352,8 +1391,10 @@ function resetForNewTrip() {
   ST.pallets={}; ST.curPallet=null; ST.curSKU=null; ST.closed=false;
   ST.locIdx={}; ST.sealTarget=null; ST.sealStatus=''; ST._pendingLoc=null;
   ST.palletPhotos={}; ST.s3PhotoCount=0; ST.driverName='';
+  ST.warehouse = CONFIG.wms.defaultWarehouse || '';
   TRUCK_DRIVER = savedTruckDriver;
   AISLES.forEach(function(a){ ST.locIdx[a]=0; });
+  rebuildWarehouseDropdown();
   // Reset S0 UI
   document.getElementById('truck-sel').value = '';
   var badge = document.getElementById('driver-badge');
@@ -1472,8 +1513,21 @@ const CONFIG = {
       log:       "移倉記錄",
       drivers:   "司機清單",
       inventory: "商品清單",
-      locations: "儲位清單"
+      locations: "儲位清單",
+      wms:       "入庫單"
     }
+  },
+
+  // ── WMS 入庫單（關單時自動產生，可匯入 WMS）──
+  //  前三欄為固定廠商資訊；數量自動換算為最小單位並依「貨號+倉別」加總。
+  wms: {
+    vendorId:        "27712880",      // 廠商統編（必填）
+    contact:         "林家霏",         // 廠商聯絡人（必填）
+    phone:           "02-25788183",   // 聯絡人電話（必填）
+    defaultWarehouse:"A47",           // 預設虛擬倉（刷貨號前可在 S1 切換）
+    warehouses:      ["A47"],         // 可選倉別清單（之後可擴充多倉）
+    timeSlot:        "9",             // 時段（9=0900~1000）
+    productType:     "良品"           // 群品固定良品
   }
 };
 
@@ -1733,6 +1787,112 @@ async function syncToGoogleSheets() {
     addLog('同步失敗', res.error || '未知錯誤');
     setNetwork('offline');
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ║  WMS 入庫單 — 關單時自動產生，可匯入 WMS                          ║
+   ═══════════════════════════════════════════════════════════════
+   數量已是最小單位（刷箱數×入數），依「貨號+倉別」加總成一列。
+   前三欄固定廠商資訊；採購單號/批號等選填欄位留空，由行政在 Sheet 補。
+*/
+var WMS_HEADER = [
+  '廠商統編','廠商聯絡人','聯絡人電話','日期','時段','採購單號','來源單號','主檔備註',
+  '商品貨號','商品名稱','數量','製造日期','有效日期','批號','商品條碼',
+  '群品','明細備註','入倉單號','虛擬倉','庫存等級屬性','版本號','原因代碼'
+];
+
+function buildWmsRows() {
+  var w = CONFIG.wms;
+  var today = new Date();
+  var dateStr = today.getFullYear() + '/' +
+    String(today.getMonth()+1).padStart(2,'0') + '/' +
+    String(today.getDate()).padStart(2,'0');
+  var source = (ST.truck || '') + (ST.trip ? ' 趟' + ST.trip : '');
+
+  // 依「貨號+倉別」聚合（只計已封板棧板）
+  var agg = {};
+  Object.values(ST.pallets).forEach(function(p){
+    if (p.status !== 'locked') return;
+    (p.items || []).forEach(function(it){
+      var wh = it.warehouse || w.defaultWarehouse;
+      var key = it.item_code + '||' + wh;
+      if (!agg[key]) {
+        agg[key] = { code: it.item_code, name: it.name, ean: it.ean || '', wh: wh, qty: 0 };
+      }
+      agg[key].qty += (it.qty || 0);  // qty 已是最小單位
+    });
+  });
+
+  return Object.keys(agg).map(function(k){
+    var a = agg[k];
+    return [
+      w.vendorId, w.contact, w.phone, dateStr, w.timeSlot,
+      '',            // 採購單號（行政補）
+      source,        // 來源單號 = 車號+趟次
+      '',            // 主檔備註
+      a.code, a.name, a.qty,
+      '', '', '',    // 製造/有效/批號
+      a.ean,         // 商品條碼
+      w.productType, // 群品=良品
+      '', '',        // 明細備註 / 入倉單號
+      a.wh,          // 虛擬倉
+      '', '', ''     // 庫存等級 / 版本號 / 原因代碼
+    ];
+  });
+}
+
+/* 上傳入庫單到 Google Sheet「入庫單」分頁（含表頭自動建立由 GAS 處理）*/
+async function exportWmsToSheet() {
+  var rows = buildWmsRows();
+  if (!rows.length) { toast('無已封板品項，無法產生入庫單', true); return { ok:false, rows:0 }; }
+
+  if (Backend.mode !== 'live' || !Backend.sheetsReady) {
+    window._pendingWms = (window._pendingWms || []).concat(rows);
+    toast('💾 Demo：入庫單已暫存 ' + rows.length + ' 列', false);
+    addLog('入庫單本地暫存', rows.length + ' 列（demo）');
+    return { ok:false, rows:rows.length, local:true };
+  }
+
+  toast('📋 上傳入庫單到 Sheet...', false);
+  var res = await Backend.appendRows(CONFIG.sheets.tabs.wms, rows);
+  if (res.ok) {
+    toast('✅ 入庫單已上傳（' + rows.length + ' 列）', false);
+    addLog('入庫單上傳', rows.length + ' 列 → ' + CONFIG.sheets.tabs.wms);
+  } else {
+    window._pendingWms = (window._pendingWms || []).concat(rows);
+    toast('⚠️ 入庫單上傳失敗，已暫存', true);
+    addLog('入庫單上傳失敗', res.error || '未知');
+  }
+  return { ok:res.ok, rows:rows.length };
+}
+
+/* 純函式：rows → CSV 字串（含表頭，不含 BOM）。便於測試。*/
+function wmsRowsToCsv(rows) {
+  var esc = function(v){
+    var s = (v == null ? '' : String(v));
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  return [WMS_HEADER].concat(rows)
+    .map(function(r){ return r.map(esc).join(','); }).join('\r\n');
+}
+
+/* 本機下載 WMS CSV（含 BOM，Excel 直接開不亂碼）*/
+function downloadWmsCsv() {
+  var rows = buildWmsRows();
+  if (!rows.length) { toast('無已封板品項，無法產生入庫單', true); return; }
+  var csv = wmsRowsToCsv(rows);
+  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '入庫單_' + (ST.truck || 'NA').replace(/[^A-Z0-9]/gi,'') +
+    '_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('⬇️ 入庫單 CSV 已下載（' + rows.length + ' 列）', false);
+  addLog('入庫單 CSV 下載', rows.length + ' 列');
 }
 
 /* 重試所有暫存中的同步 */
@@ -2138,6 +2298,7 @@ console.log("%c✅ ALLY LOTTE v6.2 已加載！在控制台執行: testWorkflow(
 
 /* ══ BOOT ══ */
 initAisleGrids();
+rebuildWarehouseDropdown();
 initNetworkMonitor();
 makePcardsExpandable();
 
