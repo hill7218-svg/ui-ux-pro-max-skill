@@ -568,26 +568,52 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
           <button onclick="qs('BT9101')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BT9101</button>
         </div>
         <div class="sku-card" id="sku-card">
-          <div class="sku-code" id="sku-code"></div>
-          <div class="sku-name" id="sku-name"></div>
-          <div class="sku-tags">
+          <!-- 商品條碼 - 突出顯示 -->
+          <div style="background:rgba(255,215,0,.08);border:2px solid var(--gold);border-radius:8px;padding:14px;margin-bottom:12px;text-align:center;">
+            <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;font-family:Chakra Petch,monospace;letter-spacing:.08em;">🔳 商品條碼</div>
+            <div id="sku-barcode" style="font-family:JetBrains Mono,monospace;font-size:16px;font-weight:700;color:var(--gold);letter-spacing:.04em;word-break:break-all;"></div>
+          </div>
+          <!-- 品號 / 品名 -->
+          <div style="margin-bottom:8px;">
+            <div class="sku-code" id="sku-code"></div>
+            <div class="sku-name" id="sku-name"></div>
+          </div>
+          <!-- 基本資訊 -->
+          <div class="sku-tags" style="margin-bottom:8px;">
             <span id="sku-temp" class="tn"></span>
             <span id="sku-store" style="font-size:10px;color:var(--muted);"></span>
-            <span id="sku-cp-wrap" style="font-size:10px;color:var(--muted);"></span>
+          </div>
+          <!-- 尺寸規格 -->
+          <div style="background:rgba(0,200,150,.05);border-radius:6px;padding:8px;font-size:11px;color:var(--muted);">
+            <span id="sku-cp-wrap"></span>
           </div>
         </div>
       </div>
 
       <!-- qty -->
       <div class="card" id="qty-card" style="display:none;">
-        <div class="sec">輸入箱數</div>
-        <div class="qty-row">
-          <button class="qty-side" onclick="adjQ(-1)">−</button>
-          <input class="qty-num" id="qty-v" type="number" value="1" min="1" oninput="qHint()">
-          <button class="qty-side" onclick="adjQ(1)">＋</button>
+        <div class="sec">數量 & PCS 規格</div>
+        <!-- 規格說明 -->
+        <div style="background:rgba(255,215,0,.08);border-radius:6px;padding:10px;margin-bottom:10px;font-size:11px;">
+          <div style="color:var(--gold);font-weight:700;margin-bottom:4px;">📦 每箱數量</div>
+          <div id="qty-spec" style="color:var(--text);font-family:Chakra Petch,monospace;"></div>
         </div>
-        <div class="qhint" id="qty-h"></div>
-        <div id="pcs-prev" style="text-align:center;font-size:10px;color:var(--muted);margin-top:3px;"></div>
+        <!-- 數量輸入 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">輸入箱數</div>
+          <div class="qty-row">
+            <button class="qty-side" onclick="adjQ(-1)">−</button>
+            <input class="qty-num" id="qty-v" type="number" value="1" min="1" oninput="qHint()">
+            <button class="qty-side" onclick="adjQ(1)">＋</button>
+          </div>
+        </div>
+        <!-- 當前選擇 PCS 計算 -->
+        <div style="background:rgba(0,200,150,.08);border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">當前選擇</div>
+          <div id="pcs-prev" style="font-size:14px;font-weight:700;color:var(--green);font-family:Chakra Petch,monospace;"></div>
+        </div>
+        <!-- 容量檢查 -->
+        <div class="qhint" id="qty-h" style="margin-top:10px;"></div>
       </div>
 
       <!-- pallet pick -->
@@ -599,46 +625,6 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
 
       <div id="add-wrap" style="display:none;margin-bottom:10px;">
         <button class="btn" onclick="addItem()">✓ 加入棧板</button>
-      </div>
-
-      <!-- 照片 / QR / LOG 功能區 -->
-      <div class="card" style="margin-top:4px;border-top:2px solid var(--gold);padding-top:14px;">
-        <div class="sec" style="color:var(--gold);">🆕 集成功能</div>
-
-        <!-- 照片區 -->
-        <div class="photo-section" id="photo-section">
-          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px;">📷 拍照記錄</div>
-          <div class="photo-grid">
-            <div class="photo-item" onclick="triggerPhotoCapture(0)" id="photo-0">
-              <div class="photo-placeholder">📷<div class="photo-label">照片1</div></div>
-            </div>
-            <div class="photo-item" onclick="triggerPhotoCapture(1)" id="photo-1">
-              <div class="photo-placeholder">📷<div class="photo-label">照片2</div></div>
-            </div>
-            <div class="photo-item" onclick="triggerPhotoCapture(2)" id="photo-2">
-              <div class="photo-placeholder">📷<div class="photo-label">照片3</div></div>
-            </div>
-            <div class="photo-item" onclick="triggerPhotoCapture(3)" id="photo-3">
-              <div class="photo-placeholder">📷<div class="photo-label">照片4</div></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- QR Code 區 -->
-        <button class="btn btn-qrcode" onclick="document.getElementById('qr-panel').style.display=document.getElementById('qr-panel').style.display==='none'?'block':'none'">🔳 顯示 QR Code 面板</button>
-        <div id="qr-panel" class="qr-section">
-          <div class="qr-label">掃描此碼進行入庫</div>
-          <div class="qr-code-container" id="qr-code-container"></div>
-          <div class="qr-id" id="qr-pallet-id">尚未選擇棧板</div>
-          <button class="btn" style="margin-top:8px;background:rgba(0,200,150,.1);border-color:var(--green);color:var(--green);font-size:12px;" onclick="downloadQRCodeSVG(ST.selectedPallet)">⬇️ 下載 SVG</button>
-        </div>
-
-        <!-- LOG 面板 -->
-        <button class="btn btn-synclog" onclick="document.getElementById('log-panel').style.display=document.getElementById('log-panel').style.display==='none'?'block':'none'">📋 操作日誌</button>
-        <div id="log-panel" class="log-panel"></div>
-
-        <!-- 同步按鈕 -->
-        <button class="btn btn-g" style="margin-top:8px;" onclick="syncToGoogleSheets()">☁️ 同步 Google Sheets</button>
       </div>
     </div>
     <div class="tabs">
@@ -1062,6 +1048,7 @@ function doLookup() {
   var sku = EAN_MAP[v] || ITEM_MAP[v.toUpperCase()];
   if (!sku) { toast('找不到: ' + v, true); return; }
   ST.curSKU = Object.assign({}, sku, {ean: v});
+  document.getElementById('sku-barcode').textContent = v;
   document.getElementById('sku-code').textContent = sku.i;
   document.getElementById('sku-name').textContent = sku.n;
   var isC = sku.s && (sku.s.indexOf('冷') >= 0);
@@ -1075,6 +1062,11 @@ function doLookup() {
   document.getElementById('qty-v').value = 1;
   document.getElementById('qty-v').max = EXP[sku.i] || 9999;
   document.getElementById('qty-card').style.display = 'block';
+  // 填充規格信息
+  var pcsPerBox = sku.uq || sku.c || 1;
+  var unitType = sku.unitType || '箱';
+  var unitLabel = sku.unit || 'PCS';
+  document.getElementById('qty-spec').textContent = pcsPerBox + ' ' + unitLabel + ' / ' + unitType;
   qHint();
   document.getElementById('psel-card').style.display = 'block';
   renderPChips();
@@ -1086,8 +1078,9 @@ function qHint() {
   var qty = parseInt(document.getElementById('qty-v').value) || 0;
   var sku = ST.curSKU; if (!sku) return;
   var uq = sku.uq || sku.c || 1;
+  var unitType = sku.unitType || '箱';
   var pcs = qty * uq;
-  document.getElementById('pcs-prev').textContent = '= ' + pcs.toLocaleString() + ' ' + (sku.unit || 'PCS');
+  document.getElementById('pcs-prev').textContent = qty + ' ' + unitType + ' × ' + uq + ' = ' + pcs.toLocaleString() + ' ' + (sku.unit || 'PCS');
   var h = document.getElementById('qty-h');
   var expPcs = getExpPcs(sku.i);
   if (expPcs) {
