@@ -429,13 +429,19 @@ function generateSourceId(date, trip, boardNum) {
 }
 
 // 從 Google Sheet 讀儲位清單
-async function loadLocationsList() {
+async function loadLocationsList(needCount) {
   const apiKey = document.getElementById('apiKey').value.trim();
   const sheetId = document.getElementById('sheetId').value.trim();
   const aisle = document.getElementById('aisleSelect').value;
+  const want = needCount || 32;
 
-  if (!apiKey || !sheetId || !aisle) {
-    showMessage('❌ 請填入 API Key、Sheet ID、選擇走道', 'error');
+  // 沒填 Sheet 連線資訊 → 略過儲位讀取（貼紙仍可印，建議儲位顯示「—」手寫）
+  if (!apiKey || !sheetId) {
+    showMessage('ℹ️ 未填 Google Sheet 連線，將略過儲位預配（貼紙建議儲位留空，現場手寫）', 'info');
+    return false;
+  }
+  if (!aisle) {
+    showMessage('❌ 請選擇走道', 'error');
     return false;
   }
 
@@ -465,13 +471,16 @@ async function loadLocationsList() {
     });
 
     // 只保留選定走道
-    if (!locations[aisle] || locations[aisle].length < 32) {
-      showMessage(`⚠️ ${aisle} 走道可用儲位不足 32 個（找到 ${locations[aisle]?.length || 0} 個）`, 'warning');
-      return false;
+    const found = locations[aisle] ? locations[aisle].length : 0;
+    if (found < want) {
+      showMessage(`⚠️ ${aisle} 走道可用儲位不足（需 ${want} 個，找到 ${found} 個）— 不足的板建議儲位留空手寫`, 'warning');
+      // 仍保留找到的儲位，讓前 found 板有預配
+      if (found > 0) LOC_POOLS[aisle] = locations[aisle];
+      return found > 0;
     }
 
     LOC_POOLS[aisle] = locations[aisle];
-    showMessage(`✅ 已讀 ${aisle} 走道的 ${locations[aisle].length} 個可用儲位`, 'success');
+    showMessage(`✅ 已讀 ${aisle} 走道的 ${found} 個可用儲位`, 'success');
     return true;
   } catch (e) {
     showMessage('❌ 讀取失敗：' + e.message, 'error');
@@ -495,8 +504,8 @@ async function generateStickers() {
   const [y, m, d] = date.split('-');
   const dateStr = y + m + d;
 
-  // 讀儲位清單
-  const hasLocs = await loadLocationsList();
+  // 讀儲位清單（傳入需要的板數）
+  const hasLocs = await loadLocationsList(boardCount);
   const locs = hasLocs ? LOC_POOLS[aisle] : null;
 
   // 產生貼紙
@@ -505,7 +514,7 @@ async function generateStickers() {
   let totalStickers = 0;
 
   for (let i = 1; i <= boardCount; i++) {
-    const sourceId = generateSourceId(parseInt(trip), i);
+    const sourceId = generateSourceId(dateStr, parseInt(trip), i);
     const suggestedLoc = locs && locs[i-1] ? locs[i-1] : '—';
 
     const sticker = document.createElement('div');
@@ -516,7 +525,7 @@ async function generateStickers() {
           <div class="sticker-id">${sourceId}</div>
         </div>
         <div class="sticker-qr">
-          <canvas id="qr-${i}"></canvas>
+          <div id="qr-${i}"></div>
         </div>
         <div class="sticker-location">
           <div class="sticker-loc-label">建議儲位</div>
