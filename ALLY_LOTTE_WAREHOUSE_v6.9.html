@@ -775,6 +775,33 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
     </div>
   </div>
 
+  <!-- ══ S8: 卸貨驗收（v6.9 新增）══ -->
+  <div class="scr" id="s8">
+    <div class="topbar">
+      <button class="btn-back" onclick="goS(0)">←</button>
+      <div class="ttitle">卸貨驗收</div>
+    </div>
+    <div class="body">
+      <!-- 掃 QR Code 卡片 -->
+      <div class="card">
+        <div class="sec">🔳 掃描 QR Code（來源單號）</div>
+        <input class="scan-input" id="s8-qr-input" placeholder="ALLY-YYYYMMDD-A-1-001" autofocus onkeypress="if(event.key==='Enter') s8QueryBoard()">
+        <button class="btn btn-g" style="margin-top:10px;" onclick="s8QueryBoard()">🔍 查詢棧板</button>
+        <div id="s8-message" style="margin-top:10px;font-size:11px;"></div>
+      </div>
+
+      <!-- 查詢結果卡片（初始隱藏） -->
+      <div id="s8-result-card" class="card" style="display:none;">
+        <div class="sec">✓ 棧板 <span id="s8-pallet-id" style="color:var(--gold);font-family:Chakra Petch,monospace;"></span> 明細</div>
+        <div id="s8-items"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button class="btn btn-g" style="flex:1;" onclick="s8ConfirmReceiving()">✅ 確認驗收 + 上架</button>
+          <button class="btn" style="flex:1;background:rgba(107,122,153,.1);border-color:var(--muted);color:var(--muted);" onclick="s8Reset()">🔄 重新掃描</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- S7: 修改數量（新增） -->
   <div class="scr" id="s7">
     <div class="topbar">
@@ -1530,7 +1557,7 @@ function resetForNewTrip() {
 
 /* ══ NAV ══ */
 function goS(n) {
-  [0,1,2,3,4,6,7].forEach(function(i) {
+  [0,1,2,3,4,6,7,8].forEach(function(i) {
     var el = document.getElementById('s'+i);
     if (el) el.classList.toggle('active', i===n);
   });
@@ -1550,6 +1577,7 @@ function goS(n) {
   if (n===2) renderPList();
   if (n===4) renderSummary();
   if (n===7) { document.getElementById('s7-pin-panel').style.display='block'; document.getElementById('s7-edit-panel').style.display='none'; var p=document.getElementById('pin-input'); if(p){p.value=''; } var pe=document.getElementById('pin-error'); if(pe) pe.style.display='none'; }
+  if (n===8) { s8Reset(); }
 }
 
 function updS1Badge() {
@@ -1953,6 +1981,110 @@ function updateItemQty(palletId, itemIdx, newQty) {
   }
 }
 
+
+/* ══ S8: 卸貨驗收（瑞芳收貨端）══ */
+var s8_currentSourceId = null;
+var s8_items = [];
+
+async function s8QueryBoard() {
+  var input = (document.getElementById('s8-qr-input').value || '').trim();
+  var msg = document.getElementById('s8-message');
+  msg.innerHTML = '';
+
+  if (!input) {
+    msg.innerHTML = '❌ 請掃描或輸入來源單號';
+    msg.style.color = 'var(--muted)';
+    return;
+  }
+
+  msg.innerHTML = '🔍 查詢中...';
+  msg.style.color = 'var(--muted)';
+
+  // 讀取入庫單分頁
+  var result = await Backend.readTab(CONFIG.sheets.tabs.wms);
+  if (!result.ok || !result.values || result.values.length <= 1) {
+    msg.innerHTML = '⚠️ 無法讀取入庫單資料';
+    msg.style.color = '#FF8080';
+    addLog('S8 查詢失敗', 'read_sheet_error');
+    return;
+  }
+
+  // 搜尋該來源單號的所有品項（欄位索引 6）
+  var sourceIdCol = 6;
+  var itemCodeCol = 8;
+  var itemNameCol = 9;
+  var qtyCol = 10;
+  var warehouseCol = 18;
+
+  var matches = result.values.slice(1).filter(function(row){
+    return row[sourceIdCol] === input;
+  });
+
+  if (matches.length === 0) {
+    msg.innerHTML = '❌ 找不到該來源單號的棧板';
+    msg.style.color = '#FF8080';
+    addLog('S8 查詢失敗', 'source_id_not_found');
+    return;
+  }
+
+  // 收集該棧板的品項
+  s8_items = matches.map(function(row){
+    return {
+      item_code: row[itemCodeCol] || '',
+      name: row[itemNameCol] || '',
+      qty: parseInt(row[qtyCol] || 0, 10),
+      warehouse: row[warehouseCol] || 'A47'
+    };
+  });
+
+  s8_currentSourceId = input;
+
+  // 顯示結果卡片
+  var resultCard = document.getElementById('s8-result-card');
+  document.getElementById('s8-pallet-id').textContent = input;
+
+  var itemsHtml = s8_items.map(function(it){
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">' +
+      '<div><strong>' + it.item_code + '</strong> ' + (it.name || '').substring(0,20) + '</div>' +
+      '<div style="display:flex;gap:10px;margin-top:4px;font-size:11px;color:var(--muted);">' +
+      '數量：<span style="color:var(--green);">' + it.qty + '</span> | ' +
+      '倉別：<span style="color:var(--gold);">' + it.warehouse + '</span>' +
+      '</div></div>';
+  }).join('');
+
+  document.getElementById('s8-items').innerHTML = itemsHtml || '<div style="color:var(--muted);text-align:center;padding:10px;">無品項</div>';
+  resultCard.style.display = 'block';
+  msg.innerHTML = '✅ 查詢成功';
+  msg.style.color = 'var(--green)';
+
+  addLog('S8 棧板查詢', '來源單號=' + input + ' | 品項數=' + s8_items.length);
+}
+
+function s8ConfirmReceiving() {
+  if (!s8_currentSourceId || s8_items.length === 0) {
+    toast('❌ 無效的查詢結果', true);
+    return;
+  }
+
+  toast('✅ 驗收完成，棧板 ' + s8_currentSourceId + ' 可上架');
+  addLog('卸貨驗收完成', '來源單號=' + s8_currentSourceId + ' | 品項數=' + s8_items.length);
+
+  // 2秒後重置查詢表單
+  setTimeout(function(){ s8Reset(); }, 1500);
+}
+
+function s8Reset() {
+  document.getElementById('s8-qr-input').value = '';
+  document.getElementById('s8-message').innerHTML = '';
+  document.getElementById('s8-result-card').style.display = 'none';
+  document.getElementById('s8-items').innerHTML = '';
+  document.getElementById('s8-pallet-id').textContent = '';
+  s8_currentSourceId = null;
+  s8_items = [];
+
+  var input = document.getElementById('s8-qr-input');
+  if (input) input.focus();
+}
 
 function renderLogPanel() {
   var panel = document.getElementById('log-panel');
