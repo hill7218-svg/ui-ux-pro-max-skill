@@ -670,6 +670,12 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
       <div class="ttitle" id="s3title">封板</div>
     </div>
     <div class="body">
+      <!-- 來源單號展示卡（用於瑞芳掃描驗證） -->
+      <div class="card" id="s3-source-card" style="background:rgba(0,123,111,.08);border:2px solid var(--teal);margin-bottom:8px;">
+        <div class="sec" style="color:var(--teal);">🔳 來源單號（貼紙 QR）</div>
+        <div style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:14px;color:var(--white);text-align:center;padding:12px 0;word-break:break-all;" id="s3-source-id">ALLY-YYYYMMDD-A-1-001</div>
+      </div>
+
       <div class="card">
         <div class="sec">本板品項</div>
         <div id="s3items"></div>
@@ -1305,6 +1311,9 @@ function openSeal(pid) {
   ST._pendingLoc = null;
   var p = ST.pallets[pid];
   document.getElementById('s3title').textContent = '封板 · ' + pid;
+  // 在 S3 顯示 來源單號（用於瑞芳掃描驗證）
+  var sourceEl = document.getElementById('s3-source-id');
+  if (sourceEl) sourceEl.textContent = pid;
   var tq = p.items.reduce(function(s,i){ return s+i.qty; }, 0);
   document.getElementById('s3items').innerHTML = p.items.map(function(it) {
     var expPcs = getExpPcs(it.item_code);
@@ -2338,12 +2347,9 @@ function generateQRCodeSVG(text) {
 function displayPalletQRCode(palletId) {
   ST.selectedPallet = palletId;
 
-  var qrData = JSON.stringify({
-    truck: ST.truck,
-    pallet: palletId,
-    location: (ST.pallets[palletId] && ST.pallets[palletId].location) || 'N/A',
-    timestamp: new Date().toISOString()
-  });
+  // v6.9+ QR Code 改為單純 來源單號（與列印貼紙一致，瑞芳掃描好查板）
+  // 不再包含 JSON，單純是 ALLY-YYYYMMDD-A-1-001 這種格式
+  var qrData = palletId;
 
   var qrContainer = document.getElementById('qr-code-container');
   if (qrContainer) {
@@ -2353,10 +2359,11 @@ function displayPalletQRCode(palletId) {
 
   var qrId = document.getElementById('qr-pallet-id');
   if (qrId) {
-    qrId.textContent = palletId + ' @ ' + ((ST.pallets[palletId] && ST.pallets[palletId].location) || 'N/A');
+    var loc = ST.pallets[palletId] && ST.pallets[palletId].loc ? ST.pallets[palletId].loc : '—';
+    qrId.textContent = palletId + ' @ ' + loc;
   }
 
-  addLog('QR Code 生成', '棧板 ' + palletId);
+  addLog('QR Code 生成', '來源單號 ' + palletId);
 }
 
 function downloadQRCodeSVG(palletId) {
@@ -2365,13 +2372,8 @@ function downloadQRCodeSVG(palletId) {
     return;
   }
 
-  var qrData = JSON.stringify({
-    truck: ST.truck,
-    pallet: palletId,
-    location: (ST.pallets[palletId] && ST.pallets[palletId].location) || 'N/A',
-    timestamp: new Date().toISOString()
-  });
-
+  // v6.9+ QR Code 改為單純 來源單號（與列印貼紙一致）
+  var qrData = palletId;
   var qrImageUrl = generateQRCodeImage(qrData);
 
   // 下載圖片
@@ -2382,7 +2384,7 @@ function downloadQRCodeSVG(palletId) {
   link.click();
   document.body.removeChild(link);
 
-  addLog('QR Code 下載', '棧板 ' + palletId);
+  addLog('QR Code 下載', '來源單號 ' + palletId);
   toast('✅ QR Code 已下載', false);
 }
 
