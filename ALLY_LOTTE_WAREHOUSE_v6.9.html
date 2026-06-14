@@ -867,24 +867,31 @@ function rebuildTruckDropdown() {
 }
 
 /* ══ 倉別（虛擬倉）══ */
+// 倉別清單元素可能是 {code,name} 物件或純字串（現場新增），統一取代碼/名稱
+function whCode(w){ return (w && w.code) ? w.code : w; }
+function whName(w){ return (w && w.name) ? w.name : ''; }
+
 function rebuildWarehouseDropdown() {
   var sel = document.getElementById('wh-sel');
   if (!sel) return;
   var list = (CONFIG.wms.warehouses && CONFIG.wms.warehouses.length)
     ? CONFIG.wms.warehouses : [CONFIG.wms.defaultWarehouse];
-  if (!ST.warehouse) ST.warehouse = CONFIG.wms.defaultWarehouse || list[0];
+  if (!ST.warehouse) ST.warehouse = CONFIG.wms.defaultWarehouse || whCode(list[0]);
   sel.innerHTML = list.map(function(w){
-    return '<option value="' + w + '"' + (w === ST.warehouse ? ' selected' : '') + '>🏬 ' + w + '</option>';
+    var code = whCode(w), name = whName(w);
+    var label = '🏬 ' + code + (name ? ' · ' + name : '');
+    return '<option value="' + code + '"' + (code === ST.warehouse ? ' selected' : '') + '>' + label + '</option>';
   }).join('') + '<option value="OTHER">➕ 其他倉別…</option>';
 }
 
 function onWarehouseChange() {
   var v = document.getElementById('wh-sel').value;
   if (v === 'OTHER') {
-    var custom = window.prompt('輸入倉別代碼（例：A47）', ST.warehouse || '');
+    var custom = window.prompt('輸入倉別代碼（例：A35）', ST.warehouse || '');
     if (custom && custom.trim()) {
       custom = custom.trim().toUpperCase();
-      if (CONFIG.wms.warehouses.indexOf(custom) < 0) CONFIG.wms.warehouses.push(custom);
+      var exists = CONFIG.wms.warehouses.some(function(w){ return whCode(w) === custom; });
+      if (!exists) CONFIG.wms.warehouses.push({ code:custom, name:'現場新增' });
       ST.warehouse = custom;
     }
     rebuildWarehouseDropdown();
@@ -1625,10 +1632,16 @@ const CONFIG = {
     contact:         "林家霏",         // 廠商聯絡人
     phone:           "02-25788183",   // 聯絡人電話
     defaultWarehouse:"A47",           // 預設虛擬倉（S1 畫面預選值）
-    // ▼ 倉別清單：目前只有 A47（確認值）。其他倉別待 user 提供後補上；
-    //   現場若臨時要其他倉，操作員可在 S1 點「➕其他倉別…」即時輸入。
+    // ▼ 倉別清單（特捷實際 WMS 倉別，A08 報廢區已排除不顯示）。
+    //   下拉依此順序，A47 預設、A49 第二；現場臨時其他倉可點「➕其他倉別」即時輸入。
     warehouses: [
-      "A47"    // 預設主倉（唯一確認值）
+      { code:"A47", name:"特捷瑞芳區 正常" },   // 預設：正常好品，可直接出貨
+      { code:"A49", name:"特捷經銷區 包裝完整" },// 第二：包裝完整、僅外箱瑕疵
+      { code:"A35", name:"保稅區 待貼標" },      // 待貼中文標
+      { code:"A10", name:"加工區 改包" },        // 貼標/改包/凹損加工
+      { code:"A40", name:"散貨區 非原箱" },      // 非原箱、長效期
+      { code:"A41", name:"散貨凹損區" },         // 已傷品包裝、長效期
+      { code:"A18", name:"理賠區 待處理" }       // 待處理/濕損待保險
     ],
     timeSlot:        "9",             // 時段（9=0900~1000，WMS 固定欄位）
     productType:     "良品"           // 群品（全部固定良品，不良品另開單）
