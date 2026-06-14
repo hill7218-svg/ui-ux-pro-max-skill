@@ -1108,13 +1108,28 @@ function adjQ(d) {
 }
 
 /* ══ PALLETS ══ */
-function genId() {
-  var pre = ST.truck.replace(/[^A-Z0-9]/gi,'').slice(0,4).toUpperCase() + String(ST.trip) + '-';
+// 生成 來源單號格式：ALLY-{YYYYMMDD}-{A|B}-{trip}-{board#}
+// 規則：trip 1-3 = A車，trip 4-6 = B車
+function genSourceId() {
+  var today = new Date();
+  var dateStr = today.getFullYear() +
+    String(today.getMonth()+1).padStart(2,'0') +
+    String(today.getDate()).padStart(2,'0');
+  var vehicleType = (ST.trip && ST.trip <= 3) ? 'A' : 'B';
+  var tripInType = ((ST.trip - 1) % 3) + 1; // 1-3 → 1-3, 4-6 → 1-3
+
+  // 計算該車趟的板號（該車已建的板數+1）
+  var pre = 'ALLY-' + dateStr + '-' + vehicleType + '-' + tripInType + '-';
   var nums = Object.keys(ST.pallets)
     .filter(function(k){ return k.startsWith(pre); })
     .map(function(k){ return parseInt(k.split('-').pop())||0; });
-  var next = (nums.length ? Math.max.apply(null, nums) : 0) + 1;
-  return pre + String(next).padStart(3,'0');
+  var boardNum = (nums.length ? Math.max.apply(null, nums) : 0) + 1;
+  return pre + String(boardNum).padStart(3,'0');
+}
+
+// 舊函式保留作向後相容
+function genId() {
+  return genSourceId();
 }
 
 function newPallet() {
@@ -2002,8 +2017,9 @@ async function syncToGoogleSheets() {
 
 /* ═══════════════════════════════════════════════════════════════
    ║  WMS 入庫單 — 關單時自動產生，可匯入 WMS                          ║
-   ═══════════════════════════════════════════════════════════════
-   數量已是最小單位（刷箱數×入數），依「貨號+倉別」加總成一列。
+   ═════════════════════════════════════════════════════════════════
+   v6.9+ 改為「依板明細」：每板一行（含來源單號），多SKU多行共用同一來源單號。
+   這樣刷單板 QR 能查回該板全部品項，瑞芳收貨驗收時可查板身份，不失板身份。
    前三欄固定廠商資訊；採購單號/批號等選填欄位留空，由行政在 Sheet 補。
 */
 var WMS_HEADER = [
@@ -2018,38 +2034,37 @@ function buildWmsRows() {
   var dateStr = today.getFullYear() + '/' +
     String(today.getMonth()+1).padStart(2,'0') + '/' +
     String(today.getDate()).padStart(2,'0');
-  var source = (ST.truck || '') + (ST.trip ? ' 趟' + ST.trip : '');
 
-  // 依「貨號+倉別」聚合（只計已封板棧板）
-  var agg = {};
+  var rows = [];
+
+  // 依板逐行（只計已封板棧板）
   Object.values(ST.pallets).forEach(function(p){
     if (p.status !== 'locked') return;
+
+    // 該板的 來源單號 就是板ID（genSourceId已產生格式）
+    var sourceId = p.id;
+    var finalLoc = p.loc || '—';
+
+    // 該板的每個品項 = 一列
     (p.items || []).forEach(function(it){
       var wh = it.warehouse || w.defaultWarehouse;
-      var key = it.item_code + '||' + wh;
-      if (!agg[key]) {
-        agg[key] = { code: it.item_code, name: it.name, ean: it.ean || '', wh: wh, qty: 0 };
-      }
-      agg[key].qty += (it.qty || 0);  // qty 已是最小單位
+      rows.push([
+        w.vendorId, w.contact, w.phone, dateStr, w.timeSlot,
+        '',           // 採購單號（行政補）
+        sourceId,     // 來源單號 = 該板的ID（ALLY-{date}-{A|B}-{trip}-{board#}）
+        '',           // 主檔備註
+        it.item_code, it.name, it.qty,
+        '', '', '',   // 製造/有效/批號
+        it.ean || '', // 商品條碼
+        w.productType,// 群品=良品
+        '', '',       // 明細備註 / 入倉單號
+        wh,           // 虛擬倉（該品項的倉別）
+        '', '', ''    // 庫存等級 / 版本號 / 原因代碼
+      ]);
     });
   });
 
-  return Object.keys(agg).map(function(k){
-    var a = agg[k];
-    return [
-      w.vendorId, w.contact, w.phone, dateStr, w.timeSlot,
-      '',            // 採購單號（行政補）
-      source,        // 來源單號 = 車號+趟次
-      '',            // 主檔備註
-      a.code, a.name, a.qty,
-      '', '', '',    // 製造/有效/批號
-      a.ean,         // 商品條碼
-      w.productType, // 群品=良品
-      '', '',        // 明細備註 / 入倉單號
-      a.wh,          // 虛擬倉
-      '', '', ''     // 庫存等級 / 版本號 / 原因代碼
-    ];
-  });
+  return rows;
 }
 
 /* 上傳入庫單到 Google Sheet「入庫單」分頁（含表頭自動建立由 GAS 處理）*/
