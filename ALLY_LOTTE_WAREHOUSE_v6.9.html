@@ -1636,9 +1636,18 @@ function pickSt(status, idx) {
   }
 
   if (status === 'ok') {
-    var loc = assignLoc();
-    ST._pendingLoc = loc;
-    document.getElementById('loc-val').textContent = loc;
+    var p = ST.curPallet ? ST.pallets[ST.curPallet] : null;
+    if (p && p.suggestedLoc) {
+      // 貼紙預配儲位優先：直接顯示，不呼叫 assignLoc（避免白白消耗自動分配槽位）
+      // 封板時走 confirmAndSealPallet 的 suggestedLoc 分支
+      ST._pendingLoc = null;
+      document.getElementById('loc-val').textContent = p.suggestedLoc;
+    } else {
+      // 無預配：預覽自動分配位（assignLoc 已扣槽位，封板沿用此 _pendingLoc 不重複分配）
+      var loc = assignLoc();
+      ST._pendingLoc = loc;
+      document.getElementById('loc-val').textContent = loc;
+    }
   } else {
     document.getElementById('loc-val').textContent = '—';
     ST._pendingLoc = null;
@@ -2228,6 +2237,14 @@ async function s8QueryBoard() {
     return;
   }
 
+  // 防呆：儲位碼(非 ALLY-)誤刷進查單框 → 擋下，提示刷到上架框
+  if (!/^ALLY-/i.test(input)) {
+    msg.innerHTML = '⛔ 這不是來源單號（儲位碼請刷下方上架框）';
+    msg.style.color = '#FF8080';
+    document.getElementById('s8-qr-input').value = '';
+    return;
+  }
+
   msg.innerHTML = '🔍 查詢中...';
   msg.style.color = 'var(--muted)';
 
@@ -2346,6 +2363,13 @@ function s8ScanLocation() {
   var scannedLoc = document.getElementById('s8-location-input').value.trim();
   if (!scannedLoc) {
     toast('請掃描儲位條碼', true);
+    return;
+  }
+
+  // 防呆：來源單號(ALLY-...)誤刷進儲位框 → 擋下，提示刷到查單框
+  if (/^ALLY-/i.test(scannedLoc)) {
+    toast('⛔ 這是來源單號，請刷到上方查單框', true);
+    document.getElementById('s8-location-input').value = '';
     return;
   }
 
@@ -2946,9 +2970,20 @@ function confirmAndSealPallet() {
     pallet.anomalyPhotos = ST.palletPhotos[palletId] || [];
   }
 
-  // 分配位置：貼紙預配儲位優先 → fallback assignLoc()
-  // 優先序：已覆寫(loc) > 貼紙建議(suggestedLoc) > S3待定(_pendingLoc) > 自動分配
-  var loc = pallet.loc || pallet.suggestedLoc || ST._pendingLoc || assignLoc();
+  // 分配位置：依優先序決定，並標記是否由 assignLoc 自動分配（其內部已扣槽位，避免重複扣）
+  // 優先序：覆寫(loc) > 破損強制隔離 > 貼紙預配(suggestedLoc) > S3預覽(_pendingLoc) > 自動分配
+  var loc, autoAssigned = false;
+  if (pallet.loc) {
+    loc = pallet.loc;                                  // 現場覆寫位
+  } else if (ST.sealStatus === 'damage') {
+    loc = assignLoc(); autoAssigned = true;            // 破損強制 QA-HOLD 隔離，不採貼紙預配位
+  } else if (pallet.suggestedLoc) {
+    loc = pallet.suggestedLoc;                         // 貼紙預配儲位（office 預配生效）
+  } else if (ST._pendingLoc) {
+    loc = ST._pendingLoc; autoAssigned = true;         // pickSt 預覽時已 assignLoc（已扣槽位）
+  } else {
+    loc = assignLoc(); autoAssigned = true;            // 兜底自動分配
+  }
   if (!loc) {
     toast('❌ 位置分配失敗', true);
     return;
@@ -2957,9 +2992,10 @@ function confirmAndSealPallet() {
   pallet.loc = loc;
   pallet.status = 'locked';
 
-  // 扣除該走道的可用儲位（因為剛分配了一個）
+  // 扣除該走道可用儲位。autoAssigned 時 assignLoc 內部已扣（避免 double-increment）；
+  // 覆寫/貼紙預配走此手動扣一次（assignLoc 未介入）
   var aisle = loc.slice(0, 2);  // 從 "BA012" 取前 2 碼 = "BA"
-  if (aisle && AISLES.indexOf(aisle) >= 0) {
+  if (!autoAssigned && aisle && AISLES.indexOf(aisle) >= 0) {
     ST.locIdx[aisle] = (ST.locIdx[aisle] || 0) + 1;
     buildAisleGrid('aisle-grid', onAisleClick, ST.aisle);  // 更新走道格子顯示
   }
