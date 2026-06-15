@@ -141,7 +141,6 @@ h1 {
   display:flex;
   flex-direction:column;
   height:100%;
-  justify-content:space-between;
 }
 
 .sticker-header {
@@ -154,38 +153,57 @@ h1 {
 .sticker-id {
   font-family:"JetBrains Mono", monospace;
   font-weight:700;
-  font-size:10px;
+  font-size:13px;
+  letter-spacing:.02em;
   color:#000;
   word-break:break-all;
 }
 
+/* QR 區：撐滿中段、水平垂直置中 */
 .sticker-qr {
-  text-align:center;
-  margin:6px 0;
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:4px 0;
+}
+
+.sticker-qr > div {
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
 .sticker-qr canvas, .sticker-qr img {
-  max-width:170px;
-  max-height:170px;
+  display:block;
+  width:55mm;
+  height:55mm;
 }
 
 .sticker-location {
   text-align:center;
   border-top:1px solid #000;
-  padding-top:4px;
+  padding-top:6px;
 }
 
 .sticker-loc-label {
   font-weight:700;
-  font-size:9px;
+  font-size:10px;
   color:#000;
 }
 
 .sticker-loc-value {
   font-family:"JetBrains Mono", monospace;
   font-weight:700;
-  font-size:11px;
+  font-size:15px;
+  margin:2px 0 4px;
   color:#000;
+}
+
+.sticker-location svg {
+  display:block;
+  margin:0 auto;
+  max-width:100%;
 }
 
 /* STATS */
@@ -216,6 +234,9 @@ h1 {
 }
 
 /* PRINT STYLES */
+@page {
+  margin:8mm;
+}
 @media print {
   body {
     background:white;
@@ -582,7 +603,7 @@ async function generateStickers() {
           <div class="sticker-loc-label">建議儲位</div>
           <div class="sticker-loc-value">${suggestedLoc}</div>
           <div style="margin-top:4px;">
-            <svg id="locbar-${i}" style="width:100%;height:30px;"></svg>
+            <svg id="locbar-${i}" style="width:100%;height:48px;"></svg>
           </div>
         </div>
       </div>
@@ -594,8 +615,8 @@ async function generateStickers() {
       try {
         new QRCode(document.getElementById(`qr-${i}`), {
           text: sourceId,
-          width: 80,
-          height: 80,
+          width: 220,
+          height: 220,
           correctLevel: QRCode.CorrectLevel.H
         });
       } catch (e) {
@@ -608,8 +629,8 @@ async function generateStickers() {
         try {
           JsBarcode('#locbar-' + i, locValue, {
             format: 'CODE128',
-            width: 1,
-            height: 30,
+            width: 2,
+            height: 45,
             displayValue: false,
             margin: 0
           });
