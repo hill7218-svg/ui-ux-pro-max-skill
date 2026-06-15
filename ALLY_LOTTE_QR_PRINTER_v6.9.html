@@ -8,6 +8,9 @@
 <!-- QR Code Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+<!-- Code128 Barcode Library -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"></script>
+
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
 
@@ -162,8 +165,8 @@ h1 {
 }
 
 .sticker-qr canvas, .sticker-qr img {
-  max-width:60px;
-  max-height:60px;
+  max-width:170px;
+  max-height:170px;
 }
 
 .sticker-location {
@@ -530,12 +533,15 @@ async function generateStickers() {
         <div class="sticker-location">
           <div class="sticker-loc-label">建議儲位</div>
           <div class="sticker-loc-value">${suggestedLoc}</div>
+          <div style="margin-top:4px;">
+            <svg id="locbar-${i}" style="width:100%;height:30px;"></svg>
+          </div>
         </div>
       </div>
     `;
     container.appendChild(sticker);
 
-    // 生成 QR Code
+    // 生成 QR Code 和 Code128 條碼
     setTimeout(() => {
       try {
         new QRCode(document.getElementById(`qr-${i}`), {
@@ -546,6 +552,23 @@ async function generateStickers() {
         });
       } catch (e) {
         console.error('QR 生成失敗:', e);
+      }
+
+      // 生成 Code128 儲位條碼
+      var locValue = suggestedLoc;
+      if (locValue && locValue !== '—') {
+        try {
+          JsBarcode('#locbar-' + i, locValue, {
+            format: 'CODE128',
+            width: 1,
+            height: 30,
+            displayValue: false,
+            margin: 0
+          });
+        } catch(e) {
+          console.warn('Code128 gen fail for loc:', locValue, e);
+          // 條碼生成失敗（例如特殊字元），文字備援仍可用
+        }
       }
     }, i * 10);
 
