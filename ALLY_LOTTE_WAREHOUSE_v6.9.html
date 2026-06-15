@@ -639,13 +639,56 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
   <div class="scr" id="s2">
     <div class="topbar">
       <button class="btn-back" onclick="goS(1)">←</button>
-      <div class="ttitle">棧板管理</div>
+      <div class="ttitle">核查功能</div>
       <span class="badge bgn" id="s2badge">0板</span>
     </div>
-    <div class="body" id="plist"></div>
+    <div class="body">
+      <!-- 棧板清單 -->
+      <div id="plist"></div>
+
+      <!-- ══ 集成功能（核查功能專屬：拍照 / QR / 日誌 / 同步）══ -->
+      <div class="card" style="margin-top:10px;border-top:2px solid var(--gold);padding-top:14px;">
+        <div class="sec" style="color:var(--gold);">🆕 集成功能</div>
+
+        <!-- 照片區 -->
+        <div class="photo-section" id="photo-section">
+          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px;">📷 拍照記錄</div>
+          <div class="photo-grid">
+            <div class="photo-item" onclick="triggerPhotoCapture(0)" id="photo-0">
+              <div class="photo-placeholder">📷<div class="photo-label">照片1</div></div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoCapture(1)" id="photo-1">
+              <div class="photo-placeholder">📷<div class="photo-label">照片2</div></div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoCapture(2)" id="photo-2">
+              <div class="photo-placeholder">📷<div class="photo-label">照片3</div></div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoCapture(3)" id="photo-3">
+              <div class="photo-placeholder">📷<div class="photo-label">照片4</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- QR Code 區 -->
+        <button class="btn btn-qrcode" onclick="document.getElementById('qr-panel').style.display=document.getElementById('qr-panel').style.display==='none'?'block':'none'">🔳 顯示 QR Code 面板</button>
+        <div id="qr-panel" class="qr-section">
+          <div class="qr-label">掃描此碼進行入庫</div>
+          <div class="qr-code-container" id="qr-code-container"></div>
+          <div class="qr-id" id="qr-pallet-id">尚未選擇棧板</div>
+          <button class="btn" style="margin-top:8px;background:rgba(0,200,150,.1);border-color:var(--green);color:var(--green);font-size:12px;" onclick="downloadQRCodeSVG(ST.selectedPallet)">⬇️ 下載 SVG</button>
+        </div>
+
+        <!-- LOG 面板 -->
+        <button class="btn btn-synclog" onclick="document.getElementById('log-panel').style.display=document.getElementById('log-panel').style.display==='none'?'block':'none'">📋 操作日誌</button>
+        <div id="log-panel" class="log-panel"></div>
+
+        <!-- 同步按鈕 -->
+        <button class="btn btn-g" style="margin-top:8px;" onclick="syncToGoogleSheets()">☁️ 同步 Google Sheets</button>
+      </div>
+    </div>
     <div class="tabs">
       <button class="tab" onclick="goS(1)"><span class="ti">📷</span>點驗</button>
-      <button class="tab on" onclick="goS(2)"><span class="ti">🗂️</span>棧板</button>
+      <button class="tab on" onclick="goS(2)"><span class="ti">🗂️</span>核查</button>
       <button class="tab" onclick="goS(4)"><span class="ti">📊</span>彙總</button>
     </div>
   </div>
@@ -1566,7 +1609,7 @@ function goS(n) {
       }
     }
   }
-  if (n===2) renderPList();
+  if (n===2) { renderPList(); renderLogPanel(); }
   if (n===4) renderSummary();
   if (n===7) { document.getElementById('s7-pin-panel').style.display='block'; document.getElementById('s7-edit-panel').style.display='none'; var p=document.getElementById('pin-input'); if(p){p.value=''; } var pe=document.getElementById('pin-error'); if(pe) pe.style.display='none'; }
   if (n===8) { s8Reset(); }
