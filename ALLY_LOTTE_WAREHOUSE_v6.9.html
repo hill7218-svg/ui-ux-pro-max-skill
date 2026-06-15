@@ -569,23 +569,24 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         </div>
         <div class="sku-card" id="sku-card">
           <!-- 商品條碼 - 突出顯示 -->
-          <div style="background:rgba(255,215,0,.08);border:2px solid var(--gold);border-radius:8px;padding:14px;margin-bottom:12px;text-align:center;">
+          <div style="background:rgba(255,215,0,.1);border:2px solid var(--gold);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center;">
             <div style="font-size:9px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;font-family:Chakra Petch,monospace;letter-spacing:.08em;">🔳 商品條碼</div>
-            <div id="sku-barcode" style="font-family:JetBrains Mono,monospace;font-size:16px;font-weight:700;color:var(--gold);letter-spacing:.04em;word-break:break-all;"></div>
+            <div id="sku-barcode" style="font-family:JetBrains Mono,monospace;font-size:18px;font-weight:700;color:var(--gold);letter-spacing:.06em;word-break:break-all;min-height:28px;"></div>
           </div>
           <!-- 品號 / 品名 -->
-          <div style="margin-bottom:8px;">
-            <div class="sku-code" id="sku-code"></div>
-            <div class="sku-name" id="sku-name"></div>
+          <div style="margin-bottom:10px;">
+            <div class="sku-code" id="sku-code" style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px;"></div>
+            <div class="sku-name" id="sku-name" style="font-size:13px;font-weight:700;color:var(--white);line-height:1.4;"></div>
           </div>
           <!-- 基本資訊 -->
-          <div class="sku-tags" style="margin-bottom:8px;">
+          <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
             <span id="sku-temp" class="tn"></span>
             <span id="sku-store" style="font-size:10px;color:var(--muted);"></span>
           </div>
-          <!-- 尺寸規格 -->
-          <div style="background:rgba(0,200,150,.05);border-radius:6px;padding:8px;font-size:11px;color:var(--muted);">
-            <span id="sku-cp-wrap"></span>
+          <!-- PCS 規格 - 清楚分離 -->
+          <div style="background:rgba(0,200,150,.08);border-radius:6px;padding:10px;text-align:center;">
+            <div style="font-size:9px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;font-family:Chakra Petch,monospace;">每箱數量</div>
+            <div id="sku-pcs-per-box" style="font-size:16px;font-weight:700;color:var(--green);font-family:Chakra Petch,monospace;"></div>
           </div>
         </div>
       </div>
@@ -1056,16 +1057,14 @@ function doLookup() {
   te.textContent = isC ? 'C 恆溫' : 'N 常溫';
   te.className = isC ? 'tc' : 'tn';
   document.getElementById('sku-store').textContent = sku.s || '';
-  var uqLabel = sku.uq && sku.unitType ? ('每' + sku.unitType + ' ' + sku.uq + (sku.unit||'片')) : ((sku.c||'?') + ' PCS/箱');
-  document.getElementById('sku-cp-wrap').textContent = uqLabel;
+  var pcsPerBox = sku.uq || sku.c || 1;
+  var unitType = sku.unitType || '箱';
+  var unitLabel = sku.unit || 'PCS';
+  document.getElementById('sku-pcs-per-box').textContent = pcsPerBox + ' ' + unitLabel + ' / ' + unitType;
   document.getElementById('sku-card').style.display = 'block';
   document.getElementById('qty-v').value = 1;
   document.getElementById('qty-v').max = EXP[sku.i] || 9999;
   document.getElementById('qty-card').style.display = 'block';
-  // 填充規格信息
-  var pcsPerBox = sku.uq || sku.c || 1;
-  var unitType = sku.unitType || '箱';
-  var unitLabel = sku.unit || 'PCS';
   document.getElementById('qty-spec').textContent = pcsPerBox + ' ' + unitLabel + ' / ' + unitType;
   qHint();
   document.getElementById('psel-card').style.display = 'block';
