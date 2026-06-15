@@ -964,6 +964,26 @@ var ST = {
 };
 AISLES.forEach(function(a){ ST.locIdx[a]=0; });
 
+/* ══ ST 持久化（防 PDA 重整/閃退丟失作業資料）══ */
+function saveST() {
+  try { localStorage.setItem('_ST', JSON.stringify(ST)); } catch(e) {}
+}
+function restoreST() {
+  try {
+    var raw = localStorage.getItem('_ST');
+    if (!raw) return;
+    var saved = JSON.parse(raw);
+    if (!saved || typeof saved !== 'object') return;
+    // 已關單的作業不還原（避免把舊資料帶進新一趟）
+    if (saved.closed) { localStorage.removeItem('_ST'); return; }
+    // 僅在確有未處理棧板時還原，逐欄合併保留預設結構
+    if (saved.pallets && Object.keys(saved.pallets).length > 0) {
+      Object.keys(saved).forEach(function(k){ ST[k] = saved[k]; });
+      AISLES.forEach(function(a){ if (ST.locIdx[a] == null) ST.locIdx[a] = 0; });
+    }
+  } catch(e) {}
+}
+
 /* ══ INIT AISLE GRIDS ══ */
 function buildAisleGrid(containerId, onClickFn, selectedVal) {
   var el = document.getElementById(containerId);
@@ -1364,6 +1384,7 @@ function scanPalletLabel() {
     reason: ''
   };
   ST.curPallet = sourceId;
+  saveST();
   renderPChips();
   document.getElementById('pallet-label-in').value = '';
   // 【v7.0】顯示儲位輸入框，等待掃儲位 Code128
@@ -1394,6 +1415,7 @@ function scanPalletLocation() {
 
   // 存進當前棧板
   ST.pallets[ST.curPallet].suggestedLoc = locValue;
+  saveST();
   toast('✓ 儲位 ' + locValue + ' 已綁定');
 
   // 清空輸入框、隱藏，回到商品掃描
@@ -1402,18 +1424,8 @@ function scanPalletLocation() {
   document.getElementById('ean-in').focus();
 }
 
-// 註冊儲位輸入框 Enter 鍵監聽（初始化時自動綁定）
-(function() {
-  var locInput = document.getElementById('pallet-location-in');
-  if (locInput) {
-    locInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        scanPalletLocation();
-        e.preventDefault();
-      }
-    });
-  }
-})();
+// 儲位輸入框 Enter 由 HTML inline onkeydown 處理（見 #pallet-location-in），
+// 此處不再重複綁定，避免楔型掃描器送 Enter 時觸發兩次而閃錯誤 toast。
 
 function newPallet() {
   toast('⚠️ 請掃描預印標籤 QR Code 來綁定棧板', true);
@@ -1452,6 +1464,7 @@ function addItem() {
   var wh = ST.warehouse || CONFIG.wms.defaultWarehouse;
   if (ex) { ex.qty += pcsAdded; }
   else p.items.push({item_code:sku.i, name:sku.n, case_pack:sku.c, qty:pcsAdded, uq:uq, unitType:sku.unitType||'箱', unit:sku.unit||'片', ean:sku.ean, storage:sku.s, warehouse:wh});
+  saveST();
   toast('已加入 ' + ST.curPallet + ' ✓');
   document.getElementById('sku-card').style.display = 'none';
   document.getElementById('qty-card').style.display = 'none';
@@ -1786,6 +1799,8 @@ function resetForNewTrip() {
   ST.warehouse = CONFIG.wms.defaultWarehouse || '';
   TRUCK_DRIVER = savedTruckDriver;
   AISLES.forEach(function(a){ ST.locIdx[a]=0; });
+  try { localStorage.removeItem('_ST'); } catch(e) {}  // 關單後清除暫存，新趟不殘留
+  s8_received = {};  // 新趟重置已上架記錄
   rebuildWarehouseDropdown();
   // Reset S0 UI
   document.getElementById('truck-sel').value = '';
@@ -2226,7 +2241,7 @@ function updateItemQty(palletId, itemIdx, newQty) {
   var p = ST.pallets && ST.pallets[palletId];
   if (p && p.items && p.items[itemIdx]) {
     p.items[itemIdx].qty = Math.max(0, parseInt(newQty) || 0);
-    try { localStorage.setItem('_ST', JSON.stringify(ST)); } catch(e) {}
+    saveST();
     toast('✓ 已更新');
     addLog('修改品項數量', 'pallet=' + palletId + ' item=' + itemIdx);
   }
@@ -2237,6 +2252,7 @@ function updateItemQty(palletId, itemIdx, newQty) {
 var s8_currentSourceId = null;
 var s8_items = [];
 var s8_scannedLoc = null;  // 【v7.0】實際掃入的儲位
+var s8_received = {};      // 【v7.0】已上架記錄（來源單號 → 實際儲位），防重複上架
 
 async function s8QueryBoard() {
   var input = (document.getElementById('s8-qr-input').value || '').trim();
@@ -2339,6 +2355,12 @@ function s8ConfirmReceiving() {
     return;
   }
 
+  // 防重複上架：同一來源單號已上架過 → 擋下並提示位置
+  if (s8_received[s8_currentSourceId]) {
+    toast('⛔ 此板已上架於 ' + s8_received[s8_currentSourceId], true);
+    return;
+  }
+
   // 【v7.0】讀取預期儲位
   var expectedLoc = '—';
   if (s8_currentSourceId && ST.pallets[s8_currentSourceId]) {
@@ -2363,6 +2385,9 @@ function s8ConfirmReceiving() {
     '',  // 覆寫原因（S8 未實裝手工輸入，預留欄位）
     '已上架'
   ];
+
+  // 記錄已上架（防重複上架）
+  s8_received[s8_currentSourceId] = s8_scannedLoc;
 
   // 存進操作日誌
   addLog('S8 上架確認', '來源單號=' + s8_currentSourceId + ' | 實際儲位=' + s8_scannedLoc + ' | 覆寫=' + isOverwrite);
@@ -2986,6 +3011,12 @@ function confirmAndSealPallet() {
     return;
   }
 
+  // 防連點 / 防重複封板：已封板直接擋下（避免重扣 locIdx、覆蓋既有儲位）
+  if (pallet.status === 'locked') {
+    toast('⛔ 此板已封板於 ' + (pallet.loc || '—'), true);
+    return;
+  }
+
   // 必須先選擇狀態
   if (!ST.sealStatus) {
     toast('⚠️ 請先選擇這板的狀態（正常／異常）', true);
@@ -3028,23 +3059,26 @@ function confirmAndSealPallet() {
   } else {
     loc = assignLoc(); autoAssigned = true;            // 兜底自動分配
   }
-  if (!loc) {
-    toast('❌ 位置分配失敗', true);
+  // 阻擋 assignLoc 失敗哨兵字串被當合法儲位封板入庫（資料污染防護）
+  if (!loc || loc === '無空格' || loc === 'QA-HOLD-FULL') {
+    toast('❌ 位置分配失敗：無可用儲位，請改走道或回報', true);
     return;
   }
 
   pallet.loc = loc;
   pallet.status = 'locked';
 
-  // 扣除該走道可用儲位。autoAssigned 時 assignLoc 內部已扣（避免 double-increment）；
-  // 覆寫/貼紙預配走此手動扣一次（assignLoc 未介入）
+  // 走道可用格數刷新顯示。
+  // 注意：locIdx 是「自動分配 pool 的順序索引」，只有 assignLoc 真正取 pool 位時才該前進
+  // （assignLoc 內部已自增）。貼紙預配位/覆寫位不屬 pool 序列，若在此手動 +1 會跳過或撞掉
+  // pool 真實空位，故一律不動 locIdx，只刷新格子顯示。
   var aisle = loc.slice(0, 2);  // 從 "BA012" 取前 2 碼 = "BA"
-  if (!autoAssigned && aisle && AISLES.indexOf(aisle) >= 0) {
-    ST.locIdx[aisle] = (ST.locIdx[aisle] || 0) + 1;
-    buildAisleGrid('aisle-grid', onAisleClick, ST.aisle);  // 更新走道格子顯示
+  if (aisle && AISLES.indexOf(aisle) >= 0) {
+    buildAisleGrid('aisle-grid', 'pickAisle', ST.aisle);  // 更新走道格子顯示
   }
 
   updS1Badge();
+  saveST();
 
   addLog('✅ 確認對點並封板', '棧板 ' + palletId + ' - 位置 ' + loc +
     (ST.s3PhotoCount > 0 ? ' · 存證照片 ' + ST.s3PhotoCount + '張' : ''));
@@ -3071,11 +3105,17 @@ function testWorkflow() {
 console.log("%c✅ ALLY LOTTE v6.2 已加載！在控制台執行: testWorkflow()", "color: #00C896; font-size: 13px; font-weight: bold;");
 
 /* ══ BOOT ══ */
+restoreST();   // 還原上次未關單的作業（防 PDA 重整/閃退丟失）
 initAisleGrids();
 rebuildWarehouseDropdown();
 
 initClosedTrips();
 initUsedCells();
+if (ST.pallets && Object.keys(ST.pallets).length > 0) {
+  updS1Badge();
+  renderPChips();
+  toast('↩️ 已還原上次未關單作業（' + Object.keys(ST.pallets).length + ' 板）', false);
+}
 initNetworkMonitor();
 makePcardsExpandable();
 
