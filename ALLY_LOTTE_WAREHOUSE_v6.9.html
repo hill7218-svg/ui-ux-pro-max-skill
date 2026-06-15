@@ -493,10 +493,21 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
             <!-- 趟次 -->
             <div class="card">
               <div class="sec">③ 趟次</div>
-              <div class="chip-row">
-                <div class="chip" id="tc0" onclick="pickTrip(1,0)">第1趟</div>
-                <div class="chip" id="tc1" onclick="pickTrip(2,1)">第2趟</div>
-                <div class="chip" id="tc2" onclick="pickTrip(3,2)">第3趟</div>
+              <div style="margin-bottom:8px;">
+                <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">🚗 A 車</div>
+                <div class="chip-row">
+                  <div class="chip" id="tc0" onclick="pickTrip(1,0)">A-1</div>
+                  <div class="chip" id="tc1" onclick="pickTrip(2,1)">A-2</div>
+                  <div class="chip" id="tc2" onclick="pickTrip(3,2)">A-3</div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">🚗 B 車</div>
+                <div class="chip-row">
+                  <div class="chip" id="tc3" onclick="pickTrip(4,3)">B-1</div>
+                  <div class="chip" id="tc4" onclick="pickTrip(5,4)">B-2</div>
+                  <div class="chip" id="tc5" onclick="pickTrip(6,5)">B-3</div>
+                </div>
               </div>
               <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;">
                 <input type="checkbox" id="tail-chk" style="width:16px;height:16px;accent-color:var(--amber)">
@@ -1911,7 +1922,8 @@ const CONFIG = {
       drivers:   "司機清單",
       inventory: "商品清單",
       locations: "儲位清單",
-      wms:       "入庫單"
+      wms:       "入庫單",
+      receipt:   "收貨狀態"         // 【v7.0】S8 上架驗收結果記錄
     }
   },
 
@@ -2338,21 +2350,27 @@ function s8ConfirmReceiving() {
 
   var isOverwrite = (s8_scannedLoc !== expectedLoc && expectedLoc !== '—') ? 'Y' : 'N';
 
-  // 暫存收貨狀態（demo 版本，待 P4/GAS 層支援完整寫回）
+  // 【v7.0】收貨狀態紀錄（將寫入 Sheet「收貨狀態」分頁）
   var now = new Date().toLocaleString('zh-TW');
-  var receiptRecord = {
-    timestamp: now,
-    sourceId: s8_currentSourceId,
-    expectedLoc: expectedLoc,
-    actualLoc: s8_scannedLoc,
-    isOverwrite: isOverwrite,
-    itemCount: s8_items.length
-  };
+  var receiptRow = [
+    now,
+    ST.truck || '',
+    s8_currentSourceId,
+    ST.driverName || '',
+    expectedLoc,
+    s8_scannedLoc,
+    isOverwrite,
+    '',  // 覆寫原因（S8 未實裝手工輸入，預留欄位）
+    '已上架'
+  ];
 
   // 存進操作日誌
   addLog('S8 上架確認', '來源單號=' + s8_currentSourceId + ' | 實際儲位=' + s8_scannedLoc + ' | 覆寫=' + isOverwrite);
 
   toast('✅ 驗收完成，棧板 ' + s8_currentSourceId + ' 已上架 @ ' + s8_scannedLoc);
+
+  // 異步回寫收貨狀態到 Sheet（不阻擋 UI 重置）
+  writeReceiptToSheet(receiptRow);
 
   // 2秒後重置查詢表單
   setTimeout(function(){ s8Reset(); }, 1500);
@@ -2580,6 +2598,29 @@ async function exportWmsToSheet() {
     addLog('入庫單上傳失敗', res.error || '未知');
   }
   return { ok:res.ok, rows:rows.length };
+}
+
+/* 【v7.0】S8 上架驗收結果 → Sheet「收貨狀態」分頁 */
+async function writeReceiptToSheet(row) {
+  // receiptRow = [時間戳, 車號, 來源單號, 收貨人, 建議儲位, 實際儲位, 是否覆寫, 覆寫原因, 狀態]
+  if (!row || row.length === 0) return;
+
+  if (Backend.mode !== 'live' || !Backend.sheetsReady) {
+    window._pendingReceipt = (window._pendingReceipt || []).concat([row]);
+    // 本地 demo 不吐 toast，避免干擾 s8ConfirmReceiving 的 toast
+    return;
+  }
+
+  try {
+    var res = await Backend.appendRows(CONFIG.sheets.tabs.receipt, [row]);
+    if (!res.ok) {
+      window._pendingReceipt = (window._pendingReceipt || []).concat([row]);
+      addLog('S8 收貨狀態上傳失敗', '暫存本地');
+    }
+  } catch(e) {
+    window._pendingReceipt = (window._pendingReceipt || []).concat([row]);
+    addLog('S8 上傳異常', e.message);
+  }
 }
 
 /* 純函式：rows → CSV 字串（含表頭，不含 BOM）。便於測試。*/
