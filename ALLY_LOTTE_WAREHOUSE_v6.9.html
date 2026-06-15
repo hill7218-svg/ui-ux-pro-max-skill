@@ -1674,8 +1674,10 @@ function pickSt(status, idx) {
       ST._pendingLoc = null;
       document.getElementById('loc-val').textContent = p.suggestedLoc;
     } else {
-      // 無預配：預覽自動分配位（assignLoc 已扣槽位，封板沿用此 _pendingLoc 不重複分配）
-      var loc = assignLoc();
+      // 無預配：預覽自動分配位
+      // 每板只分配一次並快取於 p._autoLoc，避免狀態切換(ok→diff→ok)時重複 assignLoc 洩漏 pool 槽位
+      if (p && !p._autoLoc) { p._autoLoc = assignLoc(); }
+      var loc = (p && p._autoLoc) ? p._autoLoc : assignLoc();
       ST._pendingLoc = loc;
       document.getElementById('loc-val').textContent = loc;
     }
@@ -2298,6 +2300,7 @@ async function s8QueryBoard() {
   var itemNameCol = 9;
   var qtyCol = 10;
   var warehouseCol = 18;
+  var locCol = 22;          // 儲位欄（buildWmsRows 寫入的最終儲位）
 
   var matches = result.values.slice(1).filter(function(row){
     return row[sourceIdCol] === input;
@@ -2316,7 +2319,8 @@ async function s8QueryBoard() {
       item_code: row[itemCodeCol] || '',
       name: row[itemNameCol] || '',
       qty: parseInt(row[qtyCol] || 0, 10),
-      warehouse: row[warehouseCol] || 'A47'
+      warehouse: row[warehouseCol] || 'A47',
+      finalLoc: row[locCol] || ''   // 最終儲位（跨裝置收貨端軟驗證基準）
     };
   });
 
@@ -2368,16 +2372,27 @@ function s8ConfirmReceiving() {
     return;
   }
 
-  // 【v7.0】讀取預期儲位
+  // 【v7.0】讀取預期儲位（主基準＝入庫單最終儲位，與 s8ScanLocation 一致）
   var expectedLoc = '—';
-  if (s8_currentSourceId && ST.pallets[s8_currentSourceId]) {
-    expectedLoc = ST.pallets[s8_currentSourceId].suggestedLoc || '—';
-  }
-  if (expectedLoc === '—' && s8_items.length > 0 && s8_items[0].suggestedLoc) {
-    expectedLoc = s8_items[0].suggestedLoc;
+  if (s8_items.length > 0 && s8_items[0].finalLoc && s8_items[0].finalLoc !== '—') {
+    expectedLoc = s8_items[0].finalLoc;
+  } else if (s8_currentSourceId && ST.pallets[s8_currentSourceId]) {
+    expectedLoc = ST.pallets[s8_currentSourceId].loc || ST.pallets[s8_currentSourceId].suggestedLoc || '—';
   }
 
   var isOverwrite = (s8_scannedLoc !== expectedLoc && expectedLoc !== '—') ? 'Y' : 'N';
+
+  // 【v7.0】覆寫(黃燈)時捕捉原因，供稽核追查；取消視為放棄上架
+  var overwriteReason = '';
+  if (isOverwrite === 'Y') {
+    overwriteReason = (window.prompt(
+      '⚠️ 實刷儲位 ' + s8_scannedLoc + ' 與建議 ' + expectedLoc + ' 不符\n請輸入覆寫原因（如：建議位已滿 / 走道調整）：', ''
+    ) || '').trim();
+    if (!overwriteReason) {
+      toast('已取消上架（未填覆寫原因）', true);
+      return;
+    }
+  }
 
   // 【v7.0】收貨狀態紀錄（將寫入 Sheet「收貨狀態」分頁）
   var now = new Date().toLocaleString('zh-TW');
@@ -2389,7 +2404,7 @@ function s8ConfirmReceiving() {
     expectedLoc,
     s8_scannedLoc,
     isOverwrite,
-    '',  // 覆寫原因（S8 未實裝手工輸入，預留欄位）
+    overwriteReason,  // 覆寫原因（黃燈時操作員輸入）
     '已上架'
   ];
 
@@ -2424,14 +2439,13 @@ function s8ScanLocation() {
   }
 
   // 讀取預期儲位
-  // 優先從本地棧板資料讀取（若該棧板在 S1 已掃過並綁定儲位）
-  // 否則從 WMS 查詢結果的第一品項讀取（未來 P3 會在 Sheet 補充）
+  // 主基準：入庫單最終儲位（s8_items[].finalLoc，跨裝置權威來源）
+  // 退而求其次：本機棧板（同台 PDA 同階段才有，如移出端自驗）
   var expectedLoc = '—';
-  if (s8_currentSourceId && ST.pallets[s8_currentSourceId]) {
-    expectedLoc = ST.pallets[s8_currentSourceId].suggestedLoc || '—';
-  }
-  if (expectedLoc === '—' && s8_items.length > 0 && s8_items[0].suggestedLoc) {
-    expectedLoc = s8_items[0].suggestedLoc;
+  if (s8_items.length > 0 && s8_items[0].finalLoc && s8_items[0].finalLoc !== '—') {
+    expectedLoc = s8_items[0].finalLoc;
+  } else if (s8_currentSourceId && ST.pallets[s8_currentSourceId]) {
+    expectedLoc = ST.pallets[s8_currentSourceId].loc || ST.pallets[s8_currentSourceId].suggestedLoc || '—';
   }
 
   var resultDiv = document.getElementById('s8-location-result');
@@ -2568,7 +2582,7 @@ async function syncToGoogleSheets() {
 var WMS_HEADER = [
   '廠商統編','廠商聯絡人','聯絡人電話','日期','時段','採購單號','來源單號','主檔備註',
   '商品貨號','商品名稱','數量','製造日期','有效日期','批號','商品條碼',
-  '群品','明細備註','入倉單號','虛擬倉','庫存等級屬性','版本號','原因代碼'
+  '群品','明細備註','入倉單號','虛擬倉','庫存等級屬性','版本號','原因代碼','儲位'
 ];
 
 function buildWmsRows() {
@@ -2602,7 +2616,8 @@ function buildWmsRows() {
         w.productType,// 群品=良品
         '', '',       // 明細備註 / 入倉單號
         wh,           // 虛擬倉（該品項的倉別）
-        '', '', ''    // 庫存等級 / 版本號 / 原因代碼
+        '', '', '',   // 庫存等級 / 版本號 / 原因代碼
+        finalLoc      // 儲位（最終儲位，供 S8 收貨端軟驗證比對；跨裝置唯一儲位來源）
       ]);
     });
   });
