@@ -889,7 +889,7 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         </div>
 
         <div style="margin-top:12px;display:flex;gap:8px;">
-          <button class="btn btn-g" id="s8-confirm-btn" style="flex:1;" onclick="s8ConfirmReceiving()">✅ 確認驗收 + 上架</button>
+          <button class="btn btn-g" id="s8-confirm-btn" style="flex:1;" onclick="s8ConfirmReceiving()" disabled>✅ 確認驗收 + 上架</button>
           <button class="btn" style="flex:1;background:rgba(107,122,153,.1);border-color:var(--muted);color:var(--muted);" onclick="s8Reset()">🔄 重新掃描</button>
         </div>
       </div>
@@ -1343,11 +1343,11 @@ function scanPalletLabel() {
     // 【v7.0】選取既有棧板時，若未綁儲位則再次等待掃儲位
     var pallet = ST.pallets[sourceId];
     if (!pallet.suggestedLoc) {
-      document.getElementById('pallet-location-in').style.display = 'block';
+      document.getElementById('pallet-location-section').style.display = 'block';
       document.getElementById('pallet-location-in').focus();
       toast('✓ 選取棧板 ' + sourceId + ' — 請掃儲位條碼');
     } else {
-      document.getElementById('pallet-location-in').style.display = 'none';
+      document.getElementById('pallet-location-section').style.display = 'none';
       toast('✓ 選取棧板 ' + sourceId);
     }
     return;
@@ -1367,7 +1367,7 @@ function scanPalletLabel() {
   renderPChips();
   document.getElementById('pallet-label-in').value = '';
   // 【v7.0】顯示儲位輸入框，等待掃儲位 Code128
-  document.getElementById('pallet-location-in').style.display = 'block';
+  document.getElementById('pallet-location-section').style.display = 'block';
   document.getElementById('pallet-location-in').focus();
   toast('✓ 新建棧板 ' + sourceId + ' — 請掃儲位條碼');
 }
@@ -1398,7 +1398,7 @@ function scanPalletLocation() {
 
   // 清空輸入框、隱藏，回到商品掃描
   document.getElementById('pallet-location-in').value = '';
-  document.getElementById('pallet-location-in').style.display = 'none';
+  document.getElementById('pallet-location-section').style.display = 'none';
   document.getElementById('ean-in').focus();
 }
 
@@ -2445,6 +2445,9 @@ function s8Reset() {
   document.getElementById('s8-location-section').style.display = 'none';
   document.getElementById('s8-location-input').value = '';
   document.getElementById('s8-location-result').innerHTML = '';
+  // 確認鈕重置為停用（需重新刷儲位才亮）
+  var cbtn = document.getElementById('s8-confirm-btn');
+  if (cbtn) cbtn.disabled = true;
   s8_currentSourceId = null;
   s8_items = [];
   s8_scannedLoc = null;
