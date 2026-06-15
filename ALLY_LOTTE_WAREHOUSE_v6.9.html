@@ -525,6 +525,26 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
       <div class="s1-info-chip"><span class="ic">📦</span>第 <span class="val" id="info-pallet-no">0</span> 板 / 共 <span class="val" id="info-trip">—</span> 件</div>
     </div>
     <div class="body">
+      <!-- ★ 工作流 AB 切換（A=經核查S2再封板；B=掃完直接封板）-->
+      <div class="card" style="margin-bottom:8px;padding:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--muted);flex-shrink:0;">⚙️ 工作流</span>
+          <div style="flex:1;display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:3px;">
+            <button id="wf-a" onclick="setWorkflow('A')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:var(--teal);color:#fff;">A · 核查後封板</button>
+            <button id="wf-b" onclick="setWorkflow('B')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted);">B · 直接封板</button>
+          </div>
+        </div>
+        <div id="wf-desc" style="font-size:9px;color:var(--muted);margin-top:6px;text-align:center;">A：掃描 → 核查(棧板清單) → 封板</div>
+      </div>
+
+      <!-- ★ B 模式：當前棧板直接封板列（A 模式隱藏）-->
+      <div class="card" id="b-seal-bar" style="display:none;margin-bottom:8px;background:rgba(255,215,0,.08);border:1.5px solid var(--gold);padding:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="font-size:11px;color:var(--text);">當前棧板 <strong id="b-seal-pid" style="color:var(--gold);font-family:Chakra Petch,monospace;">—</strong> <span id="b-seal-cnt" style="color:var(--muted);font-size:10px;"></span></div>
+          <button class="btn btn-g" id="b-seal-btn" onclick="bSealCurrent()" style="width:auto;padding:8px 14px;font-size:12px;flex-shrink:0;">🔒 封此板</button>
+        </div>
+      </div>
+
       <!-- batch -->
       <div class="card" style="margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -696,14 +716,25 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
   <!-- ══ S3: 封板 ══ -->
   <div class="scr" id="s3">
     <div class="topbar">
-      <button class="btn-back" onclick="goS(2)">←</button>
+      <button class="btn-back" onclick="s3Back()">←</button>
       <div class="ttitle" id="s3title">封板</div>
     </div>
     <div class="body">
-      <!-- 來源單號展示卡（用於瑞芳掃描驗證） -->
-      <div class="card" id="s3-source-card" style="background:rgba(0,123,111,.08);border:2px solid var(--teal);margin-bottom:8px;">
-        <div class="sec" style="color:var(--teal);">🔳 來源單號（貼紙 QR）</div>
-        <div style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:14px;color:var(--white);text-align:center;padding:12px 0;word-break:break-all;" id="s3-source-id">ALLY-YYYYMMDD-A-1-001</div>
+      <!-- ★ 頂部重點：貼紙要寫的兩件事（來源單號 + 配發儲位）合併，免下滑 -->
+      <div class="card" style="background:linear-gradient(135deg,rgba(0,123,111,.12),rgba(255,215,0,.08));border:2px solid var(--gold);margin-bottom:8px;padding:12px;">
+        <div style="display:flex;gap:10px;align-items:stretch;">
+          <!-- 配發儲位（手寫到板標）-->
+          <div style="flex:1;text-align:center;background:rgba(255,215,0,.1);border-radius:8px;padding:8px;">
+            <div style="font-size:9px;color:var(--gold);font-family:Chakra Petch,monospace;letter-spacing:.06em;margin-bottom:2px;">APP配發儲位</div>
+            <div id="loc-val" style="font-family:Chakra Petch,monospace;font-weight:700;font-size:28px;color:var(--gold);line-height:1.1;">—</div>
+            <div style="font-size:8px;color:var(--muted);margin-top:2px;">手寫到板標</div>
+          </div>
+          <!-- 來源單號（QR 對應）-->
+          <div style="flex:1.2;text-align:center;background:rgba(0,123,111,.12);border-radius:8px;padding:8px;display:flex;flex-direction:column;justify-content:center;">
+            <div style="font-size:9px;color:var(--teal);font-family:Chakra Petch,monospace;letter-spacing:.06em;margin-bottom:4px;">🔳 來源單號</div>
+            <div style="font-family:JetBrains Mono,monospace;font-weight:700;font-size:12px;color:var(--white);word-break:break-all;line-height:1.3;" id="s3-source-id">ALLY-YYYYMMDD-A-1-001</div>
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -765,11 +796,6 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         </div>
       </div>
 
-      <div class="loc-box" id="loc-box">
-        <div class="loc-lbl">APP配發儲位</div>
-        <div class="loc-val" id="loc-val">—</div>
-        <div class="loc-sub">請手寫到板標儲位框後貼上棧板</div>
-      </div>
       <button class="btn btn-g" id="confirm-seal-btn" onclick="confirmAndSealPallet()" style="margin-bottom:12px;font-size:15px;padding:15px;">🔒 確認封板</button>
     </div>
   </div>
@@ -895,7 +921,8 @@ var ST = {
   palletPhotos:{},   // { palletId: [{url, index, timestamp}] }
   s3PhotoCount:0,    // 目前 S3 已拍照片數
   driverName:'',     // 司機姓名（車號自動帶入）
-  warehouse:''       // 目前入庫倉別（虛擬倉，刷貨號前選擇）
+  warehouse:'',      // 目前入庫倉別（虛擬倉，刷貨號前選擇）
+  workflow:'A'       // 工作流：A=掃描→核查(S2)→封板(S3)；B=掃描→直接封板(S3，跳過S2)
 };
 AISLES.forEach(function(a){ ST.locIdx[a]=0; });
 
@@ -1082,8 +1109,62 @@ function doStart() {
   goS(0);
 }
 
+/* ══ 工作流 AB 切換 ══ */
+function setWorkflow(w) {
+  ST.workflow = w;
+  var a = document.getElementById('wf-a');
+  var b = document.getElementById('wf-b');
+  var desc = document.getElementById('wf-desc');
+  if (w === 'A') {
+    a.style.background = 'var(--teal)'; a.style.color = '#fff';
+    b.style.background = 'transparent'; b.style.color = 'var(--muted)';
+    desc.textContent = 'A：掃描 → 核查(棧板清單) → 封板';
+  } else {
+    b.style.background = 'var(--gold)'; b.style.color = '#000';
+    a.style.background = 'transparent'; a.style.color = 'var(--muted)';
+    desc.textContent = 'B：掃描 → 直接封板（跳過核查清單）';
+  }
+  updateBSealBar();
+  addLog('切換工作流', w);
+}
+
+/* B 模式：更新「封此板」列（顯示當前棧板與品項數）*/
+function updateBSealBar() {
+  var bar = document.getElementById('b-seal-bar');
+  if (!bar) return;
+  if (ST.workflow !== 'B') { bar.style.display = 'none'; return; }
+  var p = ST.curPallet ? ST.pallets[ST.curPallet] : null;
+  var hasItems = p && p.items && p.items.length > 0 && p.status !== 'locked';
+  bar.style.display = hasItems ? 'block' : 'none';
+  if (hasItems) {
+    document.getElementById('b-seal-pid').textContent = ST.curPallet;
+    var cnt = p.items.length;
+    var tq = p.items.reduce(function(s,i){ return s+i.qty; }, 0);
+    document.getElementById('b-seal-cnt').textContent = '· ' + cnt + ' 品項 / ' + tq + ' PCS';
+  }
+}
+
+/* B 模式：直接封板（跳過 S2，直接進 S3）*/
+function bSealCurrent() {
+  if (!ST.curPallet || !ST.pallets[ST.curPallet]) { toast('尚無當前棧板', true); return; }
+  if (!ST.pallets[ST.curPallet].items.length) { toast('此板尚無品項', true); return; }
+  openSeal(ST.curPallet);
+}
+
+/* S3 返回鍵：A→核查(S2)，B→點驗(S1) */
+function s3Back() { goS(ST.workflow === 'B' ? 1 : 2); }
+
 /* ══ SCAN ══ */
 function qs(v) { document.getElementById('ean-in').value = v; doLookup(); }
+
+/* 防呆：取乾淨的 PCS 單位字串。
+   Live Sheets 模式下「最小單位」欄位可能被填成條碼（純數字），
+   若 unit 看起來像條碼（純數字且長度>=5）就退回 'PCS'，避免混入 4903… */
+function pcsUnit(sku) {
+  var u = (sku && sku.unit != null) ? String(sku.unit).trim() : '';
+  if (!u || /^\d{5,}$/.test(u)) return 'PCS';
+  return u;
+}
 
 function doLookup() {
   if (ST.closed) { toast('⛔ 此趟已關單', true); return; }
@@ -1102,7 +1183,7 @@ function doLookup() {
   document.getElementById('sku-store').textContent = sku.s || '';
   var pcsPerBox = sku.uq || sku.c || 1;
   var unitType = sku.unitType || '箱';
-  var unitLabel = sku.unit || 'PCS';
+  var unitLabel = pcsUnit(sku);
   document.getElementById('sku-pcs-per-box').textContent = pcsPerBox + ' ' + unitLabel + ' / ' + unitType;
   document.getElementById('sku-card').style.display = 'block';
   document.getElementById('qty-v').value = 1;
@@ -1122,7 +1203,7 @@ function qHint() {
   var uq = sku.uq || sku.c || 1;
   var unitType = sku.unitType || '箱';
   var pcs = qty * uq;
-  document.getElementById('pcs-prev').textContent = qty + ' ' + unitType + ' × ' + uq + ' = ' + pcs.toLocaleString() + ' ' + (sku.unit || 'PCS');
+  document.getElementById('pcs-prev').textContent = qty + ' ' + unitType + ' × ' + uq + ' = ' + pcs.toLocaleString() + ' ' + pcsUnit(sku);
   var h = document.getElementById('qty-h');
   var expPcs = getExpPcs(sku.i);
   if (expPcs) {
@@ -1218,7 +1299,7 @@ function newPallet() {
   toast('新建 ' + id);
 }
 
-function selPallet(id) { ST.curPallet = id; renderPChips(); }
+function selPallet(id) { ST.curPallet = id; renderPChips(); updateBSealBar(); }
 
 function renderPChips() {
   var open = Object.values(ST.pallets).filter(function(p){ return p.status==='open'; });
@@ -1259,6 +1340,7 @@ function addItem() {
   ST.curSKU = null;
   renderPChips();
   updS1Badge();
+  updateBSealBar();
 }
 
 /* ══ BATCH ══ */
@@ -1307,7 +1389,7 @@ function renderPList() {
     var rows = p.items.map(function(it) {
       return '<div class="pcard-item"><span class="pi-code">' + it.item_code + '</span>' +
         '<span class="pi-name">' + (it.name.length>16?it.name.slice(0,16)+'…':it.name) + '</span>' +
-        '<span class="pi-qty">' + it.qty + (it.unit||'片') + '</span></div>';
+        '<span class="pi-qty">' + it.qty + pcsUnit(it) + '</span></div>';
     }).join('');
     var sBtn = lk ? '' :
       '<button class="btn btn-g" style="margin-top:8px;font-size:11px;padding:9px" onclick="openSeal(\'' + p.id + '\')">🔒 封板</button>';
@@ -1389,14 +1471,14 @@ function openSeal(pid) {
       '<div style="color:var(--white);margin:2px 0">' + it.name.slice(0,22) + '</div>' +
       '<div style="display:flex;justify-content:space-between">' +
         '<span style="color:var(--muted)">' + expInfo + '</span>' +
-        '<strong style="color:var(--green)">' + it.qty + (it.unit||'PCS') + '</strong>' +
+        '<strong style="color:var(--green)">' + it.qty + pcsUnit(it) + '</strong>' +
       '</div></div>';
   }).join('') +
     '<div style="text-align:right;padding-top:6px;font-size:12px;color:var(--text)">合計 <strong style="color:var(--gold)">' + tq + '</strong> PCS</div>';
   document.querySelectorAll('.sopt').forEach(function(o){ o.classList.remove('on'); });
   document.getElementById('reason-wrap').style.display = 'none';
   document.getElementById('reason-txt').value = '';
-  document.getElementById('loc-box').style.display = 'none';
+  document.getElementById('loc-val').textContent = '—';
   var cbtn = document.getElementById('confirm-seal-btn');
   cbtn.disabled = true;
   cbtn.textContent = '🔒 確認封板';
@@ -1444,9 +1526,8 @@ function pickSt(status, idx) {
     var loc = assignLoc();
     ST._pendingLoc = loc;
     document.getElementById('loc-val').textContent = loc;
-    document.getElementById('loc-box').style.display = 'block';
   } else {
-    document.getElementById('loc-box').style.display = 'none';
+    document.getElementById('loc-val').textContent = '—';
     ST._pendingLoc = null;
   }
 }
@@ -1609,6 +1690,7 @@ function goS(n) {
       }
     }
   }
+  if (n===1) updateBSealBar();
   if (n===2) { renderPList(); renderLogPanel(); }
   if (n===4) renderSummary();
   if (n===7) { document.getElementById('s7-pin-panel').style.display='block'; document.getElementById('s7-edit-panel').style.display='none'; var p=document.getElementById('pin-input'); if(p){p.value=''; } var pe=document.getElementById('pin-error'); if(pe) pe.style.display='none'; }
