@@ -433,27 +433,32 @@ function generateSourceId(date, trip, boardNum) {
   return 'ALLY-' + date + '-' + vehicleType + '-' + tripInType + '-' + String(boardNum).padStart(3,'0');
 }
 
-// 簡易 CSV 解析（支援雙引號包覆與跳脫）
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.length > 0);
-  return lines.map(line => {
-    const cells = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQ) {
-        if (ch === '"') {
-          if (line[i + 1] === '"') { cur += '"'; i++; }
-          else inQ = false;
-        } else cur += ch;
-      } else {
-        if (ch === '"') inQ = true;
-        else if (ch === ',') { cells.push(cur); cur = ''; }
-        else cur += ch;
-      }
+// 免金鑰讀取 Google Sheet（gviz JSONP，以 script 標籤載入，不受 CORS 限制）
+// 須將 Sheet 設「共用 → 知道連結的任何人 → 檢視者」。回傳已去表頭的資料列：[[走道,儲位,狀態], ...]
+function loadViaGviz(sheetId, tab) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'gvizCb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('連線逾時')); }, 15000);
+    function cleanup() {
+      clearTimeout(timer);
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
     }
-    cells.push(cur);
-    return cells;
+    window[cbName] = function (resp) {
+      cleanup();
+      try {
+        if (!resp || !resp.table || !resp.table.rows) { reject(new Error('回傳格式異常')); return; }
+        const rows = resp.table.rows.map(r =>
+          (r.c || []).map(cell => (cell && cell.v != null) ? String(cell.v) : '')
+        );
+        resolve(rows);
+      } catch (e) { reject(e); }
+    };
+    // headers=1 → 第1列視為表頭，table.rows 僅含資料列
+    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(tab)}&headers=1`;
+    script.onerror = function () { cleanup(); reject(new Error('Sheet 無法存取（請設為知道連結者可檢視）')); };
+    document.head.appendChild(script);
   });
 }
 
@@ -476,7 +481,7 @@ async function loadLocationsList(needCount) {
   }
 
   try {
-    let rows;
+    let dataRows;
     if (apiKey) {
       // 方法 1：Google Sheets API v4（需 API Key；Sheet 需「知道連結者可檢視」）
       showMessage('⏳ 正在讀取儲位清單（API Key 模式）...', 'info');
@@ -487,27 +492,25 @@ async function loadLocationsList(needCount) {
         showMessage('❌ 無法讀取「儲位清單」。請確認：① Sheet ID/API Key 正確 ② 分頁名為「儲位清單」 ③ Sheet 已設「知道連結者可檢視」', 'error');
         return false;
       }
-      rows = data.values;
+      dataRows = data.values.slice(1); // 去掉表頭
     } else {
-      // 方法 2：免金鑰 CSV（Sheet 需設「知道連結者可檢視」即可，免 API Key）
-      showMessage('⏳ 正在讀取儲位清單（免金鑰 CSV 模式）...', 'info');
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(TAB)}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        showMessage('❌ 免金鑰讀取失敗。請將 Sheet 設為「知道連結者可檢視」，或改填 API Key 後重試', 'error');
+      // 方法 2：免金鑰 JSONP（不受 CORS 限制；Sheet 須設「知道連結者可檢視」）
+      showMessage('⏳ 正在讀取儲位清單（免金鑰模式）...', 'info');
+      try {
+        dataRows = await loadViaGviz(sheetId, TAB); // 已去表頭
+      } catch (e) {
+        showMessage('❌ 免金鑰讀取失敗（' + e.message + '）。請確認 Sheet 已設「知道連結者可檢視」且分頁名為「儲位清單」，或改填 API Key', 'error');
         return false;
       }
-      const csv = await response.text();
-      rows = parseCSV(csv);
-      if (!rows.length) {
-        showMessage('❌ 「儲位清單」分頁無資料，或分頁名不符', 'error');
-        return false;
-      }
+    }
+    if (!dataRows || !dataRows.length) {
+      showMessage('❌ 「儲位清單」分頁無資料，或分頁名不符', 'error');
+      return false;
     }
 
     // 解析：走道(A) | 儲位(B) | 狀態(C)
     const locations = {};
-    rows.slice(1).forEach(row => {
+    dataRows.forEach(row => {
       const rowAisle = (row[0] || '').toString().trim();
       const locId = (row[1] || '').toString().trim();
       const status = (row[2] || 'AVAILABLE').toString().trim().toUpperCase();
@@ -622,7 +625,14 @@ async function generateStickers() {
 
   document.getElementById('totalStickers').textContent = totalStickers;
   document.getElementById('generatedStickers').textContent = totalStickers;
-  showMessage(`✅ 已產生 ${totalStickers} 張貼紙 — 準備好可按「列印貼紙」或「下載 PDF」`, 'success');
+  if (hasLocs) {
+    showMessage(`✅ 已讀儲位並產生 ${totalStickers} 張貼紙（含儲位 Code128）— 可按「列印貼紙」`, 'success');
+  } else {
+    // 沒讀到儲位：保留 loadLocationsList 的錯誤提示，僅補充已產生張數
+    const el = document.getElementById('message');
+    el.textContent = (el.textContent || '') + `（已產生 ${totalStickers} 張貼紙，但建議儲位為「—」、無 Code128）`;
+    el.className = 'message warning';
+  }
 }
 
 // 下載 PDF（簡單版，實際需完整實現）
