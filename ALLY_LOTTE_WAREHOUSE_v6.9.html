@@ -2747,6 +2747,14 @@ function confirmAndSealPallet() {
 
   pallet.loc = loc;
   pallet.status = 'locked';
+
+  // 扣除該走道的可用儲位（因為剛分配了一個）
+  var aisle = loc.slice(0, 2);  // 從 "BA012" 取前 2 碼 = "BA"
+  if (aisle && AISLES.indexOf(aisle) >= 0) {
+    ST.locIdx[aisle] = (ST.locIdx[aisle] || 0) + 1;
+    buildAisleGrid('aisle-grid', onAisleClick, ST.aisle);  // 更新走道格子顯示
+  }
+
   updS1Badge();
 
   addLog('✅ 確認對點並封板', '棧板 ' + palletId + ' - 位置 ' + loc +
