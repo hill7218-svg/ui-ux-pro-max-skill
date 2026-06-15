@@ -637,11 +637,18 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         <div class="qhint" id="qty-h" style="margin-top:10px;"></div>
       </div>
 
-      <!-- pallet pick -->
+      <!-- pallet label scanning -->
       <div class="card" id="psel-card" style="display:none;">
-        <div class="sec">指定棧板</div>
+        <div class="sec">📍 掃描棧板標籤</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input class="scan-input" id="pallet-label-in" placeholder="掃描預印標籤 QR Code..."
+            autocomplete="off" autocorrect="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter'){scanPalletLabel();return false;}">
+          <button class="btn-scan-go" onclick="scanPalletLabel()">掃</button>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">預印標籤來源單號格式: ALLY-YYYYMMDD-A|B-趟次-板號</div>
+        <div class="sec" style="margin-top:8px;">已開啟棧板</div>
         <div class="pchips" id="pchips"></div>
-        <button class="btn btn-g" style="padding:11px;font-size:12px" onclick="newPallet()">＋ 新建棧板</button>
       </div>
 
       <div id="add-wrap" style="display:none;margin-bottom:10px;">
@@ -1281,22 +1288,48 @@ function genId() {
   return genSourceId();
 }
 
-function newPallet() {
-  if (ST.closed) { toast('⛔ 此趟已關單，無法新建棧板', true); return; }
-  var openPallets = Object.values(ST.pallets).filter(function(p){ return p.status==='open'; });
-  if (openPallets.length > 0) {
-    var openId = openPallets[0].id;
-    toast('請先封板 ' + openId + ' 再新建', true);
-    // 自動切換到那個棧板
-    ST.curPallet = openId;
-    renderPChips();
+function scanPalletLabel() {
+  var sourceId = document.getElementById('pallet-label-in').value.trim();
+  if (!sourceId) { toast('請掃描預印標籤 QR Code', true); return; }
+
+  // Validate source ID format: ALLY-YYYYMMDD-A|B-趟次-板號
+  var sourceIdRegex = /^ALLY-\d{8}-[AB]-[1-3]-\d{3}$/;
+  if (!sourceIdRegex.test(sourceId)) {
+    toast('標籤格式無效：' + sourceId, true);
     return;
   }
-  var id = genId();
-  ST.pallets[id] = {id:id, items:[], status:'open', loc:'', sStatus:'', reason:''};
-  ST.curPallet = id;
+
+  // Check if pallet already exists
+  if (ST.pallets[sourceId]) {
+    if (ST.pallets[sourceId].status === 'locked') {
+      toast('⛔ 棧板 ' + sourceId + ' 已封板', true);
+      return;
+    }
+    // Pallet exists and is open, just select it
+    ST.curPallet = sourceId;
+    renderPChips();
+    document.getElementById('pallet-label-in').value = '';
+    toast('✓ 選取棧板 ' + sourceId);
+    return;
+  }
+
+  // Create new pallet with scanned source ID
+  ST.pallets[sourceId] = {
+    id: sourceId,
+    items: [],
+    status: 'open',
+    loc: '',
+    sStatus: '',
+    reason: ''
+  };
+  ST.curPallet = sourceId;
   renderPChips();
-  toast('新建 ' + id);
+  document.getElementById('pallet-label-in').value = '';
+  toast('✓ 新建棧板 ' + sourceId);
+}
+
+function newPallet() {
+  toast('⚠️ 請掃描預印標籤 QR Code 來綁定棧板', true);
 }
 
 function selPallet(id) { ST.curPallet = id; renderPChips(); updateBSealBar(); }
@@ -1313,10 +1346,10 @@ function renderPChips() {
 
 function addItem() {
   if (!ST.curSKU) { toast('請先掃描商品', true); return; }
-  if (!ST.curPallet) { newPallet(); }
+  if (!ST.curPallet) { toast('⚠️ 請先掃描棧板標籤來綁定棧板', true); return; }
   // Bug 2 fix: 封板後不能再寫入
   if (ST.curPallet && ST.pallets[ST.curPallet] && ST.pallets[ST.curPallet].status === 'locked') {
-    toast('棧板 ' + ST.curPallet + ' 已封板，請新建棧板', true);
+    toast('棧板 ' + ST.curPallet + ' 已封板，請掃描新標籤', true);
     ST.curPallet = null;
     renderPChips();
     return;
