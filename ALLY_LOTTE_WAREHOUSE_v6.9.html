@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ALLY × LOTTE 移倉對點 APP - v6.9</title>
+<title>ALLY × LOTTE 移倉對點 APP - v7.0</title>
 
 <!-- Firebase removed — photos now stored in Google Drive via Apps Script -->
 
@@ -530,11 +530,11 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:11px;color:var(--muted);flex-shrink:0;">⚙️ 工作流</span>
           <div style="flex:1;display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:3px;">
-            <button id="wf-a" onclick="setWorkflow('A')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:var(--teal);color:#fff;">A · 核查後封板</button>
-            <button id="wf-b" onclick="setWorkflow('B')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted);">B · 直接封板</button>
+            <button id="wf-a" onclick="setWorkflow('inspect')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:var(--teal);color:#fff;">🔍 核查模式</button>
+            <button id="wf-b" onclick="setWorkflow('fast')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted);">⚡ 快速模式</button>
           </div>
         </div>
-        <div id="wf-desc" style="font-size:9px;color:var(--muted);margin-top:6px;text-align:center;">A：掃描 → 核查(棧板清單) → 封板</div>
+        <div id="wf-desc" style="font-size:9px;color:var(--muted);margin-top:6px;text-align:center;">核查模式：掃描 → 核查清單(S2) → 封板</div>
       </div>
 
       <!-- ★ B 模式：當前棧板直接封板列（A 模式隱藏）-->
@@ -949,7 +949,7 @@ var ST = {
   s3PhotoCount:0,    // 目前 S3 已拍照片數
   driverName:'',     // 司機姓名（車號自動帶入）
   warehouse:'',      // 目前入庫倉別（虛擬倉，刷貨號前選擇）
-  workflow:'A'       // 工作流：A=掃描→核查(S2)→封板(S3)；B=掃描→直接封板(S3，跳過S2)
+  workflow:'inspect'  // 工作流：inspect=掃描→核查(S2)→封板(S3)；fast=掃描→直接封板(S3，跳過S2)
 };
 AISLES.forEach(function(a){ ST.locIdx[a]=0; });
 
@@ -1142,24 +1142,24 @@ function setWorkflow(w) {
   var a = document.getElementById('wf-a');
   var b = document.getElementById('wf-b');
   var desc = document.getElementById('wf-desc');
-  if (w === 'A') {
+  if (w === 'inspect') {
     a.style.background = 'var(--teal)'; a.style.color = '#fff';
     b.style.background = 'transparent'; b.style.color = 'var(--muted)';
-    desc.textContent = 'A：掃描 → 核查(棧板清單) → 封板';
+    desc.textContent = '核查模式：掃描 → 核查清單(S2) → 封板';
   } else {
     b.style.background = 'var(--gold)'; b.style.color = '#000';
     a.style.background = 'transparent'; a.style.color = 'var(--muted)';
-    desc.textContent = 'B：掃描 → 直接封板（跳過核查清單）';
+    desc.textContent = '快速模式：掃描 → 直接封板（跳過核查清單）';
   }
   updateBSealBar();
-  addLog('切換工作流', w);
+  addLog('切換模式', w === 'inspect' ? '核查模式' : '快速模式');
 }
 
-/* B 模式：更新「封此板」列（顯示當前棧板與品項數）*/
+/* 快速模式：更新「封此板」列（顯示當前棧板與品項數）*/
 function updateBSealBar() {
   var bar = document.getElementById('b-seal-bar');
   if (!bar) return;
-  if (ST.workflow !== 'B') { bar.style.display = 'none'; return; }
+  if (ST.workflow !== 'fast') { bar.style.display = 'none'; return; }
   var p = ST.curPallet ? ST.pallets[ST.curPallet] : null;
   var hasItems = p && p.items && p.items.length > 0 && p.status !== 'locked';
   bar.style.display = hasItems ? 'block' : 'none';
@@ -1171,15 +1171,15 @@ function updateBSealBar() {
   }
 }
 
-/* B 模式：直接封板（跳過 S2，直接進 S3）*/
+/* 快速模式：直接封板（跳過 S2，直接進 S3）*/
 function bSealCurrent() {
   if (!ST.curPallet || !ST.pallets[ST.curPallet]) { toast('尚無當前棧板', true); return; }
   if (!ST.pallets[ST.curPallet].items.length) { toast('此板尚無品項', true); return; }
   openSeal(ST.curPallet);
 }
 
-/* S3 返回鍵：A→核查(S2)，B→點驗(S1) */
-function s3Back() { goS(ST.workflow === 'B' ? 1 : 2); }
+/* S3 返回鍵：核查模式→核查清單(S2)，快速模式→點驗(S1) */
+function s3Back() { goS(ST.workflow === 'fast' ? 1 : 2); }
 
 /* ══ SCAN ══ */
 function qs(v) { document.getElementById('ean-in').value = v; doLookup(); }
@@ -1528,6 +1528,8 @@ function tPBody(h) {
 }
 
 /* ══ SEAL ══ */
+// 【v7.0 fallback】僅在無貼紙預配儲位(suggestedLoc)時觸發 — 兜底自動分配
+// 破損 QA-HOLD 隔離邏輯也由此接手，不受預配優先影響
 function assignLoc(forceIsolation) {
   // 破損 / 強制隔離 → QA-HOLD
   var isAnomaly = forceIsolation || ST.sealStatus === 'damage';
@@ -2944,8 +2946,9 @@ function confirmAndSealPallet() {
     pallet.anomalyPhotos = ST.palletPhotos[palletId] || [];
   }
 
-  // 分配位置（如果未分配）
-  var loc = pallet.loc || ST._pendingLoc || assignLoc();
+  // 分配位置：貼紙預配儲位優先 → fallback assignLoc()
+  // 優先序：已覆寫(loc) > 貼紙建議(suggestedLoc) > S3待定(_pendingLoc) > 自動分配
+  var loc = pallet.loc || pallet.suggestedLoc || ST._pendingLoc || assignLoc();
   if (!loc) {
     toast('❌ 位置分配失敗', true);
     return;
