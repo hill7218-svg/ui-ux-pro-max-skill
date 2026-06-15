@@ -647,6 +647,16 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
           <button class="btn-scan-go" onclick="scanPalletLabel()">掃</button>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">預印標籤來源單號格式: ALLY-YYYYMMDD-A|B-趟次-板號</div>
+
+        <!-- 【v7.0】掃儲位 Code128 輸入框 -->
+        <div id="pallet-location-section" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--gold);border-radius:6px;background:rgba(255,215,0,.05);">
+          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">🔳 掃儲位 Code128</label>
+          <input class="scan-input" id="pallet-location-in" placeholder="BA-001-02"
+            autocomplete="off" autocorrect="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter'){scanPalletLocation();return false;}">
+          <div style="font-size:9px;color:var(--muted);margin-top:4px;">掃描貼紙下方的一維條碼，自動綁定儲位</div>
+        </div>
+
         <div class="sec" style="margin-top:8px;">已開啟棧板</div>
         <div class="pchips" id="pchips"></div>
       </div>
@@ -857,8 +867,18 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
       <div id="s8-result-card" class="card" style="display:none;">
         <div class="sec">✓ 棧板 <span id="s8-pallet-id" style="color:var(--gold);font-family:Chakra Petch,monospace;"></span> 明細</div>
         <div id="s8-items"></div>
+
+        <!-- 【v7.0】掃儲位 Code128 確認上架 -->
+        <div id="s8-location-section" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--gold);border-radius:6px;background:rgba(255,215,0,.05);">
+          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">🔳 掃儲位 Code128 確認上架</label>
+          <input class="scan-input" id="s8-location-input" placeholder="BA-001-02"
+            autocomplete="off" autocorrect="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter'){s8ScanLocation();return false;}">
+          <div id="s8-location-result" style="margin-top:6px;font-size:10px;"></div>
+        </div>
+
         <div style="margin-top:12px;display:flex;gap:8px;">
-          <button class="btn btn-g" style="flex:1;" onclick="s8ConfirmReceiving()">✅ 確認驗收 + 上架</button>
+          <button class="btn btn-g" id="s8-confirm-btn" style="flex:1;" onclick="s8ConfirmReceiving()">✅ 確認驗收 + 上架</button>
           <button class="btn" style="flex:1;background:rgba(107,122,153,.1);border-color:var(--muted);color:var(--muted);" onclick="s8Reset()">🔄 重新掃描</button>
         </div>
       </div>
@@ -1309,7 +1329,16 @@ function scanPalletLabel() {
     ST.curPallet = sourceId;
     renderPChips();
     document.getElementById('pallet-label-in').value = '';
-    toast('✓ 選取棧板 ' + sourceId);
+    // 【v7.0】選取既有棧板時，若未綁儲位則再次等待掃儲位
+    var pallet = ST.pallets[sourceId];
+    if (!pallet.suggestedLoc) {
+      document.getElementById('pallet-location-in').style.display = 'block';
+      document.getElementById('pallet-location-in').focus();
+      toast('✓ 選取棧板 ' + sourceId + ' — 請掃儲位條碼');
+    } else {
+      document.getElementById('pallet-location-in').style.display = 'none';
+      toast('✓ 選取棧板 ' + sourceId);
+    }
     return;
   }
 
@@ -1319,14 +1348,61 @@ function scanPalletLabel() {
     items: [],
     status: 'open',
     loc: '',
+    suggestedLoc: '',
     sStatus: '',
     reason: ''
   };
   ST.curPallet = sourceId;
   renderPChips();
   document.getElementById('pallet-label-in').value = '';
-  toast('✓ 新建棧板 ' + sourceId);
+  // 【v7.0】顯示儲位輸入框，等待掃儲位 Code128
+  document.getElementById('pallet-location-in').style.display = 'block';
+  document.getElementById('pallet-location-in').focus();
+  toast('✓ 新建棧板 ' + sourceId + ' — 請掃儲位條碼');
 }
+
+/* 【v7.0】儲位 Code128 掃描處理 */
+function scanPalletLocation() {
+  var locValue = document.getElementById('pallet-location-in').value.trim();
+  if (!locValue) {
+    toast('請掃描儲位條碼', true);
+    return;
+  }
+
+  if (!ST.curPallet || !ST.pallets[ST.curPallet]) {
+    toast('請先掃描棧板標籤', true);
+    return;
+  }
+
+  // 儲位不能只有破折號
+  if (locValue === '—') {
+    toast('儲位無效', true);
+    document.getElementById('pallet-location-in').value = '';
+    return;
+  }
+
+  // 存進當前棧板
+  ST.pallets[ST.curPallet].suggestedLoc = locValue;
+  toast('✓ 儲位 ' + locValue + ' 已綁定');
+
+  // 清空輸入框、隱藏，回到商品掃描
+  document.getElementById('pallet-location-in').value = '';
+  document.getElementById('pallet-location-in').style.display = 'none';
+  document.getElementById('ean-in').focus();
+}
+
+// 註冊儲位輸入框 Enter 鍵監聽（初始化時自動綁定）
+(function() {
+  var locInput = document.getElementById('pallet-location-in');
+  if (locInput) {
+    locInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        scanPalletLocation();
+        e.preventDefault();
+      }
+    });
+  }
+})();
 
 function newPallet() {
   toast('⚠️ 請掃描預印標籤 QR Code 來綁定棧板', true);
@@ -1374,6 +1450,8 @@ function addItem() {
   renderPChips();
   updS1Badge();
   updateBSealBar();
+  // 【v7.0】加入品項後回到商品掃描
+  document.getElementById('ean-in').focus();
 }
 
 /* ══ BATCH ══ */
@@ -2135,6 +2213,7 @@ function updateItemQty(palletId, itemIdx, newQty) {
 /* ══ S8: 卸貨驗收（瑞芳收貨端）══ */
 var s8_currentSourceId = null;
 var s8_items = [];
+var s8_scannedLoc = null;  // 【v7.0】實際掃入的儲位
 
 async function s8QueryBoard() {
   var input = (document.getElementById('s8-qr-input').value || '').trim();
@@ -2207,6 +2286,13 @@ async function s8QueryBoard() {
   msg.innerHTML = '✅ 查詢成功';
   msg.style.color = 'var(--green)';
 
+  // 【v7.0】查詢成功後，顯示儲位確認框並聚焦
+  document.getElementById('s8-location-section').style.display = 'block';
+  document.getElementById('s8-location-input').value = '';
+  document.getElementById('s8-location-input').focus();
+  document.getElementById('s8-location-result').innerHTML = '';
+  s8_scannedLoc = null;
+
   addLog('S8 棧板查詢', '來源單號=' + input + ' | 品項數=' + s8_items.length);
 }
 
@@ -2216,11 +2302,93 @@ function s8ConfirmReceiving() {
     return;
   }
 
-  toast('✅ 驗收完成，棧板 ' + s8_currentSourceId + ' 可上架');
-  addLog('卸貨驗收完成', '來源單號=' + s8_currentSourceId + ' | 品項數=' + s8_items.length);
+  // 【v7.0】需先刷儲位條碼才能確認
+  if (!s8_scannedLoc) {
+    toast('❌ 請先掃儲位條碼確認上架', true);
+    return;
+  }
+
+  // 【v7.0】讀取預期儲位
+  var expectedLoc = '—';
+  if (s8_currentSourceId && ST.pallets[s8_currentSourceId]) {
+    expectedLoc = ST.pallets[s8_currentSourceId].suggestedLoc || '—';
+  }
+  if (expectedLoc === '—' && s8_items.length > 0 && s8_items[0].suggestedLoc) {
+    expectedLoc = s8_items[0].suggestedLoc;
+  }
+
+  var isOverwrite = (s8_scannedLoc !== expectedLoc && expectedLoc !== '—') ? 'Y' : 'N';
+
+  // 暫存收貨狀態（demo 版本，待 P4/GAS 層支援完整寫回）
+  var now = new Date().toLocaleString('zh-TW');
+  var receiptRecord = {
+    timestamp: now,
+    sourceId: s8_currentSourceId,
+    expectedLoc: expectedLoc,
+    actualLoc: s8_scannedLoc,
+    isOverwrite: isOverwrite,
+    itemCount: s8_items.length
+  };
+
+  // 存進操作日誌
+  addLog('S8 上架確認', '來源單號=' + s8_currentSourceId + ' | 實際儲位=' + s8_scannedLoc + ' | 覆寫=' + isOverwrite);
+
+  toast('✅ 驗收完成，棧板 ' + s8_currentSourceId + ' 已上架 @ ' + s8_scannedLoc);
 
   // 2秒後重置查詢表單
   setTimeout(function(){ s8Reset(); }, 1500);
+}
+
+/* 【v7.0】儲位刷碼確認 */
+function s8ScanLocation() {
+  var scannedLoc = document.getElementById('s8-location-input').value.trim();
+  if (!scannedLoc) {
+    toast('請掃描儲位條碼', true);
+    return;
+  }
+
+  // 讀取預期儲位
+  // 優先從本地棧板資料讀取（若該棧板在 S1 已掃過並綁定儲位）
+  // 否則從 WMS 查詢結果的第一品項讀取（未來 P3 會在 Sheet 補充）
+  var expectedLoc = '—';
+  if (s8_currentSourceId && ST.pallets[s8_currentSourceId]) {
+    expectedLoc = ST.pallets[s8_currentSourceId].suggestedLoc || '—';
+  }
+  if (expectedLoc === '—' && s8_items.length > 0 && s8_items[0].suggestedLoc) {
+    expectedLoc = s8_items[0].suggestedLoc;
+  }
+
+  var resultDiv = document.getElementById('s8-location-result');
+  var compareResult = '';
+  var confirmBtn = document.getElementById('s8-confirm-btn');
+
+  if (scannedLoc === expectedLoc) {
+    // 綠燈：儲位一致
+    compareResult = '✅ 儲位一致（' + expectedLoc + '）';
+    resultDiv.style.color = 'var(--teal)';
+    if (confirmBtn) confirmBtn.disabled = false;
+  } else if (scannedLoc !== expectedLoc && expectedLoc !== '—') {
+    // 黃燈：不符但可覆寫
+    compareResult = '⚠️ 建議 ' + expectedLoc + ' / 實刷 ' + scannedLoc + ' — 需確認';
+    resultDiv.style.color = 'var(--amber)';
+    if (confirmBtn) confirmBtn.disabled = false;  // 仍可確認（操作員決定）
+  } else if (expectedLoc === '—') {
+    // 無預期儲位，接受實刷值
+    compareResult = '✓ 儲位 ' + scannedLoc + ' (無預配參考)';
+    resultDiv.style.color = 'var(--green)';
+    if (confirmBtn) confirmBtn.disabled = false;
+  } else {
+    // 紅燈：儲位無效
+    compareResult = '❌ 儲位無效';
+    resultDiv.style.color = 'var(--red)';
+    if (confirmBtn) confirmBtn.disabled = true;
+    document.getElementById('s8-location-input').value = '';
+    return;
+  }
+
+  resultDiv.innerHTML = compareResult;
+  s8_scannedLoc = scannedLoc;  // 記錄實刷位
+  document.getElementById('s8-location-input').value = '';  // 清空輸入框，準備下一次掃描
 }
 
 function s8Reset() {
@@ -2229,8 +2397,13 @@ function s8Reset() {
   document.getElementById('s8-result-card').style.display = 'none';
   document.getElementById('s8-items').innerHTML = '';
   document.getElementById('s8-pallet-id').textContent = '';
+  // 【v7.0】清空儲位相關
+  document.getElementById('s8-location-section').style.display = 'none';
+  document.getElementById('s8-location-input').value = '';
+  document.getElementById('s8-location-result').innerHTML = '';
   s8_currentSourceId = null;
   s8_items = [];
+  s8_scannedLoc = null;
 
   var input = document.getElementById('s8-qr-input');
   if (input) input.focus();
