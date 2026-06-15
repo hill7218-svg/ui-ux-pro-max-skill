@@ -327,8 +327,8 @@ h1 {
       </div>
 
       <div class="setup-group">
-        <label class="setup-label">API Key</label>
-        <input type="text" id="apiKey" class="setup-input" placeholder="Google Sheets API Key">
+        <label class="setup-label">API Key（選填）</label>
+        <input type="text" id="apiKey" class="setup-input" placeholder="留空＝免金鑰CSV讀取（須設Sheet可檢視）">
       </div>
 
       <div class="setup-group">
@@ -389,8 +389,10 @@ h1 {
 
     <div class="message warning">
       <strong>⚠️ Google Sheet 設定：</strong>
-      <br>確保「儲位清單」分頁欄位為：走道(A) | 儲位(B) | 狀態(C)
-      <br>狀態值：AVAILABLE / QA-HOLD / 散貨 / 其他
+      <br>① 分頁名須為「儲位清單」，欄位：走道(A) | 儲位(B) | 狀態(C)
+      <br>② 只有狀態 = <strong>AVAILABLE</strong> 的列會被配發（其他值如 QA-HOLD/散貨會被略過）
+      <br>③ Sheet 須設「共用 → 知道連結者可檢視」，否則讀不到
+      <br>④ <strong>API Key 留空</strong>＝走免金鑰 CSV；填了則走官方 API（兩者都需上述共用設定）
     </div>
   </div>
 </div>
@@ -431,16 +433,41 @@ function generateSourceId(date, trip, boardNum) {
   return 'ALLY-' + date + '-' + vehicleType + '-' + tripInType + '-' + String(boardNum).padStart(3,'0');
 }
 
-// 從 Google Sheet 讀儲位清單
+// 簡易 CSV 解析（支援雙引號包覆與跳脫）
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.length > 0);
+  return lines.map(line => {
+    const cells = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = false;
+        } else cur += ch;
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === ',') { cells.push(cur); cur = ''; }
+        else cur += ch;
+      }
+    }
+    cells.push(cur);
+    return cells;
+  });
+}
+
+// 從 Google Sheet 讀儲位清單（分頁名固定為「儲位清單」，欄位：走道|儲位|狀態）
 async function loadLocationsList(needCount) {
   const apiKey = document.getElementById('apiKey').value.trim();
   const sheetId = document.getElementById('sheetId').value.trim();
   const aisle = document.getElementById('aisleSelect').value;
   const want = needCount || 32;
+  const TAB = '儲位清單';
 
-  // 沒填 Sheet 連線資訊 → 略過儲位讀取（貼紙仍可印，建議儲位顯示「—」手寫）
-  if (!apiKey || !sheetId) {
-    showMessage('ℹ️ 未填 Google Sheet 連線，將略過儲位預配（貼紙建議儲位留空，現場手寫）', 'info');
+  // 至少要有 Sheet ID 才能連線；沒填 → 略過（建議儲位顯示「—」手寫）
+  if (!sheetId) {
+    showMessage('ℹ️ 未填 Google Sheet ID，將略過儲位預配（建議儲位留空，現場手寫）', 'info');
     return false;
   }
   if (!aisle) {
@@ -449,20 +476,38 @@ async function loadLocationsList(needCount) {
   }
 
   try {
-    showMessage('⏳ 正在讀取儲位清單...', 'info');
-
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/儲位清單?key=${apiKey}`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (!data.values) {
-      showMessage('❌ 無法讀取儲位清單，檢查 Sheet ID 或 API Key', 'error');
-      return false;
+    let rows;
+    if (apiKey) {
+      // 方法 1：Google Sheets API v4（需 API Key；Sheet 需「知道連結者可檢視」）
+      showMessage('⏳ 正在讀取儲位清單（API Key 模式）...', 'info');
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(TAB)}?key=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!data.values) {
+        showMessage('❌ 無法讀取「儲位清單」。請確認：① Sheet ID/API Key 正確 ② 分頁名為「儲位清單」 ③ Sheet 已設「知道連結者可檢視」', 'error');
+        return false;
+      }
+      rows = data.values;
+    } else {
+      // 方法 2：免金鑰 CSV（Sheet 需設「知道連結者可檢視」即可，免 API Key）
+      showMessage('⏳ 正在讀取儲位清單（免金鑰 CSV 模式）...', 'info');
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(TAB)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        showMessage('❌ 免金鑰讀取失敗。請將 Sheet 設為「知道連結者可檢視」，或改填 API Key 後重試', 'error');
+        return false;
+      }
+      const csv = await response.text();
+      rows = parseCSV(csv);
+      if (!rows.length) {
+        showMessage('❌ 「儲位清單」分頁無資料，或分頁名不符', 'error');
+        return false;
+      }
     }
 
     // 解析：走道(A) | 儲位(B) | 狀態(C)
     const locations = {};
-    data.values.slice(1).forEach(row => {
+    rows.slice(1).forEach(row => {
       const rowAisle = (row[0] || '').toString().trim();
       const locId = (row[1] || '').toString().trim();
       const status = (row[2] || 'AVAILABLE').toString().trim().toUpperCase();
@@ -593,6 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
     String(today.getMonth()+1).padStart(2,'0') + '-' +
     String(today.getDate()).padStart(2,'0');
   document.getElementById('moveDate').value = dateStr;
+  // 預填儲位清單 Sheet ID（可手動覆寫）
+  document.getElementById('sheetId').value = '1krZGpN4fCvTCgzCJLPjQPtE7eyo1vsR-gsChGTKWOM4';
 });
 </script>
 
