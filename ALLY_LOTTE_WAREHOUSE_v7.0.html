@@ -2644,7 +2644,7 @@ async function emailWmsToMailList() {
   var dateStr = new Date().toISOString().slice(0,10);
   var truck = (ST.truck || 'NA').replace(/[^A-Z0-9]/gi,'');
   var filename = '入庫單_' + truck + '_' + dateStr + '.csv';
-  var subject = '【ALLY×LOTTE 移倉入庫單】' + truck + ' 趟' + ST.trip + ' · ' + dateStr;
+  var subject = '樂天移倉入庫單｜' + truck + ' 趟' + ST.trip + ' · ' + dateStr;
   var lockedCount = Object.values(ST.pallets).filter(function(p){ return p.status==='locked'; }).length;
   var totalBox = rows.length;
   var body = '車號：' + (ST.truck||'—') + '\n' +
