@@ -3,12 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ALLY × LOTTE QR 板標列印器 - v7.0</title>
+<title>ALLY × LOTTE 板標列印器 - v7.1</title>
 
-<!-- QR Code Library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-<!-- Code128 Barcode Library -->
+<!-- Code128 Barcode Library（貼紙雙一維條碼：入庫單號 + 儲位）-->
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"></script>
 
 <style>
@@ -318,8 +315,8 @@ h1 {
 <body>
 
 <div class="container">
-  <h1>🏷️ QR 板標列印器</h1>
-  <div class="subtitle">ALLY × LOTTE 移倉系統 v7.0 — 雙條碼（來源 QR + 儲位 Code128）</div>
+  <h1>🏷️ 板標列印器</h1>
+  <div class="subtitle">ALLY × LOTTE 移倉系統 v7.1 — 雙一維條碼（入庫單號 Code128 + 儲位 Code128）</div>
 
   <!-- SETUP SECTION -->
   <div class="section">
@@ -383,11 +380,11 @@ h1 {
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;">
-      <button class="btn-primary" onclick="generateStickers()">📋 產生這趟貼紙（依板數）</button>
-      <button class="btn-primary" onclick="window.print()" style="background:#007B6F;">🖨️ 列印貼紙</button>
-      <button class="btn-primary" onclick="downloadStickers()" style="background:#D4820A;">⬇️ 下載 PDF</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-primary" onclick="generateStickers()" style="flex:1;min-width:200px;font-size:15px;">① 產生這趟貼紙（依板數）</button>
+      <button class="btn-primary" onclick="window.print()" style="background:#007B6F;flex:1;min-width:160px;font-size:15px;">② 🖨️ 列印 / 存 PDF</button>
     </div>
+    <div style="font-size:12px;color:#6B7A99;margin-top:8px;">提示：列印視窗選「另存為 PDF」即可下載 PDF；紙張建議 10cm×10cm 連續出紙。</div>
 
     <div id="message" style="margin-top:10px;"></div>
   </div>
@@ -406,8 +403,8 @@ h1 {
         <div class="stat-label">已產生</div>
       </div>
       <div class="stat-item">
-        <div class="stat-value" id="sheetRows">6</div>
-        <div class="stat-label">紙張（6×32）</div>
+        <div class="stat-value" id="sheetRows">—</div>
+        <div class="stat-label">已配儲位數</div>
       </div>
     </div>
 
@@ -430,7 +427,7 @@ h1 {
 
     <div class="message info">
       <strong>列印規格：</strong> 10cm × 10cm 瀏覽器列印（A4 連續出紙）
-      <br>包含：來源單號 QR Code + 建議儲位文字 + 板號
+      <br>每張貼紙：入庫單號 Code128 一維條碼 + 建議儲位 Code128 一維條碼 + 移倉日
     </div>
 
     <div class="message warning">
@@ -676,8 +673,10 @@ async function generateStickers() {
 
   document.getElementById('totalStickers').textContent = totalStickers;
   document.getElementById('generatedStickers').textContent = totalStickers;
+  var locCount = (locs || []).filter(function(l){ return l && l !== '—'; }).length;
+  document.getElementById('sheetRows').textContent = locCount;
   if (hasLocs) {
-    showMessage(`✅ 已讀儲位並產生 ${totalStickers} 張貼紙（含儲位 Code128）— 可按「列印貼紙」`, 'success');
+    showMessage(`✅ 已讀儲位並產生 ${totalStickers} 張貼紙（雙 Code128）— 可按「② 列印 / 存 PDF」`, 'success');
   } else {
     // 沒讀到儲位：保留 loadLocationsList 的錯誤提示，僅補充已產生張數
     const el = document.getElementById('message');
