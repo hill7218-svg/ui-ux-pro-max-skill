@@ -543,19 +543,19 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
       <div class="s1-info-chip"><span class="ic">📦</span>第 <span class="val" id="info-pallet-no">0</span> 板 / 共 <span class="val" id="info-trip">—</span> 件</div>
     </div>
     <div class="body">
-      <!-- ★ 工作流 AB 切換（A=經核查S2再封板；B=掃完直接封板）-->
+      <!-- ★ 工作流（核查模式已停用，固定快速模式）-->
       <div class="card" style="margin-bottom:8px;padding:10px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:11px;color:var(--muted);flex-shrink:0;">⚙️ 工作流</span>
           <div style="flex:1;display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:3px;">
-            <button id="wf-a" onclick="setWorkflow('inspect')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:var(--teal);color:#fff;">🔍 核查模式</button>
-            <button id="wf-b" onclick="setWorkflow('fast')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted);">⚡ 快速模式</button>
+            <button id="wf-a" onclick="setWorkflow('inspect')" disabled style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:not-allowed;background:transparent;color:var(--muted);opacity:.4;">🔍 核查模式（停用）</button>
+            <button id="wf-b" onclick="setWorkflow('fast')" style="flex:1;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:var(--gold);color:#000;">⚡ 快速模式</button>
           </div>
         </div>
-        <div id="wf-desc" style="font-size:9px;color:var(--muted);margin-top:6px;text-align:center;">核查模式：掃描 → 核查清單(S2) → 封板</div>
+        <div id="wf-desc" style="font-size:9px;color:var(--muted);margin-top:6px;text-align:center;">快速模式：掃描 → 直接封板</div>
       </div>
 
-      <!-- ★ B 模式：當前棧板直接封板列（A 模式隱藏）-->
+      <!-- ★ 快速模式：當前棧板直接封板列 -->
       <div class="card" id="b-seal-bar" style="display:none;margin-bottom:8px;background:rgba(255,215,0,.08);border:1.5px solid var(--gold);padding:10px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div style="font-size:11px;color:var(--text);">當前棧板 <strong id="b-seal-pid" style="color:var(--gold);font-family:Chakra Petch,monospace;">—</strong> <span id="b-seal-cnt" style="color:var(--muted);font-size:10px;"></span></div>
@@ -563,32 +563,7 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         </div>
       </div>
 
-      <!-- batch -->
-      <div class="card" style="margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:12px;color:var(--muted);">🔀 批量拆板</span>
-          <input type="checkbox" id="batch-chk" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleBatch()">
-        </div>
-        <div id="batch-box">
-          <div class="lbl" style="margin-top:8px;">品號 / EAN</div>
-          <input class="input" id="batch-item" placeholder="品號或EAN" style="margin-bottom:6px;">
-          <div class="lbl">總箱數</div>
-          <input class="input" id="batch-total" type="number" placeholder="例: 1000" style="margin-bottom:6px;">
-          <div class="lbl">每板上限箱數</div>
-          <input class="input" id="batch-per" type="number" placeholder="例: 50" style="margin-bottom:8px;">
-          <button class="btn btn-g" style="padding:11px" onclick="doBatch()">⚡ 自動建立棧板</button>
-          <div id="batch-res" style="font-size:11px;color:var(--teal);margin-top:6px;"></div>
-        </div>
-      </div>
-
-      <!-- 倉別（刷貨號前選擇，決定入庫單虛擬倉）-->
-      <div class="card" style="margin-bottom:8px;">
-        <div class="sec">📦 入庫倉別（虛擬倉）</div>
-        <select class="sel" id="wh-sel" onchange="onWarehouseChange()"></select>
-        <div style="font-size:10px;color:var(--muted);margin-top:5px;">此倉別會寫入入庫單，刷貨號前先確認</div>
-      </div>
-
-      <!-- scan -->
+      <!-- scan（表頭直接輸入貨號）-->
       <div class="card">
         <div class="sec">掃EAN / 輸入品號</div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -596,14 +571,6 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
             autocomplete="off" autocorrect="off" spellcheck="false"
             onkeydown="if(event.key==='Enter'){doLookup();return false;}">
           <button class="btn-scan-go" onclick="doLookup()">查</button>
-        </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:2px;">
-          <span style="font-size:9px;color:var(--muted);align-self:center;">示範：</span>
-          <button onclick="qs('74903333264239')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9321箱</button>
-          <button onclick="qs('84903333226128')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9323中盒</button>
-          <button onclick="qs('BJ9408')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9296</button>
-          <button onclick="qs('BJ9408')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BJ9408</button>
-          <button onclick="qs('BT9101')" style="padding:3px 7px;background:var(--navy2);border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:9px;cursor:pointer;font-family:Chakra Petch,monospace;">BT9101</button>
         </div>
         <div class="sku-card" id="sku-card">
           <!-- 商品條碼 - 突出顯示 -->
@@ -655,25 +622,16 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
         <div class="qhint" id="qty-h" style="margin-top:10px;"></div>
       </div>
 
-      <!-- pallet label scanning -->
+      <!-- pallet label scanning（刷儲位功能已移除）-->
       <div class="card" id="psel-card" style="display:none;">
         <div class="sec">📍 掃描棧板標籤</div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input class="scan-input" id="pallet-label-in" placeholder="掃描預印標籤 QR Code..."
+          <input class="scan-input" id="pallet-label-in" placeholder="掃描預印標籤條碼..."
             autocomplete="off" autocorrect="off" spellcheck="false"
             onkeydown="if(event.key==='Enter'){scanPalletLabel();return false;}">
           <button class="btn-scan-go" onclick="scanPalletLabel()">掃</button>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">預印標籤來源單號格式: ALLY-YYYYMMDD-A|B-趟次-板號</div>
-
-        <!-- 【v7.0】掃儲位 Code128 輸入框 -->
-        <div id="pallet-location-section" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--gold);border-radius:6px;background:rgba(255,215,0,.05);">
-          <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">🔳 掃儲位 Code128</label>
-          <input class="scan-input" id="pallet-location-in" placeholder="BA-001-02"
-            autocomplete="off" autocorrect="off" spellcheck="false"
-            onkeydown="if(event.key==='Enter'){scanPalletLocation();return false;}">
-          <div style="font-size:9px;color:var(--muted);margin-top:4px;">掃描貼紙下方的一維條碼，自動綁定儲位</div>
-        </div>
 
         <div class="sec" style="margin-top:8px;">已開啟棧板</div>
         <div class="pchips" id="pchips"></div>
@@ -681,6 +639,31 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
 
       <div id="add-wrap" style="display:none;margin-bottom:10px;">
         <button class="btn" onclick="addItem()">✓ 加入棧板</button>
+      </div>
+
+      <!-- 倉別（移到最下方）-->
+      <div class="card" style="margin-bottom:8px;margin-top:6px;">
+        <div class="sec">📦 入庫倉別（虛擬倉）</div>
+        <select class="sel" id="wh-sel" onchange="onWarehouseChange()"></select>
+        <div style="font-size:10px;color:var(--muted);margin-top:5px;">此倉別會寫入入庫單，刷貨號前先確認</div>
+      </div>
+
+      <!-- batch 批量拆板（移到最下方）-->
+      <div class="card" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--muted);">🔀 批量拆板</span>
+          <input type="checkbox" id="batch-chk" style="width:18px;height:18px;accent-color:var(--gold)" onchange="toggleBatch()">
+        </div>
+        <div id="batch-box">
+          <div class="lbl" style="margin-top:8px;">品號 / EAN</div>
+          <input class="input" id="batch-item" placeholder="品號或EAN" style="margin-bottom:6px;">
+          <div class="lbl">總箱數</div>
+          <input class="input" id="batch-total" type="number" placeholder="例: 1000" style="margin-bottom:6px;">
+          <div class="lbl">每板上限箱數</div>
+          <input class="input" id="batch-per" type="number" placeholder="例: 50" style="margin-bottom:8px;">
+          <button class="btn btn-g" style="padding:11px" onclick="doBatch()">⚡ 自動建立棧板</button>
+          <div id="batch-res" style="font-size:11px;color:var(--teal);margin-top:6px;"></div>
+        </div>
       </div>
     </div>
     <div class="tabs">
@@ -844,10 +827,6 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;
     </div>
     <div class="body">
       <div class="sg" id="stats"></div>
-      <div class="card">
-        <div class="sec">vs 預期清單比對</div>
-        <div id="diff-tbl"></div>
-      </div>
       <!-- 異常棧板專區 -->
       <div id="anomaly-summary-wrap" style="display:none;margin-bottom:10px;">
         <div class="anomaly-list-card">
@@ -967,7 +946,7 @@ var ST = {
   s3PhotoCount:0,    // 目前 S3 已拍照片數
   driverName:'',     // 司機姓名（車號自動帶入）
   warehouse:'',      // 目前入庫倉別（虛擬倉，刷貨號前選擇）
-  workflow:'inspect'  // 工作流：inspect=掃描→核查(S2)→封板(S3)；fast=掃描→直接封板(S3，跳過S2)
+  workflow:'fast'  // 工作流：預設 fast=掃描→直接封板(S3，跳過S2)。inspect 核查模式已停用
 };
 AISLES.forEach(function(a){ ST.locIdx[a]=0; });
 
@@ -1169,28 +1148,27 @@ function doStart() {
     }
   }
   addLog('開工', ST.truck + ' · ' + ST.aisle + ' · 司機 ' + (ST.driverName||'未記錄'));
+  // 預設快速模式
+  setWorkflow('fast');
   updS1Badge();
-  toast('✅ 開工設定完成！請選擇 A 移倉點驗或 B 核查功能');
-  goS(0);
+  toast('✅ 開工完成，開始移倉點驗');
+  // 開工後直接進入移倉點驗（S1），無須再回功能表手動點選
+  goS(1);
 }
 
-/* ══ 工作流 AB 切換 ══ */
+/* ══ 工作流切換（核查模式已停用，一律快速模式）══ */
 function setWorkflow(w) {
-  ST.workflow = w;
-  var a = document.getElementById('wf-a');
+  // 核查模式已停用：強制鎖定快速模式
+  if (w === 'inspect') {
+    toast('核查模式已停用，目前一律使用快速模式', false);
+    w = 'fast';
+  }
+  ST.workflow = 'fast';
   var b = document.getElementById('wf-b');
   var desc = document.getElementById('wf-desc');
-  if (w === 'inspect') {
-    a.style.background = 'var(--teal)'; a.style.color = '#fff';
-    b.style.background = 'transparent'; b.style.color = 'var(--muted)';
-    desc.textContent = '核查模式：掃描 → 核查清單(S2) → 封板';
-  } else {
-    b.style.background = 'var(--gold)'; b.style.color = '#000';
-    a.style.background = 'transparent'; a.style.color = 'var(--muted)';
-    desc.textContent = '快速模式：掃描 → 直接封板（跳過核查清單）';
-  }
+  if (b) { b.style.background = 'var(--gold)'; b.style.color = '#000'; }
+  if (desc) desc.textContent = '快速模式：掃描 → 直接封板';
   updateBSealBar();
-  addLog('切換模式', w === 'inspect' ? '核查模式' : '快速模式');
 }
 
 /* 快速模式：更新「封此板」列（顯示當前棧板與品項數）*/
@@ -1366,17 +1344,10 @@ function scanPalletLabel() {
     // Pallet exists and is open, just select it
     ST.curPallet = sourceId;
     renderPChips();
+    updateBSealBar();
     document.getElementById('pallet-label-in').value = '';
-    // 【v7.0】選取既有棧板時，若未綁儲位則再次等待掃儲位
-    var pallet = ST.pallets[sourceId];
-    if (!pallet.suggestedLoc) {
-      document.getElementById('pallet-location-section').style.display = 'block';
-      document.getElementById('pallet-location-in').focus();
-      toast('✓ 選取棧板 ' + sourceId + ' — 請掃儲位條碼');
-    } else {
-      document.getElementById('pallet-location-section').style.display = 'none';
-      toast('✓ 選取棧板 ' + sourceId);
-    }
+    document.getElementById('ean-in').focus();
+    toast('✓ 選取棧板 ' + sourceId);
     return;
   }
 
@@ -1393,46 +1364,15 @@ function scanPalletLabel() {
   ST.curPallet = sourceId;
   saveST();
   renderPChips();
+  updateBSealBar();
   document.getElementById('pallet-label-in').value = '';
-  // 【v7.0】顯示儲位輸入框，等待掃儲位 Code128
-  document.getElementById('pallet-location-section').style.display = 'block';
-  document.getElementById('pallet-location-in').focus();
-  toast('✓ 新建棧板 ' + sourceId + ' — 請掃儲位條碼');
-}
-
-/* 【v7.0】儲位 Code128 掃描處理 */
-function scanPalletLocation() {
-  var locValue = document.getElementById('pallet-location-in').value.trim();
-  if (!locValue) {
-    toast('請掃描儲位條碼', true);
-    return;
-  }
-
-  if (!ST.curPallet || !ST.pallets[ST.curPallet]) {
-    toast('請先掃描棧板標籤', true);
-    return;
-  }
-
-  // 儲位不能只有破折號
-  if (locValue === '—') {
-    toast('儲位無效', true);
-    document.getElementById('pallet-location-in').value = '';
-    return;
-  }
-
-  // 存進當前棧板
-  ST.pallets[ST.curPallet].suggestedLoc = locValue;
-  saveST();
-  toast('✓ 儲位 ' + locValue + ' 已綁定');
-
-  // 清空輸入框、隱藏，回到商品掃描
-  document.getElementById('pallet-location-in').value = '';
-  document.getElementById('pallet-location-section').style.display = 'none';
   document.getElementById('ean-in').focus();
+  toast('✓ 新建棧板 ' + sourceId);
 }
 
-// 儲位輸入框 Enter 由 HTML inline onkeydown 處理（見 #pallet-location-in），
-// 此處不再重複綁定，避免楔型掃描器送 Enter 時觸發兩次而閃錯誤 toast。
+/* 刷儲位功能已移除：最終儲位改由貼紙預配（suggestedLoc 仍可由標籤帶入）或封板自動分配。
+   保留安全 stub，避免任何遺留引用拋錯。 */
+function scanPalletLocation() { /* 已停用：刷儲位流程移除 */ }
 
 function newPallet() {
   toast('⚠️ 請掃描預印標籤 QR Code 來綁定棧板', true);
@@ -1698,31 +1638,6 @@ function renderSummary() {
     '<div class="sb"><div class="sv" style="color:var(--green)">' + lk.length + '</div><div class="sl">已封板</div></div>' +
     '<div class="sb"><div class="sv" style="color:' + (op.length?'#FF8080':'var(--green)') + '">' + op.length + '</div><div class="sl">未封板</div></div>' +
     '<div class="sb"><div class="sv" style="color:var(--gold)">' + cs + '</div><div class="sl">總箱數</div></div>';
-  var scanned = {};
-  pallets.forEach(function(p){
-    p.items.forEach(function(it){ scanned[it.item_code] = (scanned[it.item_code]||0) + it.qty; });
-  });
-  var items = {};
-  Object.keys(scanned).forEach(function(k){ items[k]=1; });
-  Object.keys(EXP).slice(0,20).forEach(function(k){ if(scanned[k]||EXP[k]) items[k]=1; });
-  var hasDiff = false;
-  var rows = '';
-  Object.keys(items).sort().forEach(function(ic) {
-    var act = scanned[ic]||0; var exp = EXP[ic]||null;
-    if (!act && !exp) return;
-    var diff = exp!==null ? act-exp : null;
-    if (diff!==0 && diff!==null) hasDiff=true;
-    var dc = diff===0||diff===null ? 'var(--green)' : '#FF8080';
-    rows += '<div class="diff-row">' +
-      '<span style="font-size:11px">' + ic + '</span>' +
-      '<span style="font-size:10px;color:var(--muted)">' + (exp!==null?'預'+exp:'-') + '</span>' +
-      '<span style="font-size:11px;font-weight:700;color:var(--white)">掃' + act + '</span>' +
-      '<span style="font-size:11px;font-weight:700;color:' + dc + '">' +
-        (diff===null?'—':diff===0?'✅':(diff>0?'+'+diff:''+diff)) + '</span></div>';
-  });
-  document.getElementById('diff-tbl').innerHTML = rows ||
-    '<div style="color:var(--muted);font-size:12px;padding:8px 0">尚無掃描資料</div>';
-
   // 異常棧板列表
   var anomalyPallets = pallets.filter(function(p){
     return ['damage','diff','merge','other'].indexOf(p.sStatus) >= 0;
@@ -1774,12 +1689,9 @@ function renderSummary() {
     cw.style.display='none'; cb.disabled=true;
   } else if (op.length > 0) {
     cw.innerHTML='<div class="ae">⚠️ 還有 '+op.length+' 個棧板未封板</div>';
-    cw.style.display='block'; cb.disabled=true; cb.textContent='🔒 關單上車';
-  } else if (hasDiff) {
-    cw.innerHTML='<div class="aw">⚠️ 有差異品項，確認後可強制關單</div>';
-    cw.style.display='block'; cb.disabled=false; cb.textContent='🔒 確認車輛裝滿 關單發車';
+    cw.style.display='block'; cb.disabled=true; cb.textContent='🔒 確認車輛裝滿 關單發車';
   } else {
-    cw.style.display='none'; cb.disabled=false; cb.textContent='🔒 關單上車';
+    cw.style.display='none'; cb.disabled=false; cb.textContent='🔒 確認車輛裝滿 關單發車';
   }
 }
 
@@ -1791,7 +1703,8 @@ async function doClose() {
   try {
     await syncToGoogleSheets();      // 1) 移倉記錄（原始流水）
     await exportWmsToSheet();        // 2) 入庫單（WMS 格式，供行政核對匯出）
-    toast('☁️ 移倉記錄 + 入庫單已上傳，3秒後返回開工頁面');
+    await emailWmsToMailList();      // 3) 【v7.1】入庫單 Email 給發送人員清單
+    toast('☁️ 記錄+入庫單已上傳並寄出，3秒後返回開工頁面');
     setTimeout(resetForNewTrip, 3000);
   } catch (e) {
     toast('⚠️ 同步失敗，請手動按「同步」後再返回', true);
@@ -1947,7 +1860,8 @@ const CONFIG = {
       inventory: "商品清單",
       locations: "儲位清單",
       wms:       "入庫單",
-      receipt:   "收貨狀態"         // 【v7.0】S8 上架驗收結果記錄
+      receipt:   "收貨狀態",        // 【v7.0】S8 上架驗收結果記錄
+      mailList:  "發送人員清單"      // 【v7.1】關單發車後入庫單 Email 收件清單（A欄姓名 / B欄信箱）
     }
   },
 
@@ -2045,6 +1959,45 @@ const Backend = {
     }
     // 純 API key 無法寫入 Sheets（Google 規定寫入需 OAuth），交回本地暫存
     return { ok:false, error:'no_write_endpoint', local:true };
+  },
+
+  // ── 【v7.1】讀取「發送人員清單」分頁 → email 陣列（B欄信箱，跳過表頭）──
+  getMailList: async function() {
+    var r = await Backend.readTab(CONFIG.sheets.tabs.mailList);
+    if (!r.ok || !r.values || r.values.length < 2) return [];
+    var emails = [];
+    r.values.slice(1).forEach(function(row){
+      var email = (row[1] || '').toString().trim();   // B欄 = 信箱
+      if (email && /@/.test(email)) emails.push(email);
+    });
+    return emails;
+  },
+
+  // ── 【v7.1】寄送入庫單 Email（經 Apps Script doPost action:'sendMail'）──
+  //  GAS 端用 MailApp/GmailApp 以部署者帳號(hill7218@gmail.com)寄出，附件為 CSV。
+  sendWmsEmail: async function(recipients, subject, body, csvText, filename) {
+    if (!Backend._has(CONFIG.sheets.webAppUrl)) {
+      return { ok:false, error:'no_webapp', local:true };
+    }
+    if (!recipients || !recipients.length) {
+      return { ok:false, error:'no_recipients' };
+    }
+    try {
+      var res = await fetch(CONFIG.sheets.webAppUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'sendMail',
+          to: recipients.join(','),
+          subject: subject,
+          body: body,
+          csv: csvText,
+          filename: filename
+        })
+      });
+      var j = await res.json().catch(function(){ return { ok: res.ok }; });
+      return { ok: res.ok && j.ok !== false, data:j };
+    } catch (e) { return { ok:false, error:e.message }; }
   },
 
   // ── 讀取分頁 → 二維陣列（含表頭）。Apps Script 優先，否則直連 API（公開表）──
@@ -2673,6 +2626,48 @@ async function writeReceiptToSheet(row) {
   }
 }
 
+/* 【v7.1】關單發車後，將入庫單 CSV 以 Email 發送給「發送人員清單」名單 */
+async function emailWmsToMailList() {
+  var rows = buildWmsRows();
+  if (!rows.length) return { ok:false, reason:'no_rows' };
+
+  // 讀收件清單
+  var recipients = [];
+  try { recipients = await Backend.getMailList(); } catch(e) {}
+  if (!recipients.length) {
+    toast('⚠️ 無發送人員清單，入庫單未寄出（CSV 仍可下載備援）', true);
+    addLog('入庫單 Email 略過', '收件清單為空');
+    return { ok:false, reason:'no_recipients' };
+  }
+
+  var csv = wmsRowsToCsv(rows);
+  var dateStr = new Date().toISOString().slice(0,10);
+  var truck = (ST.truck || 'NA').replace(/[^A-Z0-9]/gi,'');
+  var filename = '入庫單_' + truck + '_' + dateStr + '.csv';
+  var subject = '【ALLY×LOTTE 移倉入庫單】' + truck + ' 趟' + ST.trip + ' · ' + dateStr;
+  var lockedCount = Object.values(ST.pallets).filter(function(p){ return p.status==='locked'; }).length;
+  var totalBox = rows.length;
+  var body = '車號：' + (ST.truck||'—') + '\n' +
+             '走道：' + (ST.aisle||'—') + (ST.overflow ? '+'+ST.overflow : '') + '\n' +
+             '趟次：' + ST.trip + '\n' +
+             '司機：' + (ST.driverName||'—') + '\n' +
+             '封板棧板數：' + lockedCount + ' 板\n' +
+             '入庫單明細列數：' + totalBox + ' 列\n' +
+             '關單時間：' + new Date().toLocaleString('zh-TW') + '\n\n' +
+             '入庫單明細請見附件 CSV。\n（本信由移倉對點系統自動發送）';
+
+  toast('📧 寄送入庫單給 ' + recipients.length + ' 位窗口...', false);
+  var res = await Backend.sendWmsEmail(recipients, subject, body, csv, filename);
+  if (res.ok) {
+    toast('✅ 入庫單已 Email 給 ' + recipients.length + ' 位窗口', false);
+    addLog('入庫單 Email 發送', recipients.length + ' 位 → ' + recipients.join(', '));
+  } else {
+    toast('⚠️ 入庫單 Email 發送失敗（CSV 可下載備援）', true);
+    addLog('入庫單 Email 失敗', res.error || res.reason || '未知');
+  }
+  return res;
+}
+
 /* 純函式：rows → CSV 字串（含表頭，不含 BOM）。便於測試。*/
 function wmsRowsToCsv(rows) {
   var esc = function(v){
@@ -2972,8 +2967,8 @@ function showLocationModal(location, palletId) {
       '<div class="modal-label">✓ 棧板已確認並封板</div>' +
       '<div class="location-code" id="modal-location-code">BA242</div>' +
       '<div class="location-desc">儲位已分配<br>請確保標籤已貼上</div>' +
-      '<div class="action-text">即將轉到下一個棧板...</div>' +
-      '<div class="auto-next" style="font-size:9px;margin-top:8px;">2秒後自動進行</div>' +
+      '<div class="action-text">請掃下一張棧板標籤...</div>' +
+      '<div class="auto-next" style="font-size:9px;margin-top:8px;">1.5秒後返回點驗</div>' +
       '</div>';
     document.body.appendChild(overlay);
   }
@@ -2984,12 +2979,15 @@ function showLocationModal(location, palletId) {
   overlay.classList.add('show');
   addLog('顯示位置 Modal', '棧板 ' + palletId + ' - 位置 ' + location);
 
-  // 2秒後自動關閉並進到下一棧板
+  // 1.5秒後自動關閉並返回 S1 繼續刷讀
   setTimeout(function() {
     overlay.classList.remove('show');
     goNextPallet();
-  }, 2000);
+  }, 1500);
 }
+
+/* 趟次滿載板數（一般 32 板；尾數趟次允許少於 32）*/
+var TRIP_FULL = 32;
 
 function closeLocationModal() {
   var overlay = document.getElementById('location-modal-overlay');
@@ -2999,24 +2997,52 @@ function closeLocationModal() {
 }
 
 function goNextPallet() {
-  // 找到下一個未完成的棧板
-  var pallets = Object.keys(ST.pallets).sort();
-  var currentIdx = pallets.indexOf(ST.curPallet);
+  // 封板後一律返回 S1 點驗頁，清空當前棧板，等待掃下一張預印標籤綁定新棧板
+  ST.curPallet = null;
+  ST.curSKU = null;
+  ST.sealStatus = '';
+  ST._pendingLoc = null;
+  // 收起商品/數量/標籤卡片，回到乾淨掃描狀態
+  ['sku-card','qty-card','psel-card','add-wrap'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  renderPChips();
+  updateBSealBar();
+  updS1Badge();
+  saveST();
+  goS(1);
 
-  if (currentIdx >= 0 && currentIdx < pallets.length - 1) {
-    // 有下一個棧板
-    var nextPallet = pallets[currentIdx + 1];
-    ST.curPallet = nextPallet;
-    goS(1); // 回到S1掃描下一棧板
-    // 回到S1继续扫描
-    toast('➡️ 已進到下一個棧板: ' + nextPallet, false);
-    addLog('自動進到下一棧板', nextPallet);
+  // 統計已封板數，達滿載時跳出「車輛裝滿」提醒
+  var lockedCount = Object.values(ST.pallets).filter(function(p){ return p.status === 'locked'; }).length;
+  if (lockedCount >= TRIP_FULL) {
+    showTripFullModal(lockedCount);
+    addLog('趟次滿載提醒', lockedCount + ' 板已封板');
   } else {
-    // 所有棧板都完成
-    goS(4); // 轉到S4摘要
-    toast('✅ 所有棧板已完成！進到摘要檢查', false);
-    addLog('所有棧板完成', '已轉到S4摘要');
+    toast('✅ 已封板 ' + lockedCount + '/' + TRIP_FULL + ' 板，請掃下一張標籤', false);
   }
+}
+
+/* 滿載提醒：提示操作員點右下角「彙總」執行關單發車 */
+function showTripFullModal(lockedCount) {
+  var overlay = document.getElementById('tripfull-modal-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'tripfull-modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = '<div class="location-modal" style="border-color:var(--green);">' +
+      '<div class="success-icon">🚛</div>' +
+      '<div class="modal-label" style="color:var(--green);">車輛已裝滿 ' + lockedCount + ' 板</div>' +
+      '<div class="location-desc" style="margin-top:12px;line-height:1.9;">本趟已達 <strong style="color:var(--gold);">' + TRIP_FULL + '</strong> 板<br>請點右下角 <strong style="color:var(--green);">📊 彙總</strong><br>執行關單發車</div>' +
+      '<button class="btn btn-g" style="margin-top:20px;" onclick="document.getElementById(\'tripfull-modal-overlay\').classList.remove(\'show\'); goS(4);">前往彙總關單 →</button>' +
+      '<div class="auto-next" style="font-size:9px;margin-top:10px;">或繼續刷讀（尾數趟次可超出）</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+  } else {
+    var label = overlay.querySelector('.modal-label');
+    if (label) label.textContent = '車輛已裝滿 ' + lockedCount + ' 板';
+  }
+  overlay.classList.add('show');
 }
 
 /* ══ CONFIRM & SEAL PALLET - v6 UX WORKFLOW ══ */
@@ -3109,22 +3135,22 @@ function confirmAndSealPallet() {
 }
 
 
-/* ══ v6.2 DEBUG & TEST ══ */
+/* ══ v7.1 DEBUG & TEST ══ */
 function testWorkflow() {
-  console.log("%c【ALLY LOTTE v6.2 工作流检查】", "color: #00C896; font-size: 14px; font-weight: bold;");
+  console.log("%c【ALLY LOTTE v7.1 工作流检查】", "color: #00C896; font-size: 14px; font-weight: bold;");
+  console.log("✅ 工作流模式:", ST.workflow, "(預設 fast)");
   console.log("✅ 当前棧板:", ST.curPallet);
-  console.log("✅ 确认按钮:", document.getElementById("confirm-seal-btn"));
-  console.log("✅ Modal 容器:", document.getElementById("location-modal-overlay"));
+  console.log("✅ 已封板數:", Object.values(ST.pallets).filter(function(p){return p.status==='locked';}).length, "/", TRIP_FULL);
   console.log("");
   console.log("%c📋 测试步骤:", "color: #FFD700");
-  console.log("1. 掃描棧板 → 進到S1");
-  console.log("2. 點擊示範按鈕選擇商品");
-  console.log("3. 進到S3對點");
-  console.log("4. 點「✅ 確認對點並封板」看位置Modal");
-  console.log("5. 2秒後應自動回到S1");
+  console.log("1. 開工 → 直接進 S1 點驗（快速模式）");
+  console.log("2. 掃 EAN → 掃棧板標籤 → 加入棧板");
+  console.log("3. 點「🔒 封此板」→ 看位置 Modal");
+  console.log("4. 1.5秒後返回 S1 繼續刷讀；第32板跳滿載提醒");
+  console.log("5. 點右下角彙總 → 關單發車 → 入庫單 Email 寄出");
 }
 
-console.log("%c✅ ALLY LOTTE v6.2 已加載！在控制台執行: testWorkflow()", "color: #00C896; font-size: 13px; font-weight: bold;");
+console.log("%c✅ ALLY LOTTE v7.1 已加載！在控制台執行: testWorkflow()", "color: #00C896; font-size: 13px; font-weight: bold;");
 
 /* ══ BOOT ══ */
 restoreST();   // 還原上次未關單的作業（防 PDA 重整/閃退丟失）
