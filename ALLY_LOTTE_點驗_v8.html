@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>樂天移倉點驗系統 v8</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0D1B3E;
+      color: #fff;
+      padding: 8px;
+      overflow-x: hidden;
+    }
+    .container { max-width: 100%; margin: 0 auto; }
+
+    /* SCREENS */
+    .screen { display: none; padding: 12px; border-radius: 8px; background: #1a2a52; min-height: 90vh; }
+    .screen.active { display: flex; flex-direction: column; }
+
+    /* S0: 輸入車號 */
+    #s0 {
+      justify-content: center;
+      gap: 20px;
+    }
+    .s0-title { text-align: center; font-size: 28px; font-weight: 700; color: #4dd0e1; }
+    .s0-input {
+      padding: 16px;
+      font-size: 18px;
+      border: 2px solid #4dd0e1;
+      border-radius: 6px;
+      background: #0D1B3E;
+      color: #fff;
+      text-align: center;
+    }
+    .s0-btn {
+      padding: 16px;
+      font-size: 16px;
+      background: #4dd0e1;
+      color: #0D1B3E;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .s0-btn:hover { background: #80deea; transform: scale(1.02); }
+
+    /* S1: 掃商品 */
+    #s1 {
+      flex-direction: column;
+      gap: 12px;
+    }
+    .s1-header {
+      font-size: 14px;
+      color: #aaa;
+      padding: 8px;
+      border-bottom: 1px solid #444;
+    }
+    .s1-scanner {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      background: #0a1428;
+      border-radius: 6px;
+      border: 2px solid #4dd0e1;
+    }
+    .s1-label { font-size: 12px; color: #aaa; }
+    .s1-input {
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #444;
+      background: #0D1B3E;
+      color: #fff;
+      border-radius: 4px;
+    }
+    .s1-display {
+      padding: 12px;
+      background: #1a3a3a;
+      border-radius: 6px;
+      border-left: 4px solid #4dd0e1;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .s1-qty-control {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .s1-qty-input {
+      flex: 1;
+      padding: 10px;
+      font-size: 18px;
+      border: 1px solid #4dd0e1;
+      background: #0D1B3E;
+      color: #4dd0e1;
+      border-radius: 4px;
+      text-align: center;
+      font-weight: 700;
+    }
+    .s1-unit-toggle {
+      padding: 10px 12px;
+      background: #4dd0e1;
+      color: #0D1B3E;
+      border: none;
+      border-radius: 4px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .s1-btn-confirm {
+      padding: 14px;
+      font-size: 16px;
+      background: #66bb6a;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .s1-btn-confirm:hover { background: #81c784; }
+
+    /* S3: 預印儲位 + 封板 */
+    #s3 {
+      justify-content: space-between;
+      flex-direction: column;
+    }
+    .s3-display {
+      padding: 16px;
+      background: #1a3a3a;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .s3-location-box {
+      padding: 20px;
+      background: #0a1428;
+      border: 3px solid #ffb300;
+      border-radius: 8px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .s3-location-label { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+    .s3-location-value {
+      font-size: 48px;
+      font-weight: 700;
+      color: #ffb300;
+      font-family: "Courier New", monospace;
+    }
+    .s3-btn-seal {
+      padding: 16px;
+      font-size: 18px;
+      background: #ff9800;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .s3-btn-seal:hover { background: #ffb74d; transform: scale(1.02); }
+
+    /* PHOTO GRID (32格) */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .photo-slot {
+      aspect-ratio: 1;
+      border: 2px solid #444;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a1428;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+      color: #aaa;
+    }
+    .photo-slot:hover { border-color: #4dd0e1; background: #0d2f3f; }
+    .photo-slot.filled {
+      background-size: cover;
+      background-position: center;
+      border-color: #4dd0e1;
+    }
+    .photo-slot.filled::after {
+      content: "✓";
+      font-size: 20px;
+      color: #4dd0e1;
+      font-weight: 700;
+    }
+
+    /* CONTROLS */
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-small {
+      padding: 8px 12px;
+      font-size: 12px;
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      flex: 1;
+      min-width: 80px;
+    }
+    .btn-small:hover { background: #666; }
+    .btn-close {
+      background: #d32f2f;
+    }
+    .btn-close:hover { background: #f44336; }
+
+    /* STATUS */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      padding: 12px 16px;
+      background: #2e7d32;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 13px;
+      z-index: 999;
+      animation: slideUp 0.3s ease-out;
+    }
+    .toast.error { background: #d32f2f; }
+    @keyframes slideUp {
+      from { transform: translateY(120px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- S0: 輸入車號 -->
+  <div id="s0" class="screen active">
+    <div class="s0-title">🚚 輸入車號</div>
+    <input id="truckInput" class="s0-input" type="text" placeholder="例：BBB-2262" autofocus>
+    <button class="s0-btn" onclick="startTrip()">開始點驗</button>
+  </div>
+
+  <!-- S1: 掃商品 -->
+  <div id="s1" class="screen">
+    <div class="s1-header">當前車次：<span id="s1-truck"></span> | 板號：<span id="s1-board"></span>/<span id="s1-total"></span></div>
+
+    <div class="s1-scanner">
+      <div class="s1-label">步驟 1：掃商品條碼 (SKU)</div>
+      <input id="skuInput" class="s1-input" type="text" placeholder="掃描商品 SKU..." autofocus>
+
+      <div class="s1-display" id="s1-display">
+        待掃描...
+      </div>
+
+      <div class="s1-label">步驟 2：輸入該板數量</div>
+      <div class="s1-qty-control">
+        <input id="qtyInput" class="s1-qty-input" type="number" placeholder="數量" value="1">
+        <button class="s1-unit-toggle" id="unitToggle" onclick="toggleUnit()">箱</button>
+      </div>
+
+      <div class="s1-label">步驟 3：掃棧板標籤 (來源單號)</div>
+      <input id="sourceIdInput" class="s1-input" type="text" placeholder="掃描入庫單條碼...">
+
+      <button class="s1-btn-confirm" onclick="confirmScan()">✓ 確認點驗 → 封板</button>
+    </div>
+
+    <div class="controls">
+      <button class="btn-small" onclick="goToPhoto()">📷 拍照記錄</button>
+      <button class="btn-small btn-close" onclick="backToTruck()">返回輸入車號</button>
+    </div>
+  </div>
+
+  <!-- S3: 預印儲位 + 封板 -->
+  <div id="s3" class="screen">
+    <div class="s3-display" id="s3-display"></div>
+
+    <div class="s3-location-box">
+      <div class="s3-location-label">預印儲位</div>
+      <div class="s3-location-value" id="s3-location">—</div>
+    </div>
+
+    <button class="s3-btn-seal" onclick="sealPallet()">✓ 確認封板 → 下一板</button>
+
+    <div class="controls">
+      <button class="btn-small" onclick="goToPhoto()">📷 拍照記錄</button>
+      <button class="btn-small btn-close" onclick="closeShift()">結束點驗（關單）</button>
+    </div>
+  </div>
+
+  <!-- 拍照頁面 -->
+  <div id="photo-screen" class="screen">
+    <div class="s1-header">📷 點驗照片記錄 (32 格)</div>
+    <div class="photo-grid" id="photoGrid"></div>
+    <div class="controls">
+      <button class="btn-small" onclick="clearPhotos()">🗑️ 清空所有</button>
+      <button class="btn-small btn-close" onclick="backToS1()">返回點驗</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// 內建 6/22 移倉數據（來自 OMS）
+// ═══════════════════════════════════════════════════════════
+const PALLETS_6_22 = {
+  "空調'6/22-1": [
+    { sku: "BK9275", name: "LOTTE Pepero 杏仁巧克力", qty: 3200, loc: "C05A0194-0", sourceId: "LOTTE-20260618-空調-1-001" },
+    { sku: "BK9275", name: "LOTTE Pepero 杏仁巧克力", qty: 3200, loc: "C05A0214-0", sourceId: "LOTTE-20260618-空調-1-002" },
+    // ... (實際會有 54-187 筆)
+  ],
+  "6/22-1": [
+    { sku: "BK9275", name: "LOTTE Pepero 杏仁巧克力", qty: 3200, loc: "BA001", sourceId: "LOTTE-20260618-常溫-1-001" },
+    // ... (實際會有更多筆)
+  ]
+};
+
+// STATE
+let ST = {
+  truck: '',
+  trip: '',
+  currentBoard: 0,
+  currentPallet: null,
+  pallets: [],
+  photos: [],
+  qtyUnit: 'box'  // 'box' or 'pcs'
+};
+
+// ═══════════════════════════════════════════════════════════
+// 畫面切換
+// ═══════════════════════════════════════════════════════════
+function switchScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  setTimeout(() => { t.textContent = ''; }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════
+// S0: 開始點驗
+// ═══════════════════════════════════════════════════════════
+function startTrip() {
+  const truck = document.getElementById('truckInput').value.trim();
+  if (!truck) { showToast('❌ 請輸入車號', true); return; }
+
+  ST.truck = truck;
+  // 根據車號推斷車趟（簡化版：從 PALLETS_6_22 的 key 中找含該車號的）
+  const tripKey = Object.keys(PALLETS_6_22).find(k => k.includes('6/22'));
+  if (!tripKey) { showToast('❌ 找不到該車次的商品清單', true); return; }
+
+  ST.trip = tripKey;
+  ST.pallets = PALLETS_6_22[tripKey] || [];
+  ST.currentBoard = 0;
+  ST.photos = [];
+
+  if (!ST.pallets.length) { showToast('❌ 該車次無商品', true); return; }
+
+  // 移到 S1
+  document.getElementById('s1-truck').textContent = ST.truck;
+  document.getElementById('s1-total').textContent = ST.pallets.length;
+
+  loadNextBoard();
+  switchScreen('s1');
+  document.getElementById('skuInput').focus();
+}
+
+// ═══════════════════════════════════════════════════════════
+// S1: 掃商品、確認點驗
+// ═══════════════════════════════════════════════════════════
+function loadNextBoard() {
+  if (ST.currentBoard >= ST.pallets.length) {
+    showToast('✅ 所有棧板已點驗完成！', false);
+    switchScreen('s0');
+    return;
+  }
+
+  ST.currentPallet = { ...ST.pallets[ST.currentBoard] };
+  ST.currentBoard++;
+
+  document.getElementById('s1-board').textContent = ST.currentBoard;
+  document.getElementById('skuInput').value = '';
+  document.getElementById('qtyInput').value = '';
+  document.getElementById('sourceIdInput').value = '';
+  document.getElementById('s1-display').innerHTML = '待掃描...';
+
+  showToast(`📋 棧板 ${ST.currentBoard}/${ST.pallets.length} 準備就緒`, false);
+  document.getElementById('skuInput').focus();
+}
+
+function toggleUnit() {
+  ST.qtyUnit = ST.qtyUnit === 'box' ? 'pcs' : 'box';
+  document.getElementById('unitToggle').textContent = ST.qtyUnit === 'box' ? '箱' : '盒';
+}
+
+function confirmScan() {
+  const sku = document.getElementById('skuInput').value.trim();
+  const qty = parseInt(document.getElementById('qtyInput').value) || 0;
+  const sourceId = document.getElementById('sourceIdInput').value.trim();
+
+  if (!sku || !qty || !sourceId) {
+    showToast('❌ 請輸入完整資訊（SKU、數量、來源單號）', true);
+    return;
+  }
+
+  if (sku !== ST.currentPallet.sku) {
+    showToast(`❌ SKU 不符\n期望: ${ST.currentPallet.sku}\n掃描: ${sku}`, true);
+    return;
+  }
+
+  // 記錄該板
+  ST.currentPallet.scannedQty = qty;
+  ST.currentPallet.scannedUnit = ST.qtyUnit;
+  ST.currentPallet.sourceId = sourceId;
+
+  // 移到 S3 確認儲位
+  displayS3Summary();
+  switchScreen('s3');
+}
+
+// ═══════════════════════════════════════════════════════════
+// S3: 預印儲位 + 封板
+// ═══════════════════════════════════════════════════════════
+function displayS3Summary() {
+  const p = ST.currentPallet;
+  document.getElementById('s3-display').innerHTML = `
+    <div>品號: <strong>${p.sku}</strong></div>
+    <div>品名: ${p.name}</div>
+    <div>數量: <strong>${p.scannedQty} ${p.scannedUnit === 'box' ? '箱' : '盒'}</strong></div>
+    <div>來源單號: ${p.sourceId}</div>
+  `;
+  document.getElementById('s3-location').textContent = p.loc || '—';
+}
+
+function sealPallet() {
+  showToast(`✅ 棧板 ${ST.currentBoard} 已封板`, false);
+
+  // 記錄 log（後續上傳 Sheet）
+  const logEntry = {
+    timestamp: new Date().toLocaleString('zh-TW'),
+    truck: ST.truck,
+    trip: ST.trip,
+    board: ST.currentBoard,
+    sku: ST.currentPallet.sku,
+    qty: ST.currentPallet.scannedQty,
+    unit: ST.currentPallet.scannedUnit,
+    loc: ST.currentPallet.loc,
+    sourceId: ST.currentPallet.sourceId
+  };
+  console.log('LOG:', logEntry);
+
+  // 下一板
+  loadNextBoard();
+  switchScreen('s1');
+}
+
+// ═══════════════════════════════════════════════════════════
+// 拍照功能 (32 格)
+// ═══════════════════════════════════════════════════════════
+function goToPhoto() {
+  buildPhotoGrid();
+  switchScreen('photo-screen');
+}
+
+function buildPhotoGrid() {
+  const grid = document.getElementById('photoGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 32; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'photo-slot';
+    if (ST.photos[i]) {
+      slot.style.backgroundImage = `url(${ST.photos[i]})`;
+      slot.classList.add('filled');
+    }
+    slot.innerHTML = `<span>${i+1}</span>`;
+    slot.onclick = () => capturePhoto(i);
+    grid.appendChild(slot);
+  }
+}
+
+function capturePhoto(index) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      ST.photos[index] = ev.target.result;
+      buildPhotoGrid();
+      showToast(`✓ 格子 ${index+1} 已拍照`, false);
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function clearPhotos() {
+  ST.photos = [];
+  buildPhotoGrid();
+  showToast('🗑️ 已清空所有照片', false);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 返回 & 關單
+// ═══════════════════════════════════════════════════════════
+function backToS1() {
+  switchScreen('s1');
+}
+
+function backToTruck() {
+  ST = { truck: '', trip: '', currentBoard: 0, pallets: [], photos: [], qtyUnit: 'box' };
+  document.getElementById('truckInput').value = '';
+  switchScreen('s0');
+  document.getElementById('truckInput').focus();
+}
+
+function closeShift() {
+  if (confirm(`✓ 確認結束點驗？\n已點驗 ${ST.currentBoard - 1} 板，${ST.photos.length} 張照片`)) {
+    showToast('✅ 點驗數據已記錄，可關單', false);
+    setTimeout(() => backToTruck(), 1500);
+  }
+}
+
+// 初始化
+window.addEventListener('load', () => {
+  document.getElementById('truckInput').focus();
+});
+</script>
+
+</body>
+</html>
