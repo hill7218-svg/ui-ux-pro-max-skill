@@ -12,8 +12,8 @@
 
 | 代號 | 實體 | 檔案 |
 |------|------|------|
-| 工具① 列印器 | QR 板標列印器（office） | `ALLY_LOTTE_QR_PRINTER_v6.9.html` |
-| 工具② APP | 移倉對點 APP（PDA/WebView） | `ALLY_LOTTE_WAREHOUSE_v6.9.html` |
+| 工具① 列印器 | QR 板標列印器（office） | `ALLY_LOTTE_QR_PRINTER_v7.0.html` |
+| 工具② APP | 移倉對點 APP（PDA/WebView） | `ALLY_LOTTE_WAREHOUSE_v7.0.html` |
 | 來源單號 | `ALLY-{YYYYMMDD}-{A|B}-{trip1-3}-{board3碼}` | 兩工具共同契約 |
 
 **車型 A/B 與工作流 A/B 撞名**正是本次改名的根因：來源單號裡的 `A|B` 是「車型/批次」（趟 1-3=A 車、趟 4-6=B 車，見 `genSourceId` L1274），而 UI 的「工作流 A/B」是「核查 vs 快速封板」（`setWorkflow` L1120）。兩者語意不同卻共用字母，現場與程式都易誤判。
@@ -235,24 +235,24 @@ S8 查單成功（s8QueryBoard L2139，已實作）
 
 > 每項標注檔案與下刀位置。建議分 PR：印標器、APP 上架、改名、收尾各一支，便於交叉驗證。
 
-**P1 — 工具① 雙條碼貼紙（印標器）** `ALLY_LOTTE_QR_PRINTER_v6.9.html`
+**P1 — 工具① 雙條碼貼紙（印標器）** `ALLY_LOTTE_QR_PRINTER_v7.0.html`
 1. `<head>` L9 旁新增 JsBarcode CDN script。
 2. `generateStickers()` sticker innerHTML L522-535：在 `.sticker-location`（L530）`sticker-loc-value` 後加 `<svg id="locbar-${i}">`。
 3. QR 迴圈 L539-550 內新增 `JsBarcode('#locbar-'+i, suggestedLoc, {format:'CODE128',...})`；`suggestedLoc==='—'`（L518）時跳過。
 4. 微調 `.sticker-qr` L164 尺寸，確認 10×10 雙碼 + 文字不溢出、列印 `page-break-inside:avoid`（L124）正常。
 
-**P2 — 工具② S8 上架刷碼** `ALLY_LOTTE_WAREHOUSE_v6.9.html`
+**P2 — 工具② S8 上架刷碼** `ALLY_LOTTE_WAREHOUSE_v7.0.html`
 5. S8 UI L857 `s8-result-card` 內，於「確認驗收+上架」按鈕（L861）前新增「刷儲位條碼」輸入框 + 比對結果列。
 6. 新增 `s8ScanLocation()`：讀儲位框 → 比對 `s8` 查回的最終儲位 → 軟驗證（綠/黃/紅，見 §3.2）。
 7. 改寫 `s8ConfirmReceiving()` L2213：要求先刷儲位通過才能確認；回寫「收貨狀態」分頁（§3.5 欄位）。
 8. `s8QueryBoard` L2139：把 Sheet「最終儲位」欄一併讀出（目前只讀到 warehouseCol=18，需確認入庫單最終儲位欄索引）供比對。
 
-**P3 — assignLoc 預配優先（做法甲）** `ALLY_LOTTE_WAREHOUSE_v6.9.html`
+**P3 — assignLoc 預配優先（做法甲）** `ALLY_LOTTE_WAREHOUSE_v7.0.html`
 9. `scanPalletLabel()` L1317 新建棧板物件加 `suggestedLoc`（由貼紙第二碼/Sheet 帶入；現場若用掃儲位框可先留空）。
 10. `confirmAndSealPallet` L2775 改 `pallet.loc || pallet.suggestedLoc || ST._pendingLoc || assignLoc()`。
 11. `assignLoc` L1453 保留為 fallback，加註解「僅在無預配儲位時觸發」。
 
-**P4 — 工作流改名** `ALLY_LOTTE_WAREHOUSE_v6.9.html`
+**P4 — 工作流改名** `ALLY_LOTTE_WAREHOUSE_v7.0.html`
 12. 依第 5 節清單逐點改（L533/534/537 文案、L1120-1136 判斷、L1142/L1162/L1135、預設值）。
 13. 全檔 grep `workflow` 與 `'A'`/`'B'` 確認車型那組（genSourceId/scanPalletLabel regex/buildWmsRows）未被誤改。
 
