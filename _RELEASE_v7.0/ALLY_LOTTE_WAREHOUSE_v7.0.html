@@ -1532,11 +1532,16 @@ function assignLoc(forceIsolation) {
   }
   var a = ST.aisle;
   var pool = LOC_POOLS[a] || [];
+  // 【H1 防撞位】收集已被「貼紙預配位 / 已封板位」占用的儲位，兜底分配時跳過，
+  //  避免「部分板用貼紙預配(pool[板#-1])、部分板走自動分配(pool[locIdx++])」混用時撞同一格。
+  var used = preallocUsedSet();
   var idx = ST.locIdx[a] || 0;
+  while (idx < pool.length && used[pool[idx]]) { idx++; }   // 跳過已占槽位
   if (idx >= pool.length) {
     if (ST.overflow && ST.overflow !== a) {
       var op = LOC_POOLS[ST.overflow] || [];
       var oi = ST.locIdx[ST.overflow] || 0;
+      while (oi < op.length && used[op[oi]]) { oi++; }
       if (oi < op.length) {
         ST.locIdx[ST.overflow] = oi + 1;
         // 寫入純儲位碼（不加「(溢)」後綴），確保 S8 掃條碼比對得中、Code128 可生成；
@@ -1550,6 +1555,17 @@ function assignLoc(forceIsolation) {
   var loc = pool[idx];
   ST.locIdx[a] = idx + 1;
   return loc;
+}
+
+/* 【H1 防撞位】回傳目前已被占用的儲位集合：所有棧板的最終位(loc) + 開啟中棧板的貼紙預配位(suggestedLoc)。
+   供 assignLoc 兜底分配時跳過，確保預配位與自動分配位不撞格。 */
+function preallocUsedSet() {
+  var used = {};
+  Object.values(ST.pallets).forEach(function(p){
+    if (p.loc) used[p.loc] = true;
+    if (p.suggestedLoc) used[p.suggestedLoc] = true;
+  });
+  return used;
 }
 
 function openSeal(pid) {
