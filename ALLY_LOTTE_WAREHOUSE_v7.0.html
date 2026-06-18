@@ -1351,13 +1351,18 @@ function scanPalletLabel() {
     return;
   }
 
+  // 【H1】貼紙預配儲位：依板號從「儲位清單」Sheet(LOC_POOLS)推算建議位，
+  // 與列印器同序對齊（板 N → 該走道 pool 第 N 個），免掃儲位碼即與貼紙一致。
+  // 封板時 confirmAndSealPallet 會優先採用此 suggestedLoc。
+  var preLoc = lookupPreallocLoc(sourceId);
+
   // Create new pallet with scanned source ID
   ST.pallets[sourceId] = {
     id: sourceId,
     items: [],
     status: 'open',
     loc: '',
-    suggestedLoc: '',
+    suggestedLoc: preLoc,
     sStatus: '',
     reason: ''
   };
@@ -1367,7 +1372,20 @@ function scanPalletLabel() {
   updateBSealBar();
   document.getElementById('pallet-label-in').value = '';
   document.getElementById('ean-in').focus();
-  toast('✓ 新建棧板 ' + sourceId);
+  toast('✓ 新建棧板 ' + sourceId + (preLoc ? ' · 預配 ' + preLoc : ''));
+}
+
+/* 【H1】依來源單號板號，從當前走道的「儲位清單」pool 推算貼紙預配位。
+   與列印器 generateStickers 的逐板配發同序（板 N → pool[N-1]），
+   讓「貼紙建議儲位 = 入庫單最終儲位」成立，無須現場掃儲位碼。
+   pool 不足或板號超出時回 '' → 封板自動落到 assignLoc 兜底。 */
+function lookupPreallocLoc(sourceId) {
+  var m = /-(\d{3})$/.exec(sourceId || '');
+  if (!m) return '';
+  var boardNum = parseInt(m[1], 10);
+  if (!boardNum || boardNum < 1) return '';
+  var pool = LOC_POOLS[ST.aisle] || [];
+  return pool[boardNum - 1] || '';
 }
 
 /* 刷儲位功能已移除：最終儲位改由貼紙預配（suggestedLoc 仍可由標籤帶入）或封板自動分配。
@@ -1521,7 +1539,9 @@ function assignLoc(forceIsolation) {
       var oi = ST.locIdx[ST.overflow] || 0;
       if (oi < op.length) {
         ST.locIdx[ST.overflow] = oi + 1;
-        return op[oi] + '(溢)';
+        // 寫入純儲位碼（不加「(溢)」後綴），確保 S8 掃條碼比對得中、Code128 可生成；
+        // 溢位與否由 loc 前綴走道（ST.overflow）即可判讀，無須污染儲位值
+        return op[oi];
       }
     }
     toast('走道已無空格！', true);
@@ -1696,19 +1716,45 @@ function renderSummary() {
 }
 
 async function doClose() {
-  if (!window.confirm('確定關單？車輛裝滿，即將同步資料、產生入庫單並重置系統。')) return;
+  if (!window.confirm('確定關單？車輛裝滿，即將同步資料、產生入庫單並寄出。')) return;
   ST.closed = true;
   renderSummary();
   toast('✅ 已關單，正在同步資料...');
+
+  // 【H4】關單前先把操作日誌批次 flush 到「操作記錄」分頁
+  try { await flushLogToSheet(); } catch (e) {}
+
+  // 【H3】關單失敗保護：核心同步（移倉記錄 + 入庫單）任一失敗 → 不重置、保留資料停在 S4 讓操作員重試。
+  //  只有 demo 模式或兩者皆成功才允許重置，避免網路斷時整趟資料蒸發。
+  var syncRes = { ok:false }, wmsRes = { ok:false }, demo = false;
   try {
-    await syncToGoogleSheets();      // 1) 移倉記錄（原始流水）
-    await exportWmsToSheet();        // 2) 入庫單（WMS 格式，供行政核對匯出）
-    await emailWmsToMailList();      // 3) 【v7.1】入庫單 Email 給發送人員清單
-    toast('☁️ 記錄+入庫單已上傳並寄出，3秒後返回開工頁面');
-    setTimeout(resetForNewTrip, 3000);
+    syncRes = (await syncToGoogleSheets()) || { ok:false };   // 1) 移倉記錄
+    if (syncRes.demo) demo = true;
+    wmsRes  = (await exportWmsToSheet()) || { ok:false };      // 2) 入庫單
+    if (wmsRes.local) demo = true;
+    await emailWmsToMailList();                                // 3) 入庫單 Email（失敗不阻斷）
   } catch (e) {
-    toast('⚠️ 同步失敗，請手動按「同步」後再返回', true);
-    setTimeout(resetForNewTrip, 5000);
+    addLog('關單同步異常', e.message || '未知');
+  }
+
+  var allOk = demo || (syncRes.ok && wmsRes.ok);
+  if (allOk) {
+    toast('☁️ 記錄+入庫單已上傳並寄出，3秒後返回開工頁面');
+    saveST();
+    setTimeout(resetForNewTrip, 3000);
+  } else {
+    // 失敗：把待補資料寫入 localStorage（防重整蒸發），停在 S4 不重置
+    ST.closed = false;  // 解除關單鎖，允許重按
+    try {
+      localStorage.setItem('_pendingClose', JSON.stringify({
+        ts: Date.now(), truck: ST.truck, trip: ST.trip,
+        wms: window._pendingWms || [], sync: window._pendingSync || []
+      }));
+    } catch(e) {}
+    saveST();
+    renderSummary();
+    toast('⚠️ 上傳未完成，資料已保留。請確認網路後再按「關單發車」重試', true);
+    addLog('關單未完成', '同步=' + syncRes.ok + ' 入庫單=' + wmsRes.ok + '，資料保留待重試');
   }
 }
 
@@ -1722,7 +1768,9 @@ function resetForNewTrip() {
   TRUCK_DRIVER = savedTruckDriver;
   AISLES.forEach(function(a){ ST.locIdx[a]=0; });
   try { localStorage.removeItem('_ST'); } catch(e) {}  // 關單後清除暫存，新趟不殘留
+  try { localStorage.removeItem('_pendingClose'); } catch(e) {}  // 清除關單待補快取
   s8_received = {};  // 新趟重置已上架記錄
+  operationLog = []; _logFlushed = 0;  // 【H4】新趟重置日誌與 flush 指標
   rebuildWarehouseDropdown();
   // Reset S0 UI
   document.getElementById('truck-sel').value = '';
@@ -1861,7 +1909,8 @@ const CONFIG = {
       locations: "儲位清單",
       wms:       "入庫單",
       receipt:   "收貨狀態",        // 【v7.0】S8 上架驗收結果記錄
-      mailList:  "發送人員清單"      // 【v7.1】關單發車後入庫單 Email 收件清單（A欄姓名 / B欄信箱）
+      mailList:  "發送人員清單",     // 【v7.1】關單發車後入庫單 Email 收件清單（A欄姓名 / B欄信箱）
+      opLog:     "操作記錄"          // 【v7.1 H4】操作日誌批次上傳分頁（封板/關單時 flush）
     }
   },
 
@@ -1992,7 +2041,8 @@ const Backend = {
           subject: subject,
           body: body,
           csv: csvText,
-          filename: filename
+          filename: filename,
+          format: 'xlsx'   // 【v7.1】請 GAS 將 CSV 轉原生 .xlsx 附件（零亂碼、多欄位）
         })
       });
       var j = await res.json().catch(function(){ return { ok: res.ok }; });
@@ -2113,6 +2163,26 @@ function addLog(action, details) {
   operationLog.push(logEntry);
   renderLogPanel();
   return logEntry;
+}
+
+/* 【H4】批次上傳操作日誌 → Sheet「操作記錄」分頁。
+   只上傳尚未 flush 的新增段（_logFlushed 指標），避免重複。封板/關單時呼叫。
+   分頁欄位：時間戳 | 車號 | 趟次 | 動作 | 明細 | 棧板數 | 已掃箱數
+   失敗不丟資料：保留指標下次重送；demo/未串接時略過。 */
+var _logFlushed = 0;
+async function flushLogToSheet() {
+  if (_logFlushed >= operationLog.length) return { ok:true, sent:0 };
+  if (Backend.mode !== 'live' || !Backend.sheetsReady) return { ok:false, demo:true };
+  var pending = operationLog.slice(_logFlushed);
+  var rows = pending.map(function(e){
+    return [ e.timestamp, ST.truck || '', ST.trip || '', e.action || '',
+             e.details || '', e.palletCount || 0, e.scannedItems || 0 ];
+  });
+  try {
+    var res = await Backend.appendRows(CONFIG.sheets.tabs.opLog, rows);
+    if (res.ok) { _logFlushed = operationLog.length; return { ok:true, sent:rows.length }; }
+    return { ok:false };   // 失敗：保留 _logFlushed，下次重送
+  } catch(e) { return { ok:false, error:e.message }; }
 }
 
 function initClosedTrips() {
@@ -2304,7 +2374,32 @@ async function s8QueryBoard() {
   document.getElementById('s8-location-result').innerHTML = '';
   s8_scannedLoc = null;
 
+  // 【M2】跨裝置去重：查「收貨狀態」Sheet，若此來源單號已上架過 → 警示（記憶體去重的補強）
+  checkAlreadyReceived(input);
+
   addLog('S8 棧板查詢', '來源單號=' + input + ' | 品項數=' + s8_items.length);
+}
+
+/* 【M2】讀「收貨狀態」分頁，檢查來源單號是否已上架（跨裝置/重整後記憶體 s8_received 會失效）。
+   命中 → 回填 s8_received 並在 UI 警示。col2=來源單號、col5=實際儲位（對齊 receiptRow 結構）。 */
+async function checkAlreadyReceived(sourceId) {
+  if (Backend.mode !== 'live' || !Backend.sheetsReady) return;
+  try {
+    var r = await Backend.readTab(CONFIG.sheets.tabs.receipt);
+    if (!r.ok || !r.values || r.values.length < 2) return;
+    var hit = r.values.slice(1).find(function(row){ return (row[2]||'') === sourceId; });
+    if (hit) {
+      var prevLoc = hit[5] || hit[4] || '?';
+      s8_received[sourceId] = prevLoc;   // 回填記憶體去重
+      var msg = document.getElementById('s8-message');
+      if (msg && s8_currentSourceId === sourceId) {
+        msg.innerHTML = '⛔ 此板先前已上架於 ' + prevLoc + '（收貨狀態已有記錄）';
+        msg.style.color = '#FF8080';
+      }
+      var btn = document.getElementById('s8-confirm-btn');
+      if (btn) btn.disabled = true;
+    }
+  } catch(e) { /* 查重失敗不阻斷正常上架流程 */ }
 }
 
 function s8ConfirmReceiving() {
@@ -2405,28 +2500,34 @@ function s8ScanLocation() {
   var compareResult = '';
   var confirmBtn = document.getElementById('s8-confirm-btn');
 
-  if (scannedLoc === expectedLoc) {
+  // 【M2】儲位格式有效性：標準儲位（2字母+數字，如 BA012 / BA-001-02）或 QA-HOLD 隔離位。
+  // 無效格式 → 紅燈，要求改刷（此分支先於綠/黃判斷，紅燈才真正可達）。
+  var validLoc = /^[A-Z]{2}[-0-9]/i.test(scannedLoc) || /QA-?HOLD/i.test(scannedLoc);
+  if (!validLoc) {
+    compareResult = '❌ 儲位格式無效（' + scannedLoc + '），請改刷正確儲位條碼';
+    resultDiv.style.color = 'var(--red)';
+    if (confirmBtn) confirmBtn.disabled = true;
+    resultDiv.innerHTML = compareResult;
+    s8_scannedLoc = null;
+    document.getElementById('s8-location-input').value = '';
+    return;
+  }
+
+  if (expectedLoc === '—') {
+    // 無預期儲位，接受實刷值（綠燈）
+    compareResult = '✓ 儲位 ' + scannedLoc + ' (無預配參考)';
+    resultDiv.style.color = 'var(--green)';
+    if (confirmBtn) confirmBtn.disabled = false;
+  } else if (scannedLoc === expectedLoc) {
     // 綠燈：儲位一致
     compareResult = '✅ 儲位一致（' + expectedLoc + '）';
     resultDiv.style.color = 'var(--teal)';
     if (confirmBtn) confirmBtn.disabled = false;
-  } else if (scannedLoc !== expectedLoc && expectedLoc !== '—') {
-    // 黃燈：不符但可覆寫
-    compareResult = '⚠️ 建議 ' + expectedLoc + ' / 實刷 ' + scannedLoc + ' — 需確認';
-    resultDiv.style.color = 'var(--amber)';
-    if (confirmBtn) confirmBtn.disabled = false;  // 仍可確認（操作員決定）
-  } else if (expectedLoc === '—') {
-    // 無預期儲位，接受實刷值
-    compareResult = '✓ 儲位 ' + scannedLoc + ' (無預配參考)';
-    resultDiv.style.color = 'var(--green)';
-    if (confirmBtn) confirmBtn.disabled = false;
   } else {
-    // 紅燈：儲位無效
-    compareResult = '❌ 儲位無效';
-    resultDiv.style.color = 'var(--red)';
-    if (confirmBtn) confirmBtn.disabled = true;
-    document.getElementById('s8-location-input').value = '';
-    return;
+    // 黃燈：格式有效但與建議位不符 → 可覆寫（確認時記原因）
+    compareResult = '⚠️ 建議 ' + expectedLoc + ' / 實刷 ' + scannedLoc + ' — 需確認覆寫';
+    resultDiv.style.color = 'var(--amber)';
+    if (confirmBtn) confirmBtn.disabled = false;
   }
 
   resultDiv.innerHTML = compareResult;
@@ -2476,7 +2577,7 @@ function renderLogPanel() {
 */
 async function syncToGoogleSheets() {
   var pallets = Object.values(ST.pallets);
-  if (!pallets.length) { toast('尚無棧板可同步', true); return; }
+  if (!pallets.length) { toast('尚無棧板可同步', true); return { ok:false, empty:true }; }
 
   var ts = new Date().toLocaleString('zh-TW');
   var statusLabel = { ok:'正常', damage:'外箱破損', diff:'數量不符', merge:'DSV併板', other:'其他' };
@@ -2506,7 +2607,7 @@ async function syncToGoogleSheets() {
     window._pendingSync = (window._pendingSync || []).concat(rows);
     toast('💾 Demo：已暫存 ' + rows.length + ' 筆（待串接 Sheets）', false);
     addLog('本地暫存', rows.length + ' 筆棧板記錄（demo）');
-    return;
+    return { ok:false, demo:true };
   }
 
   toast('🔄 同步到 Google Sheets...', false);
@@ -2523,6 +2624,7 @@ async function syncToGoogleSheets() {
     addLog('同步失敗', res.error || '未知錯誤');
     setNetwork('offline');
   }
+  return { ok:res.ok };
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2643,7 +2745,7 @@ async function emailWmsToMailList() {
   var csv = wmsRowsToCsv(rows);
   var dateStr = new Date().toISOString().slice(0,10);
   var truck = (ST.truck || 'NA').replace(/[^A-Z0-9]/gi,'');
-  var filename = '入庫單_' + truck + '_' + dateStr + '.csv';
+  var filename = '入庫單_' + truck + '_' + dateStr + '.xlsx';  // 【v7.1】GAS 端轉原生 Excel
   var subject = '樂天移倉入庫單｜' + truck + ' 趟' + ST.trip + ' · ' + dateStr;
   var lockedCount = Object.values(ST.pallets).filter(function(p){ return p.status==='locked'; }).length;
   var totalBox = rows.length;
@@ -3130,6 +3232,9 @@ function confirmAndSealPallet() {
 
   addLog('✅ 確認對點並封板', '棧板 ' + palletId + ' - 位置 ' + loc +
     (ST.s3PhotoCount > 0 ? ' · 存證照片 ' + ST.s3PhotoCount + '張' : ''));
+
+  // 【H4】封板時批次 flush 操作日誌到 Sheet（非阻塞，失敗下次重送）
+  flushLogToSheet().catch(function(){});
 
   showLocationModal(loc, palletId);
 }
