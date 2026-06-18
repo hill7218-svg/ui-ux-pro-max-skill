@@ -145,27 +145,45 @@ h1 {
 
 .sticker-header {
   text-align:center;
-  border-bottom:1px solid #000;
-  padding-bottom:4px;
-  margin-bottom:4px;
+  border-bottom:none;
+  padding-bottom:0;
+  margin-bottom:0;
+  font-size:9px;
+  font-weight:700;
+  color:#000;
+  margin-bottom:2px;
 }
 
 .sticker-id {
   font-family:"JetBrains Mono", monospace;
   font-weight:700;
-  font-size:20px;
+  font-size:18px;
   letter-spacing:.02em;
   color:#000;
   word-break:break-all;
+  margin:2px 0;
 }
 
-/* QR 區：撐滿中段、水平垂直置中 */
+.sticker-divider {
+  border-top:1px solid #000;
+  margin:4px 0;
+}
+
+.sticker-footer {
+  font-size:9px;
+  color:#666;
+  text-align:center;
+  margin-top:2px;
+}
+
+/* QR 區改為 ID 條碼區：撐滿中段、水平垂直置中 */
 .sticker-qr {
   flex:1;
   display:flex;
+  flex-direction:column;
   align-items:center;
   justify-content:center;
-  margin:4px 0;
+  margin:2px 0;
 }
 
 .sticker-qr > div {
@@ -174,10 +192,16 @@ h1 {
   justify-content:center;
 }
 
+.sticker-qr svg {
+  display:block;
+  width:100%;
+  height:40px;
+  margin:2px 0;
+}
+
 .sticker-qr canvas, .sticker-qr img {
   display:block;
-  width:55mm;
-  height:55mm;
+  max-width:100%;
 }
 
 .sticker-location {
@@ -591,36 +615,41 @@ async function generateStickers() {
 
     const sticker = document.createElement('div');
     sticker.className = 'sticker';
+    const moveDate = document.getElementById('moveDate').value;
+    const [y, m, d] = moveDate.split('-');
+    const moveDateDisplay = `${m}/${d}`;
+
     sticker.innerHTML = `
       <div class="sticker-content">
-        <div class="sticker-header">
-          <div class="sticker-id">${sourceId}</div>
-        </div>
+        <div class="sticker-header">入庫單號</div>
+        <div class="sticker-id">${sourceId}</div>
         <div class="sticker-qr">
-          <div id="qr-${i}"></div>
+          <svg id="idbar-${i}" style="width:100%;height:40px;"></svg>
         </div>
+        <div class="sticker-divider"></div>
+        <div class="sticker-header">建議儲位</div>
+        <div class="sticker-loc-value">${suggestedLoc}</div>
         <div class="sticker-location">
-          <div class="sticker-loc-label">建議儲位</div>
-          <div class="sticker-loc-value">${suggestedLoc}</div>
-          <div style="margin-top:4px;">
-            <svg id="locbar-${i}" style="width:100%;height:48px;"></svg>
-          </div>
+          <svg id="locbar-${i}" style="width:100%;height:40px;"></svg>
         </div>
+        <div class="sticker-footer">移倉日：${moveDateDisplay}</div>
       </div>
     `;
     container.appendChild(sticker);
 
-    // 生成 QR Code 和 Code128 條碼
+    // 生成雙 Code128 條碼（來源單號 + 儲位）
     setTimeout(() => {
+      // 生成 Code128 來源單號條碼
       try {
-        new QRCode(document.getElementById(`qr-${i}`), {
-          text: sourceId,
-          width: 220,
-          height: 220,
-          correctLevel: QRCode.CorrectLevel.H
+        JsBarcode('#idbar-' + i, sourceId, {
+          format: 'CODE128',
+          width: 2,
+          height: 40,
+          displayValue: false,
+          margin: 0
         });
       } catch (e) {
-        console.error('QR 生成失敗:', e);
+        console.error('Code128 來源單號生成失敗:', e);
       }
 
       // 生成 Code128 儲位條碼
@@ -630,12 +659,12 @@ async function generateStickers() {
           JsBarcode('#locbar-' + i, locValue, {
             format: 'CODE128',
             width: 2,
-            height: 45,
+            height: 40,
             displayValue: false,
             margin: 0
           });
         } catch(e) {
-          console.warn('Code128 gen fail for loc:', locValue, e);
+          console.warn('Code128 儲位生成失敗:', locValue, e);
           // 條碼生成失敗（例如特殊字元），文字備援仍可用
         }
       }
