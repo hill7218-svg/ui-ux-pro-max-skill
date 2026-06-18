@@ -145,7 +145,7 @@ h1 {
   border-bottom:none;
   padding-bottom:0;
   margin-bottom:0;
-  font-size:11px;
+  font-size:13px;
   font-weight:700;
   color:#000;
   margin-bottom:2px;
@@ -154,11 +154,13 @@ h1 {
 .sticker-id {
   font-family:"JetBrains Mono", monospace;
   font-weight:700;
-  font-size:18px;
-  letter-spacing:.02em;
+  font-size:24px;
+  letter-spacing:.01em;
   color:#000;
   word-break:break-all;
   margin:2px 0;
+  text-align:center;
+  width:100%;
 }
 
 .sticker-divider {
@@ -209,7 +211,7 @@ h1 {
 
 .sticker-loc-label {
   font-weight:700;
-  font-size:12px;
+  font-size:13px;
   color:#000;
   text-align:center;
 }
@@ -217,9 +219,11 @@ h1 {
 .sticker-loc-value {
   font-family:"JetBrains Mono", monospace;
   font-weight:700;
-  font-size:20px;
+  font-size:30px;
   margin:2px 0 4px;
   color:#000;
+  text-align:center;
+  width:100%;
 }
 
 .sticker-location svg {
@@ -269,8 +273,19 @@ h1 {
     box-shadow:none;
     padding:0;
   }
-  .section, h1, .subtitle, .setup-grid, .stats-box, .btn-primary {
-    display:none;
+  /* 隱藏所有非貼紙元素（保留貼紙預覽區與貼紙本身，否則列印空白頁）*/
+  h1, .subtitle, .setup-grid, .setup-group, .stats-box, .btn-primary,
+  h2, #message, .message {
+    display:none !important;
+  }
+  /* 區塊外殼歸零，空區塊（設定/說明）自動塌掉 */
+  .section {
+    margin:0;
+    padding:0;
+    border:none;
+  }
+  .sticker-grid {
+    margin:0;
   }
   .sticker {
     margin:0;
@@ -372,6 +387,11 @@ h1 {
       <div class="setup-group">
         <label class="setup-label">API Key（選填）</label>
         <input type="text" id="apiKey" class="setup-input" placeholder="留空＝免金鑰CSV讀取（須設Sheet可檢視）">
+      </div>
+
+      <div class="setup-group">
+        <label class="setup-label">起始板號</label>
+        <input type="number" id="startBoard" class="setup-input" value="1" min="1" max="999">
       </div>
 
       <div class="setup-group">
@@ -588,6 +608,8 @@ async function generateStickers() {
   const trip = document.getElementById('tripSelect').value;
   const aisle = document.getElementById('aisleSelect').value;
   const boardCount = parseInt(document.getElementById('boardCount').value) || 32;
+  const startBoard = parseInt(document.getElementById('startBoard').value) || 1;
+  const endBoard = startBoard + boardCount - 1;   // 最後一塊板號
 
   if (!date || !trip || !aisle) {
     showMessage('❌ 請填入日期、車趟、走道', 'error');
@@ -598,8 +620,8 @@ async function generateStickers() {
   const [y, m, d] = date.split('-');
   const dateStr = y + m + d;
 
-  // 讀儲位清單（傳入需要的板數）
-  const hasLocs = await loadLocationsList(boardCount);
+  // 讀儲位清單（讀到「最後板號」個，起始板號>1 時才能取到正確 pool 區段）
+  const hasLocs = await loadLocationsList(endBoard);
   const locs = hasLocs ? LOC_POOLS[aisle] : null;
 
   // 產生貼紙
@@ -607,7 +629,7 @@ async function generateStickers() {
   container.innerHTML = '';
   let totalStickers = 0;
 
-  for (let i = 1; i <= boardCount; i++) {
+  for (let i = startBoard; i <= endBoard; i++) {
     const sourceId = generateSourceId(dateStr, parseInt(trip), i);
     const suggestedLoc = locs && locs[i-1] ? locs[i-1] : '—';
 
@@ -676,7 +698,7 @@ async function generateStickers() {
   var locCount = (locs || []).filter(function(l){ return l && l !== '—'; }).length;
   document.getElementById('sheetRows').textContent = locCount;
   if (hasLocs) {
-    showMessage(`✅ 已讀儲位並產生 ${totalStickers} 張貼紙（雙 Code128）— 可按「② 列印 / 存 PDF」`, 'success');
+    showMessage(`✅ 已讀儲位並產生 ${totalStickers} 張貼紙（板號 ${String(startBoard).padStart(3,'0')}~${String(endBoard).padStart(3,'0')}，雙 Code128）— 可按「② 列印 / 存 PDF」`, 'success');
   } else {
     // 沒讀到儲位：保留 loadLocationsList 的錯誤提示，僅補充已產生張數
     const el = document.getElementById('message');
