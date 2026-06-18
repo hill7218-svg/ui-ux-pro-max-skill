@@ -3135,22 +3135,22 @@ function confirmAndSealPallet() {
 }
 
 
-/* ══ v6.2 DEBUG & TEST ══ */
+/* ══ v7.1 DEBUG & TEST ══ */
 function testWorkflow() {
-  console.log("%c【ALLY LOTTE v6.2 工作流检查】", "color: #00C896; font-size: 14px; font-weight: bold;");
+  console.log("%c【ALLY LOTTE v7.1 工作流检查】", "color: #00C896; font-size: 14px; font-weight: bold;");
+  console.log("✅ 工作流模式:", ST.workflow, "(預設 fast)");
   console.log("✅ 当前棧板:", ST.curPallet);
-  console.log("✅ 确认按钮:", document.getElementById("confirm-seal-btn"));
-  console.log("✅ Modal 容器:", document.getElementById("location-modal-overlay"));
+  console.log("✅ 已封板數:", Object.values(ST.pallets).filter(function(p){return p.status==='locked';}).length, "/", TRIP_FULL);
   console.log("");
   console.log("%c📋 测试步骤:", "color: #FFD700");
-  console.log("1. 掃描棧板 → 進到S1");
-  console.log("2. 點擊示範按鈕選擇商品");
-  console.log("3. 進到S3對點");
-  console.log("4. 點「✅ 確認對點並封板」看位置Modal");
-  console.log("5. 2秒後應自動回到S1");
+  console.log("1. 開工 → 直接進 S1 點驗（快速模式）");
+  console.log("2. 掃 EAN → 掃棧板標籤 → 加入棧板");
+  console.log("3. 點「🔒 封此板」→ 看位置 Modal");
+  console.log("4. 1.5秒後返回 S1 繼續刷讀；第32板跳滿載提醒");
+  console.log("5. 點右下角彙總 → 關單發車 → 入庫單 Email 寄出");
 }
 
-console.log("%c✅ ALLY LOTTE v6.2 已加載！在控制台執行: testWorkflow()", "color: #00C896; font-size: 13px; font-weight: bold;");
+console.log("%c✅ ALLY LOTTE v7.1 已加載！在控制台執行: testWorkflow()", "color: #00C896; font-size: 13px; font-weight: bold;");
 
 /* ══ BOOT ══ */
 restoreST();   // 還原上次未關單的作業（防 PDA 重整/閃退丟失）

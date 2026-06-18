@@ -22,6 +22,33 @@ Google Sheet 分頁 **「發送人員清單」**：
 
 ---
 
+## 〇、前置依賴：doGet `read` 分支（必須已存在）
+
+APP 讀「發送人員清單」靠既有的 **GET** 介面：`?action=read&tab=發送人員清單`，
+由 Apps Script 的 `doGet(e)` 回傳 `{ values: [...] }`。
+
+> ⚠️ 若你的 Web App 後端尚未實作 `action=read` 的 doGet，`getMailList()` 會回空陣列，
+> Email 會靜默略過（APP 顯示「無發送人員清單」但不報錯）。發信前請先確認此分支存在。
+
+`doGet` 參考（若已有讀分頁功能可略過）：
+
+```javascript
+function doGet(e) {
+  var p = e.parameter || {};
+  if (p.action === 'read') {
+    var ss = SpreadsheetApp.openById('1krZGpN4fCvTCgzCJLPjQPtE7eyo1vsR-gsChGTKWOM4');
+    var sh = ss.getSheetByName(p.tab);
+    var values = sh ? sh.getDataRange().getValues() : [];
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, values: values }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  // ... 其餘 doGet 分支 ...
+}
+```
+
+---
+
 ## 二、Apps Script 需新增的處理（doPost）
 
 在現有 Web App 的 `doPost(e)` 內，加入 `action === 'sendMail'` 分支：
@@ -96,6 +123,8 @@ function doPost(e) {
 ## 五、測試方式
 
 1. 確認 Apps Script 已加 `sendMail` 分支並重新部署。
+   - 並確認 doGet `action=read` 分支存在：瀏覽器開
+     `{webAppUrl}?action=read&tab=發送人員清單` 應回傳含 5 位窗口的 `values`。
 2. APP 開工 → 掃商品 → 封板 → S4「確認車輛裝滿 關單發車」。
 3. 檢查：
    - [ ] 5 位窗口收到主旨「【ALLY×LOTTE 移倉入庫單】…」的信
