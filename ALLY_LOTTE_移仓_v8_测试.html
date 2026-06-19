@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>樂天移倉照相驗收 v8 測試版</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0D1B3E;color:#fff;padding:8px}
+.container{max-width:520px;margin:0 auto}
+.screen{display:none;padding:12px;border-radius:8px;background:#1a2a52;min-height:92vh}
+.screen.active{display:flex;flex-direction:column}
+
+/* S0: 開始畫面 */
+#s0{justify-content:center;gap:18px;text-align:center}
+.s0-title{font-size:28px;font-weight:700;color:#4dd0e1}
+.s0-sub{font-size:13px;color:#8aa;line-height:1.6}
+.s0-input{padding:16px;font-size:18px;border:2px solid #4dd0e1;border-radius:6px;background:#0D1B3E;color:#fff;text-align:center}
+.s0-btn{padding:16px;font-size:16px;background:#4dd0e1;color:#0D1B3E;border:none;border-radius:6px;font-weight:700;cursor:pointer}
+.s0-btn:hover{background:#80deea}
+
+/* header */
+.hdr{font-size:13px;color:#aaa;padding:8px;border-bottom:1px solid #444;display:flex;justify-content:space-between}
+.hdr b{color:#4dd0e1}
+
+/* S1: 掃描 + 拍照 */
+.scanner{display:flex;flex-direction:column;gap:8px;padding:12px;background:#0a1428;border-radius:6px;border:2px solid #4dd0e1;margin-top:10px}
+.lbl{font-size:12px;color:#9ab}
+.inp{padding:12px;font-size:16px;border:1px solid #444;background:#0D1B3E;color:#fff;border-radius:4px}
+.inp:focus{border-color:#4dd0e1;outline:none}
+.disp{padding:12px;background:#13202e;border-radius:6px;border-left:4px solid #555;font-size:13px;line-height:1.7;min-height:80px}
+.disp.ok{border-left-color:#66bb6a;background:#16331f}
+.disp.err{border-left-color:#ef5350;background:#3a1818}
+.disp .big{font-size:16px;font-weight:700;color:#fff}
+.disp .label{font-size:11px;color:#9ab;margin-top:2px}
+
+/* 照片區域 */
+.photo-gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0;padding:12px;background:#0a1428;border-radius:6px;border:1px solid #444}
+.photo-slot{width:100%;aspect-ratio:1;border:2px dashed #4dd0e1;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;background:#13202e}
+.photo-slot:hover{border-color:#80deea;background:#1a3a52}
+.photo-slot img{width:100%;height:100%;object-fit:cover;border-radius:2px}
+.photo-slot .placeholder{font-size:28px}
+.photo-slot .del{position:absolute;top:2px;right:2px;background:#ef5350;border:none;border-radius:2px;width:20px;height:20px;color:#fff;cursor:pointer;display:none;font-size:11px;font-weight:700}
+.photo-slot:hover .del{display:block}
+
+/* 按鈕 */
+.btn{padding:12px 16px;background:#4dd0e1;color:#0D1B3E;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px}
+.btn:hover{background:#80deea}
+.btn-cancel{background:#555}.btn-cancel:hover{background:#666}
+.btn-row{display:flex;gap:8px;margin:12px 0}
+.btn-row .btn{flex:1}
+.upload-btn{background:#66bb6a;font-size:16px;padding:16px}.upload-btn:hover{background:#81c784}
+
+/* 進度條 */
+.progress{margin:12px 0}
+.progress-bar{width:100%;height:8px;background:#333;border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:#4dd0e1;transition:width 0.3s}
+.progress-text{font-size:12px;color:#aaa;margin-top:4px;text-align:center}
+
+/* Toast */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px 16px;background:#0D1B3E;border-left:4px solid #4dd0e1;border-radius:4px;display:none;max-width:90%;z-index:9999;font-size:13px}
+#toast.show{display:block;animation:slideIn 0.3s ease}
+@keyframes slideIn{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- S0: 開始畫面 -->
+  <div id="s0" class="screen active">
+    <div style="flex:1"></div>
+    <div class="s0-title">🚚 樂天移倉照相驗收</div>
+    <div class="s0-sub">6/22 共187板<br>輸入車號開始拍照流程</div>
+    <input id="driverId" class="s0-input" placeholder="車號（例：BBB-2262）" maxlength="20">
+    <button class="s0-btn" onclick="startSession()">開始拍照</button>
+    <div style="flex:1"></div>
+  </div>
+
+  <!-- S1: 掃描 + 拍照 -->
+  <div id="s1" class="screen">
+    <div class="hdr">
+      <span>車號：<b id="hdrDriver"></b></span>
+      <span>已拍：<b id="hdrProgress">0/187</b></span>
+    </div>
+
+    <div class="scanner">
+      <div class="lbl">① 掃描或輸入棧板條碼（orderId）</div>
+      <input id="qrInput" class="inp" placeholder="掃描 QR Code 或輸入 orderId..." autofocus>
+    </div>
+
+    <div id="palletInfo" class="disp" style="display:none">
+      <div class="big" id="infoId"></div>
+      <div class="label">SKU：<span id="infoSku"></span></div>
+      <div class="label">品名：<span id="infoName" style="font-size:12px"></span></div>
+      <div class="label">箱數/件數：<span id="infoQty"></span></div>
+      <div class="label">上架儍位：<span id="infoLoc"></span></div>
+    </div>
+
+    <div style="padding:8px">
+      <div class="lbl" style="margin-bottom:4px">② 拍照（最多4張）</div>
+      <div class="photo-gallery" id="photoGallery"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" onclick="completePallet()" id="completeBtn" style="display:none">✅ 完成此棧板</button>
+      <button class="btn btn-cancel" onclick="clearPallet()">❌ 清空</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="upload-btn" onclick="uploadAll()" style="width:100%">⬆ 上傳所有照片</button>
+    </div>
+
+    <div style="padding:8px;font-size:11px;color:#8aa">
+      <div id="sessionStats"></div>
+    </div>
+  </div>
+
+  <!-- S2: 上傳進度 -->
+  <div id="s2" class="screen" style="justify-content:center;gap:16px">
+    <div style="text-align:center">
+      <div style="font-size:18px;font-weight:700;color:#4dd0e1;margin-bottom:16px">正在上傳至 Google Drive...</div>
+      <div class="progress">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+      <div class="progress-text" id="progressText">已上傳：0/187</div>
+      <div id="uploadStatus" style="font-size:14px;color:#66bb6a;margin-top:16px">準備中...</div>
+    </div>
+    <button class="btn" onclick="goScreen(1)" style="width:100%">← 回到拍照畫面</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="photoInput" accept="image/*" style="display:none" onchange="photoSelected()">
+
+<script>
+// 測試資料：精簡版的 PALLET_DATA 結構
+const PALLET_LOOKUP = {};
+
+// 初始化查詢表
+function initPalletLookup() {
+  // 從原始 QR 列印器的 PALLET_DATA 建立簡化查詢表
+  // 這裡用代理資料（實際應用會導入完整資料）
+  const sampleData = [
+    {orderId:'20260622-001',sku:'BK9275',name:'LOTTE Pepero 杏仁巧克力口味餅乾棒32g',qtyBox:80,qtyPcs:3200,destLoc:''},
+    {orderId:'20260622-002',sku:'BK9275',name:'LOTTE Pepero 杏仁巧克力口味餅乾棒32g',qtyBox:80,qtyPcs:3200,destLoc:''},
+    {orderId:'20260622-003',sku:'BK9276',name:'LOTTE Pepero 草莓巧克力口味餅乾棒32g',qtyBox:40,qtyPcs:960,destLoc:'BI010'},
+  ];
+
+  // 建立查詢表以支持排序後的 orderId
+  for(let i = 1; i <= 187; i++) {
+    const id = '20260622-' + String(i).padStart(3,'0');
+    // 實際應用會查詢完整資料，這裡模擬
+    PALLET_LOOKUP[id] = sampleData[i % sampleData.length] || {
+      orderId: id,
+      sku: 'SKU' + i,
+      name: '商品' + i,
+      qtyBox: 40 + (i % 80),
+      qtyPcs: 320 + (i % 3200),
+      destLoc: 'BI' + String(i % 20).padStart(3,'0')
+    };
+  }
+}
+
+// 會話資料結構
+let session = {
+  driverId: '',
+  photos: {},  // {orderId: {photos: [...], timestamp}}
+  uploaded: new Set()
+};
+
+// 導航
+function goScreen(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s' + n).classList.add('active');
+}
+
+// 開始會話
+function startSession() {
+  const id = document.getElementById('driverId').value.trim();
+  if(!id) { toast('請輸入車號'); return; }
+
+  session.driverId = id;
+  session.photos = {};
+  session.uploaded = new Set();
+
+  initPalletLookup();
+
+  document.getElementById('hdrDriver').textContent = id;
+  updateProgress();
+
+  // 重置掃描
+  document.getElementById('qrInput').value = '';
+  document.getElementById('qrInput').focus();
+  document.getElementById('palletInfo').style.display = 'none';
+  document.getElementById('completeBtn').style.display = 'none';
+
+  goScreen(1);
+}
+
+// 掃描 QR 或輸入 orderId
+document.getElementById('qrInput').addEventListener('keypress', function(e) {
+  if(e.key === 'Enter') {
+    const orderId = this.value.trim();
+    if(!orderId) return;
+
+    // 允許部分輸入（如：001 → 20260622-001）
+    let fullId = orderId;
+    if(/^\d{3}$/.test(orderId)) {
+      fullId = '20260622-' + orderId;
+    }
+
+    const pallet = PALLET_LOOKUP[fullId];
+    if(!pallet) {
+      toast('找不到棧板：' + fullId);
+      return;
+    }
+
+    // 顯示棧板資訊
+    document.getElementById('infoId').textContent = fullId;
+    document.getElementById('infoSku').textContent = pallet.sku;
+    document.getElementById('infoName').textContent = pallet.name;
+    document.getElementById('infoQty').textContent = pallet.qtyBox + ' 箱 / ' + pallet.qtyPcs + ' 件';
+    document.getElementById('infoLoc').textContent = pallet.destLoc || '—';
+    document.getElementById('palletInfo').classList.remove('err');
+    document.getElementById('palletInfo').classList.add('ok');
+    document.getElementById('palletInfo').style.display = 'block';
+
+    // 初始化該棧板的照片槽
+    if(!session.photos[fullId]) {
+      session.photos[fullId] = { photos: [null, null, null, null], timestamp: new Date().toISOString() };
+    }
+
+    renderPhotoGallery(fullId);
+    document.getElementById('completeBtn').style.display = 'block';
+    document.getElementById('completeBtn').textContent = '✅ 完成此棧板 (' + fullId + ')';
+  }
+});
+
+// 渲染照片幫庫
+function renderPhotoGallery(orderId) {
+  const gallery = document.getElementById('photoGallery');
+  gallery.innerHTML = '';
+
+  const photos = session.photos[orderId].photos;
+  photos.forEach((photo, idx) => {
+    const slot = document.createElement('div');
+    slot.className = 'photo-slot';
+
+    if(photo) {
+      const img = document.createElement('img');
+      img.src = photo;
+      slot.appendChild(img);
+    } else {
+      slot.innerHTML = '<div class="placeholder">📷</div>';
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'del';
+    delBtn.textContent = '✕';
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      session.photos[orderId].photos[idx] = null;
+      renderPhotoGallery(orderId);
+    };
+    slot.appendChild(delBtn);
+
+    slot.onclick = () => capturePhoto(orderId, idx);
+    gallery.appendChild(slot);
+  });
+
+  updateProgress();
+}
+
+// 拍照或選擇圖片
+function capturePhoto(orderId, idx) {
+  window._currentPallet = orderId;
+  window._currentSlot = idx;
+  document.getElementById('photoInput').click();
+}
+
+function photoSelected() {
+  const file = document.getElementById('photoInput').files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const orderId = window._currentPallet;
+    const idx = window._currentSlot;
+    session.photos[orderId].photos[idx] = e.target.result;
+    renderPhotoGallery(orderId);
+    toast('✅ 照片 ' + (idx + 1) + ' 已添加');
+  };
+  reader.readAsDataURL(file);
+
+  // 重置輸入
+  document.getElementById('photoInput').value = '';
+}
+
+// 完成該棧板
+function completePallet() {
+  const qr = document.getElementById('qrInput').value.trim();
+  if(!qr) return;
+
+  let fullId = qr;
+  if(/^\d{3}$/.test(qr)) {
+    fullId = '20260622-' + qr;
+  }
+
+  const pallet = session.photos[fullId];
+  if(!pallet) return;
+
+  // 標記為待上傳
+  session.photos[fullId].completed = true;
+
+  toast('✅ 棧板 ' + fullId + ' 已完成（' + pallet.photos.filter(p => p).length + ' 張照片）');
+
+  // 清除表單
+  clearPallet();
+}
+
+// 清空目前表單
+function clearPallet() {
+  document.getElementById('qrInput').value = '';
+  document.getElementById('qrInput').focus();
+  document.getElementById('palletInfo').style.display = 'none';
+  document.getElementById('completeBtn').style.display = 'none';
+  const gallery = document.getElementById('photoGallery');
+  gallery.innerHTML = '';
+}
+
+// 更新進度
+function updateProgress() {
+  const completed = Object.keys(session.photos).filter(id => session.photos[id].completed).length;
+  const totalPhotos = Object.keys(session.photos).reduce((sum, id) => sum + session.photos[id].photos.filter(p => p).length, 0);
+
+  document.getElementById('hdrProgress').textContent = completed + '/187';
+  document.getElementById('sessionStats').textContent = '已拍：' + totalPhotos + ' 張照片，完成：' + completed + ' 塊棧板';
+}
+
+// 上傳至 Google Drive（測試模式）
+async function uploadAll() {
+  const completed = Object.keys(session.photos).filter(id => session.photos[id].completed);
+  if(completed.length === 0) {
+    toast('⚠️ 還沒有完成任何棧板');
+    return;
+  }
+
+  goScreen(2);
+
+  const total = completed.length;
+  let uploaded = 0;
+
+  // 測試模式：模擬上傳
+  for(const orderId of completed) {
+    if(session.uploaded.has(orderId)) continue;
+
+    // 模擬 API 延遲
+    await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
+
+    const pallet = session.photos[orderId];
+    const photoCount = pallet.photos.filter(p => p).length;
+
+    // 測試：輸出上傳資訊到控制台
+    console.log(`[測試上傳] ${orderId} - ${photoCount} 張照片 - 時間戳：${pallet.timestamp}`);
+
+    session.uploaded.add(orderId);
+    uploaded++;
+
+    const pct = Math.round((uploaded / total) * 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressText').textContent = `已上傳：${uploaded}/${total}`;
+    document.getElementById('uploadStatus').textContent = `${orderId} - ✅ 上傳成功`;
+  }
+
+  document.getElementById('uploadStatus').innerHTML = `<strong style="color:#66bb6a">✅ 測試上傳完成！</strong><br><small style="color:#9ab">實際上傳請配置 Google Drive API 密鑰</small>`;
+
+  toast('✅ 測試上傳完成（' + uploaded + '/${total} 棧板）');
+}
+
+// Toast 通知
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// 初始化
+initPalletLookup();
+</script>
+</body>
+</html>
