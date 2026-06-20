@@ -102,12 +102,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     </div>
 
     <div class="btn-row">
-      <button class="btn" onclick="completePallet()" id="completeBtn" style="display:none">✅ 完成此棧板</button>
-      <button class="btn btn-cancel" onclick="clearPallet()">❌ 清空</button>
+      <button class="upload-btn" onclick="confirmAndUpload()" id="completeBtn" style="display:none;width:100%">✅ 確定存檔並上傳本板</button>
     </div>
-
     <div class="btn-row">
-      <button class="upload-btn" onclick="uploadAll()" style="width:100%">⬆ 上傳所有照片</button>
+      <button class="btn btn-cancel" onclick="clearPallet()" style="width:100%">❌ 清空重掃</button>
     </div>
 
     <div style="padding:8px;font-size:11px;color:#8aa">
@@ -115,17 +113,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     </div>
   </div>
 
-  <!-- S2: 上傳進度 -->
-  <div id="s2" class="screen" style="justify-content:center;gap:16px">
+  <!-- S2: 本板已上傳 + 整車關單 hub -->
+  <div id="s2" class="screen" style="justify-content:center;gap:14px">
     <div style="text-align:center">
-      <div style="font-size:18px;font-weight:700;color:#4dd0e1;margin-bottom:16px">正在上傳至 Google Drive...</div>
+      <div style="font-size:20px;font-weight:700;color:#66bb6a;margin-bottom:8px">✅ 本板已存檔上傳 Google Drive</div>
+      <div id="s2LastInfo" style="font-size:13px;color:#9ab;margin-bottom:14px;line-height:1.6"></div>
       <div class="progress">
         <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
       </div>
-      <div class="progress-text" id="progressText">已上傳：0/187</div>
-      <div id="uploadStatus" style="font-size:14px;color:#66bb6a;margin-top:16px">準備中...</div>
+      <div class="progress-text" id="progressText">本車已完成：0 板</div>
+      <div id="uploadStatus" style="font-size:12px;color:#66bb6a;margin-top:8px"></div>
     </div>
-    <button class="btn" onclick="goScreen(1)" style="width:100%">← 回到拍照畫面</button>
+    <button class="upload-btn" onclick="continueScan()" style="width:100%">📷 繼續掃下一板</button>
+    <button class="btn" onclick="shipTruck()" style="width:100%;background:#c0392b;border-color:#c0392b;color:#fff">🚚 滿板發車・關單</button>
   </div>
 </div>
 
@@ -378,8 +378,10 @@ function handleScan(input) {
 // 會話資料結構
 let session = {
   driverId: '',
-  photos: {},  // {orderId: {photos: [...], timestamp}}
-  uploaded: new Set()
+  truckNo: '',
+  photos: {},  // {orderId: {photos: [...], timestamp, completed}}
+  uploaded: new Set(),
+  truckCount: 0
 };
 
 // 導航
@@ -394,8 +396,10 @@ function startSession() {
   if(!id) { toast('請輸入車號'); return; }
 
   session.driverId = id;
+  session.truckNo = id;
   session.photos = {};
   session.uploaded = new Set();
+  session.truckCount = 0;
 
   initPalletLookup();
 
@@ -444,7 +448,11 @@ document.getElementById('qrInput').addEventListener('keypress', function(e) {
 
     renderPhotoGallery(fullId);
     document.getElementById('completeBtn').style.display = 'block';
-    document.getElementById('completeBtn').textContent = '✅ 完成此棧板 (' + fullId + ')';
+    document.getElementById('completeBtn').textContent = '✅ 確定存檔並上傳本板 (' + fullId + ')';
+
+    // ③ 刷讀 QR 後自動觸發拍照（對第一個空格開相機）
+    toast('✅ 已讀到 ' + fullId + '，正在開啟相機…');
+    setTimeout(function(){ capturePhoto(fullId, 0); }, 200);
   }
 });
 
@@ -508,26 +516,81 @@ function photoSelected() {
   document.getElementById('photoInput').value = '';
 }
 
-// 完成該棧板
-function completePallet() {
+// ④⑤ 確定存檔並上傳「本板」→ 上傳後進 S2
+async function confirmAndUpload() {
   const qr = document.getElementById('qrInput').value.trim();
-  if(!qr) return;
-
-  // 用 handleScan 解析（支援掃 QR 的 sourceId），統一取得 orderId
+  if(!qr) { toast('請先掃描棧板 QR'); return; }
   const p = handleScan(qr);
-  if(!p) return;
+  if(!p) { toast('找不到棧板'); return; }
   const fullId = p.orderId;
+  const rec = session.photos[fullId];
+  if(!rec) { toast('找不到棧板資料'); return; }
 
-  const pallet = session.photos[fullId];
-  if(!pallet) return;
+  const photoCount = rec.photos.filter(x => x).length;
+  if(photoCount === 0) {
+    if(!confirm('本板尚未拍照，確定要直接上傳嗎？')) return;
+  }
 
-  // 標記為待上傳
-  session.photos[fullId].completed = true;
+  // 上傳本板（測試模式）
+  await uploadOnePallet(fullId, p);
 
-  toast('✅ 棧板 ' + fullId + ' 已完成（' + pallet.photos.filter(p => p).length + ' 張照片）');
+  // 進 S2，顯示本板上傳結果
+  document.getElementById('s2LastInfo').innerHTML =
+    '車號 ' + session.truckNo + '　入庫單 ' + fullId + '<br>' +
+    p.sku + '　' + p.name + '<br>' + photoCount + ' 張照片已上傳';
+  updateProgress();
+  goScreen(2);
+}
 
-  // 清除表單
+// ⑥ 上傳單一棧板（測試模式：console.log + 模擬延遲；實際請接 Google Drive API）
+async function uploadOnePallet(orderId, p) {
+  if(session.uploaded.has(orderId)) return;
+  const rec = session.photos[orderId];
+  rec.completed = true;
+  const photoCount = rec.photos.filter(x => x).length;
+  document.getElementById('uploadStatus').textContent = '上傳中…';
+  await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
+  console.log('[測試上傳→Google Drive] 車號=' + session.truckNo +
+    ' 入庫單=' + orderId + ' SKU=' + p.sku +
+    ' 照片=' + photoCount + ' 張 時間=' + rec.timestamp);
+  session.uploaded.add(orderId);
+  session.truckCount = session.uploaded.size;
+  document.getElementById('uploadStatus').innerHTML =
+    '<strong style="color:#66bb6a">✅ ' + orderId + ' 上傳成功</strong>' +
+    '<br><small style="color:#9ab">（測試模式：實際上傳請配置 Google Drive API 密鑰）</small>';
+}
+
+// 繼續掃下一板 → 回 S1
+function continueScan() {
   clearPallet();
+  goScreen(1);
+  document.getElementById('qrInput').focus();
+}
+
+// ⑦ 滿板發車・關單 → 二次確認 → 回 S0 重新輸入車號
+function shipTruck() {
+  const done = session.uploaded.size;
+  if(done === 0) {
+    if(!confirm('本車尚未上傳任何棧板，確定仍要發車關單嗎？')) return;
+  }
+  // 跳訊息再次確認要發車：確定=發車 / 取消=停在此畫面
+  const ok = confirm('🚚 確定要發車嗎？\n\n車號：' + session.truckNo +
+    '\n本車已上傳：' + done + ' 板\n\n按「確定」→ 關單發車，清空本車資料並回到車號輸入\n按「取消」→ 停留在此畫面');
+  if(!ok) return; // n → 停在 S2
+
+  // 關單記錄（測試輸出；實際請寫入 Google Sheet 關單記錄）
+  console.log('[關單發車] 車號=' + session.truckNo + ' 總上傳=' + done + ' 板 時間=' + new Date().toISOString());
+  toast('🚚 ' + session.truckNo + ' 已關單發車（' + done + ' 板）');
+
+  // 清空本車 session → 回 S0 重新輸入車號
+  session.photos = {};
+  session.uploaded = new Set();
+  session.truckCount = 0;
+  session.truckNo = '';
+  document.getElementById('driverId').value = '';
+  document.getElementById('qrInput').value = '';
+  goScreen(0);
+  setTimeout(function(){ document.getElementById('driverId').focus(); }, 100);
 }
 
 // 清空目前表單
@@ -545,48 +608,14 @@ function updateProgress() {
   const completed = Object.keys(session.photos).filter(id => session.photos[id].completed).length;
   const totalPhotos = Object.keys(session.photos).reduce((sum, id) => sum + session.photos[id].photos.filter(p => p).length, 0);
 
-  document.getElementById('hdrProgress').textContent = completed + '/187';
-  document.getElementById('sessionStats').textContent = '已拍：' + totalPhotos + ' 張照片，完成：' + completed + ' 塊棧板';
-}
+  document.getElementById('hdrProgress').textContent = '本車 ' + completed + ' 板';
+  document.getElementById('sessionStats').textContent = '本車已上傳：' + completed + ' 板，' + totalPhotos + ' 張照片';
 
-// 上傳至 Google Drive（測試模式）
-async function uploadAll() {
-  const completed = Object.keys(session.photos).filter(id => session.photos[id].completed);
-  if(completed.length === 0) {
-    toast('⚠️ 還沒有完成任何棧板');
-    return;
-  }
-
-  goScreen(2);
-
-  const total = completed.length;
-  let uploaded = 0;
-
-  // 測試模式：模擬上傳
-  for(const orderId of completed) {
-    if(session.uploaded.has(orderId)) continue;
-
-    // 模擬 API 延遲
-    await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
-
-    const pallet = session.photos[orderId];
-    const photoCount = pallet.photos.filter(p => p).length;
-
-    // 測試：輸出上傳資訊到控制台
-    console.log(`[測試上傳] ${orderId} - ${photoCount} 張照片 - 時間戳：${pallet.timestamp}`);
-
-    session.uploaded.add(orderId);
-    uploaded++;
-
-    const pct = Math.round((uploaded / total) * 100);
-    document.getElementById('progressFill').style.width = pct + '%';
-    document.getElementById('progressText').textContent = `已上傳：${uploaded}/${total}`;
-    document.getElementById('uploadStatus').textContent = `${orderId} - ✅ 上傳成功`;
-  }
-
-  document.getElementById('uploadStatus').innerHTML = `<strong style="color:#66bb6a">✅ 測試上傳完成！</strong><br><small style="color:#9ab">實際上傳請配置 Google Drive API 密鑰</small>`;
-
-  toast('✅ 測試上傳完成（' + uploaded + '/${total} 棧板）');
+  // S2 進度鏡像
+  const pt = document.getElementById('progressText');
+  if(pt) pt.textContent = '本車已完成：' + completed + ' 板';
+  const pf = document.getElementById('progressFill');
+  if(pf) pf.style.width = Math.min(100, completed * 2) + '%';
 }
 
 // Toast 通知
