@@ -6,11 +6,13 @@
 <title>ALLY × LOTTE 板標列印器 v8.3（可調排版：每欄字體倍數+位置）</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded',function(){
   function load(src){var s=document.createElement('script');s.src=src;document.head.appendChild(s);}
   if(typeof JsBarcode==='undefined') load('https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js');
   if(typeof QRCode==='undefined') load('https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js');
+  if(typeof XLSX==='undefined') load('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
 });
 </script>
 <style>
@@ -122,7 +124,10 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
       <button class="btn green" onclick="window.print()">② 🖨️ 列印/PDF</button>
     </div>
     <div class="btnrow">
-      <button class="btn green" onclick="exportOmsCSV_sorted()">⬇ CSV 匯出（已排序）</button>
+      <button class="btn green" onclick="exportOmsXLSX_sorted()">⬇ 匯出入庫單 XLSX（WMS可匯入）</button>
+    </div>
+    <div class="btnrow">
+      <button class="btn" onclick="exportOmsCSV_sorted()" style="font-size:12px">（備用）匯出 CSV・UTF-8</button>
     </div>
 
     <h2>🏢 儲位配置</h2>
@@ -475,53 +480,119 @@ function generate(){
   toggleEdit();
 }
 
-// ── CSV 匯出（已排序）──
-function exportOmsCSV_sorted() {
+// ── WMS 入倉資訊 匯入格式（22 欄，與「入倉資訊」官方範本一致）──
+// 可在此調整廠商固定欄位
+const WMS_VENDOR = {
+  taxId: '27712880',         // 廠商統編
+  contact: '林家霏',          // 廠商聯絡人
+  phone: '02-25788183',      // 聯絡人電話
+  date: '2026/06/22',        // 日期（移倉日）
+  slot: 9,                   // 時段（9=0900~1000）
+  grade: '良品',              // 群品
+  vwh: 'A47'                 // 虛擬倉
+};
+
+const WMS_HEADERS = ['廠商統編(必填)','廠商聯絡人(必填)','聯絡人電話(必填)','日期(必填)(yyyy/mm/dd)','時段(必填，9=0900~1000、10=1000~1100)','採購單號(選填)','來源單號','主檔備註','商品貨號(QC) (必填)','商品名稱(必填)','數量(必填)','製造日期(yyyy/mm/dd)','有效日期(yyyy/mm/dd)','批號','商品條碼','群品(良品/不良品)(必填)','明細備註','入倉單號(選填)','虛擬倉','庫存等級屬性','版本號','原因代碼'];
+
+// 把 Excel 序列號(如 46466) 轉成 yyyy/mm/dd；已是字串日期則原樣返回
+function fmtExpDate(v) {
+  if (v === undefined || v === null || v === '') return '';
+  const s = String(v).trim();
+  if (/^\d{4,6}$/.test(s)) {
+    const n = parseInt(s, 10);
+    if (n > 20000 && n < 60000) {
+      const d = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
+      return d.getUTCFullYear() + '/' + String(d.getUTCMonth()+1).padStart(2,'0') + '/' + String(d.getUTCDate()).padStart(2,'0');
+    }
+  }
+  return s;
+}
+
+// 取得已排序的板列 + 套用儲位配置（XLSX/CSV 共用）
+function getSortedPallets() {
   const trip = document.getElementById('tripSelect').value;
-  if(trip === 'ALL') {
-    showMsg('⚠️ 請先選擇特定行次，再匯出排序');
+  let pool = (trip === 'ALL') ? PALLET_DATA.slice() : PALLET_DATA.filter(p => p.trip === trip);
+  let sorted = sortPalletsBySKUandQty(pool);
+  if (storageConfig.enabled && storageConfig.locations.length > 0) {
+    sorted.forEach((p, idx) => { p.destLoc = storageConfig.locations[idx % storageConfig.locations.length]; });
+  }
+  return { trip: trip, sorted: sorted };
+}
+
+// 每板 → WMS 22 欄一列（數量預設用「件數 qtyPcs」，與官方範本量級一致）
+function palletToWmsRow(p) {
+  return [
+    WMS_VENDOR.taxId,            // 廠商統編
+    WMS_VENDOR.contact,         // 廠商聯絡人
+    WMS_VENDOR.phone,           // 聯絡人電話
+    WMS_VENDOR.date,            // 日期
+    WMS_VENDOR.slot,            // 時段
+    '',                         // 採購單號(選填)
+    p.sourceId,                 // 來源單號
+    '',                         // 主檔備註
+    p.sku,                      // 商品貨號
+    p.name || '',               // 商品名稱
+    p.qtyPcs,                   // 數量（件數）
+    '',                         // 製造日期
+    fmtExpDate(p.expDate),      // 有效日期
+    '',                         // 批號
+    p.ean ? String(p.ean) : '', // 商品條碼
+    WMS_VENDOR.grade,           // 群品
+    '',                         // 明細備註
+    '',                         // 入倉單號(選填，WMS自動)
+    WMS_VENDOR.vwh,             // 虛擬倉
+    '',                         // 庫存等級屬性
+    '',                         // 版本號
+    ''                          // 原因代碼
+  ];
+}
+
+function wmsFilenameBase(trip) {
+  const t = (trip === 'ALL') ? '全部187板' : trip.replace(/\//g, '');
+  return '入庫單_' + t + '_2026-06-22';
+}
+
+// ── 主要：匯出入庫單 XLSX（WMS 可直接匯入）──
+function exportOmsXLSX_sorted() {
+  const { trip, sorted } = getSortedPallets();
+  if (sorted.length === 0) { showMsg('⚠️ 此行次無資料'); return; }
+
+  if (typeof XLSX === 'undefined') {
+    showMsg('⚠️ XLSX 函式庫尚未載入，改用 CSV 匯出');
+    exportOmsCSV_sorted();
     return;
   }
 
-  let pool = PALLET_DATA.filter(p => p.trip === trip);
-  let sorted = sortPalletsBySKUandQty(pool);
+  const aoa = [WMS_HEADERS].concat(sorted.map(palletToWmsRow));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  // 商品貨號/條碼/統編 等欄位以文字保存，避免被當數字（去前導零/科學記號）
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '入倉資訊');
+  XLSX.writeFile(wb, wmsFilenameBase(trip) + '.xlsx');
 
-  // ★ 新增：套用儲位配置到 CSV 匯出
-  if (storageConfig.enabled && storageConfig.locations.length > 0) {
-    sorted.forEach((p, idx) => {
-      p.destLoc = storageConfig.locations[idx % storageConfig.locations.length];
-    });
-  }
+  showMsg('⬇ 已匯出 XLSX（' + sorted.length + ' 筆，WMS入倉資訊格式，數量=件數）');
+}
 
-  const headers = ['sourceId','sku','品名','箱数','件数','国際条码','上架儍位','来源儍位','効期','趟次','棧板号','入庫單號'];
+// ── 備用：匯出 CSV（UTF-8 BOM + 逗號，Excel 不亂碼，同 WMS 22 欄）──
+function exportOmsCSV_sorted() {
+  const { trip, sorted } = getSortedPallets();
+  if (sorted.length === 0) { showMsg('⚠️ 此行次無資料'); return; }
 
-  let csv = headers.join('|') + '\n';
-  sorted.forEach(p => {
-    const row = [
-      p.sourceId,
-      p.sku,
-      '"' + (p.name || '').replace(/"/g, '""') + '"',
-      p.qtyBox,
-      p.qtyPcs,
-      p.ean || '',
-      p.destLoc || '',
-      p.srcLoc,
-      p.expDate,
-      p.trip,
-      p.no,
-      p.orderId
-    ];
-    csv += row.join('|') + '\n';
-  });
+  const esc = (v) => {
+    const s = (v === undefined || v === null) ? '' : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  let csv = WMS_HEADERS.map(esc).join(',') + '\r\n';
+  sorted.forEach(p => { csv += palletToWmsRow(p).map(esc).join(',') + '\r\n'; });
 
-  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+  // UTF-8 BOM → Excel 正確辨識中文
+  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8;'});
   const link = document.createElement('a');
-  const dateStr = '6.22';
   link.href = URL.createObjectURL(blob);
-  link.download = `OMS_入庫單_${dateStr}_已排序_latest.csv`;
+  link.download = wmsFilenameBase(trip) + '.csv';
   link.click();
 
-  showMsg('⬇ 已匯出 CSV（' + sorted.length + '筆，按 SKU/數量排序）');
+  showMsg('⬇ 已匯出 CSV・UTF-8（' + sorted.length + ' 筆，WMS格式）');
 }
 </script>
 </body>
