@@ -326,6 +326,16 @@ function attachDrag(st){
   });
 }
 
+// ── 儲位配置狀態（必須在初始化 IIFE 之前宣告，否則 loadStorageConfig 會踩到 TDZ）──
+let storageConfig = {
+  enabled: false,
+  aisle: 'BI',
+  startNum: 1,
+  endNum: 244,
+  sortOrder: 'asc',
+  locations: []
+};
+
 // ── 初始化下拉 + 統計 ──
 (function(){
   const trips=[...new Set(PALLET_DATA.map(p=>p.trip))];
@@ -337,22 +347,17 @@ function attachDrag(st){
   loadStorageConfig();
 })();
 
-// ── 儲位配置狀態 ──
-let storageConfig = {
-  enabled: false,
-  aisle: 'BI',
-  startNum: 1,
-  endNum: 244,
-  sortOrder: 'asc',
-  locations: []
-};
-
 // 從 localStorage 載入儲位配置
 function loadStorageConfig() {
-  const saved = localStorage.getItem('storageConfig');
-  if (saved) {
-    storageConfig = JSON.parse(saved);
-    updateConfigUI();
+  try {
+    const saved = localStorage.getItem('storageConfig');
+    if (saved) {
+      storageConfig = JSON.parse(saved);
+      if (!Array.isArray(storageConfig.locations)) storageConfig.locations = [];
+      updateConfigUI();
+    }
+  } catch (e) {
+    console.warn('儲位配置載入失敗，使用預設值', e);
   }
 }
 
