@@ -46,6 +46,17 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
 .hint{font-size:11px;color:#856404;background:#fff3cd;padding:8px 10px;border-radius:4px;margin:8px 0;line-height:1.5}
 .msg{font-size:12px;padding:8px 10px;border-radius:4px;margin:8px 0;background:#d4edda;color:#155724}
 
+/* 儲位配置 */
+.config-box{border:2px solid #007B6F;border-radius:6px;padding:12px;margin:12px 0;background:#f0fffe}
+.config-box h3{font-size:13px;font-weight:700;color:#007B6F;margin-bottom:8px}
+.config-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;align-items:center}
+.config-row.full{grid-template-columns:1fr;align-items:flex-start}
+.config-label{font-size:11px;font-weight:600;color:#0D1B3E}
+.radio-group{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.radio-group label{display:flex;align-items:center;gap:4px;font-size:12px;color:#0D1B3E;cursor:pointer}
+.radio-group input[type=radio]{cursor:pointer}
+.config-hint{font-size:10px;color:#666;margin-top:4px;font-style:italic}
+
 .stats{display:flex;gap:18px;margin-bottom:14px;font-size:13px;color:#6B7A99}
 .stats b{color:#0D1B3E;font-size:18px}
 
@@ -112,6 +123,47 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
     </div>
     <div class="btnrow">
       <button class="btn green" onclick="exportOmsCSV_sorted()">⬇ CSV 匯出（已排序）</button>
+    </div>
+
+    <h2>🏢 儲位配置</h2>
+    <div class="config-box">
+      <h3>儲位走道選擇</h3>
+      <div class="config-row full">
+        <div class="radio-group">
+          <label><input type="radio" name="aisle" value="BA" onchange="updateAisleConfig()"> BA</label>
+          <label><input type="radio" name="aisle" value="BB" onchange="updateAisleConfig()"> BB</label>
+          <label><input type="radio" name="aisle" value="BC" onchange="updateAisleConfig()"> BC</label>
+          <label><input type="radio" name="aisle" value="BD" onchange="updateAisleConfig()"> BD</label>
+          <label><input type="radio" name="aisle" value="BE" onchange="updateAisleConfig()"> BE</label>
+          <label><input type="radio" name="aisle" value="BF" onchange="updateAisleConfig()"> BF</label>
+          <label><input type="radio" name="aisle" value="BG" onchange="updateAisleConfig()"> BG</label>
+          <label><input type="radio" name="aisle" value="BH" onchange="updateAisleConfig()"> BH</label>
+          <label><input type="radio" name="aisle" value="BI" onchange="updateAisleConfig()" checked> BI</label>
+          <label><input type="radio" name="aisle" value="BJ" onchange="updateAisleConfig()"> BJ</label>
+          <label><input type="radio" name="aisle" value="BP" onchange="updateAisleConfig()"> BP</label>
+        </div>
+      </div>
+
+      <h3 style="margin-top:10px">儲位編號範圍</h3>
+      <div class="config-row">
+        <div><label class="config-label">開始編號</label>
+          <input type="number" id="startLoc" class="setup-input" value="001" min="1" max="999"></div>
+        <div><label class="config-label">結束編號</label>
+          <input type="number" id="endLoc" class="setup-input" value="244" min="1" max="999"></div>
+      </div>
+
+      <h3 style="margin-top:10px">排序方向</h3>
+      <div class="config-row full">
+        <div class="radio-group">
+          <label><input type="radio" name="sortOrder" value="asc" onchange="updateAisleConfig()" checked> 小到大 (BP001 → BP244)</label>
+          <label><input type="radio" name="sortOrder" value="desc" onchange="updateAisleConfig()"> 大到小 (BP244 → BP001)</label>
+        </div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn green" onclick="applyStorageConfig()">✓ 套用儲位配置</button>
+      </div>
+      <div id="configMsg" class="config-hint"></div>
     </div>
 
     <h2>✋ 自由排版</h2>
@@ -272,9 +324,85 @@ function attachDrag(st){
   document.getElementById('totalData').textContent=PALLET_DATA.length;
   document.getElementById('biCount').textContent=PALLET_DATA.filter(p=>p.destLoc&&p.destLoc.trim()).length;
   buildControls();
+  loadStorageConfig();
 })();
 
-// ── 排序函數：按 SKU 字母序 + 件數小到大 ──
+// ── 儲位配置狀態 ──
+let storageConfig = {
+  enabled: false,
+  aisle: 'BI',
+  startNum: 1,
+  endNum: 244,
+  sortOrder: 'asc',
+  locations: []
+};
+
+// 從 localStorage 載入儲位配置
+function loadStorageConfig() {
+  const saved = localStorage.getItem('storageConfig');
+  if (saved) {
+    storageConfig = JSON.parse(saved);
+    updateConfigUI();
+  }
+}
+
+// 更新 UI 以反映儲位配置
+function updateConfigUI() {
+  const aisleRadios = document.querySelectorAll('input[name="aisle"]');
+  aisleRadios.forEach(r => r.checked = r.value === storageConfig.aisle);
+
+  const sortRadios = document.querySelectorAll('input[name="sortOrder"]');
+  sortRadios.forEach(r => r.checked = r.value === storageConfig.sortOrder);
+
+  document.getElementById('startLoc').value = String(storageConfig.startNum).padStart(3, '0');
+  document.getElementById('endLoc').value = String(storageConfig.endNum).padStart(3, '0');
+}
+
+// UI 変更時更新配置
+function updateAisleConfig() {
+  const aisle = document.querySelector('input[name="aisle"]:checked').value;
+  const sortOrder = document.querySelector('input[name="sortOrder"]:checked').value;
+  storageConfig.aisle = aisle;
+  storageConfig.sortOrder = sortOrder;
+}
+
+// 儲位配置を生成
+function generateStorageLocations(aisle, startNum, endNum, sortOrder) {
+  const locs = [];
+  for (let i = startNum; i <= endNum; i++) {
+    locs.push(aisle + String(i).padStart(3, '0'));
+  }
+  if (sortOrder === 'desc') locs.reverse();
+  return locs;
+}
+
+// 套用儲位配置
+function applyStorageConfig() {
+  const startNum = parseInt(document.getElementById('startLoc').value) || 1;
+  const endNum = parseInt(document.getElementById('endLoc').value) || 244;
+  const aisle = document.querySelector('input[name="aisle"]:checked').value;
+  const sortOrder = document.querySelector('input[name="sortOrder"]:checked').value;
+
+  if (startNum > endNum) {
+    document.getElementById('configMsg').textContent = '❌ 開始編號不能大於結束編號';
+    return;
+  }
+
+  storageConfig.enabled = true;
+  storageConfig.aisle = aisle;
+  storageConfig.startNum = startNum;
+  storageConfig.endNum = endNum;
+  storageConfig.sortOrder = sortOrder;
+  storageConfig.locations = generateStorageLocations(aisle, startNum, endNum, sortOrder);
+
+  // 保存到 localStorage
+  localStorage.setItem('storageConfig', JSON.stringify(storageConfig));
+
+  const locCount = storageConfig.locations.length;
+  document.getElementById('configMsg').textContent = `✓ 已配置 ${locCount} 個儲位：${aisle}${String(startNum).padStart(3, '0')} → ${aisle}${String(endNum).padStart(3, '0')} (${sortOrder === 'asc' ? '小到大' : '大到小'})`;
+}
+
+// 排序函數：按 SKU 字母序 + 件數小到大 ──
 function sortPalletsBySKUandQty(pallets) {
   let sorted = JSON.parse(JSON.stringify(pallets));
   sorted.sort((a, b) => {
@@ -298,6 +426,13 @@ function generate(){
 
   // ★ 新增：排序功能（按 SKU + 件數）
   list = sortPalletsBySKUandQty(list);
+
+  // ★ 新增：儲位配置自動分配
+  if (storageConfig.enabled && storageConfig.locations.length > 0) {
+    list.forEach((p, idx) => {
+      p.destLoc = storageConfig.locations[idx % storageConfig.locations.length];
+    });
+  }
 
   const container=document.getElementById('stickerContainer'); container.innerHTML='';
   list.forEach(p=>{
@@ -350,6 +485,13 @@ function exportOmsCSV_sorted() {
 
   let pool = PALLET_DATA.filter(p => p.trip === trip);
   let sorted = sortPalletsBySKUandQty(pool);
+
+  // ★ 新增：套用儲位配置到 CSV 匯出
+  if (storageConfig.enabled && storageConfig.locations.length > 0) {
+    sorted.forEach((p, idx) => {
+      p.destLoc = storageConfig.locations[idx % storageConfig.locations.length];
+    });
+  }
 
   const headers = ['sourceId','sku','品名','箱数','件数','国際条码','上架儍位','来源儍位','効期','趟次','棧板号','入庫單號'];
 
