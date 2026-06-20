@@ -152,16 +152,17 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
       <h3 style="margin-top:10px">儲位編號範圍</h3>
       <div class="config-row">
         <div><label class="config-label">開始編號</label>
-          <input type="number" id="startLoc" class="setup-input" value="001" min="1" max="999"></div>
+          <input type="number" id="startLoc" class="setup-input" value="12" min="1" max="999"></div>
         <div><label class="config-label">結束編號</label>
           <input type="number" id="endLoc" class="setup-input" value="244" min="1" max="999"></div>
       </div>
+      <div class="config-hint">⚠️ 僅配發尾數 2/3/4 的儲位（如 012,013,014,022,023,024…），自動跳過尾數 0/1/5~9。預設 012~244 共 72 格。</div>
 
       <h3 style="margin-top:10px">排序方向</h3>
       <div class="config-row full">
         <div class="radio-group">
-          <label><input type="radio" name="sortOrder" value="asc" onchange="updateAisleConfig()" checked> 小到大 (BP001 → BP244)</label>
-          <label><input type="radio" name="sortOrder" value="desc" onchange="updateAisleConfig()"> 大到小 (BP244 → BP001)</label>
+          <label><input type="radio" name="sortOrder" value="asc" onchange="updateAisleConfig()" checked> 小到大 (012 → 244)</label>
+          <label><input type="radio" name="sortOrder" value="desc" onchange="updateAisleConfig()"> 大到小 (244 → 012)</label>
         </div>
       </div>
 
@@ -381,11 +382,20 @@ function updateAisleConfig() {
   storageConfig.sortOrder = sortOrder;
 }
 
-// 儲位配置を生成
+// 儲位配置生成
+// 規則（依實際倉儲現況）：只配發「尾數 2/3/4」的儲位，取消尾數 1 & 5，
+// 也沒有尾數 0、6~9。每個十位群 (01,02,03…) 只取 x2、x3、x4。
+// 例：012,013,014 → 022,023,024 → 032,033,034 …（範圍預設 012~244，共 72 格/走道）
+const VALID_UNITS = [2, 3, 4];
 function generateStorageLocations(aisle, startNum, endNum, sortOrder) {
   const locs = [];
-  for (let i = startNum; i <= endNum; i++) {
-    locs.push(aisle + String(i).padStart(3, '0'));
+  for (let tens = 1; tens * 10 + 4 <= 999; tens++) {
+    for (const unit of VALID_UNITS) {
+      const n = tens * 10 + unit;
+      if (n >= startNum && n <= endNum) {
+        locs.push(aisle + String(n).padStart(3, '0'));
+      }
+    }
   }
   if (sortOrder === 'desc') locs.reverse();
   return locs;
@@ -413,8 +423,11 @@ function applyStorageConfig() {
   // 保存到 localStorage
   localStorage.setItem('storageConfig', JSON.stringify(storageConfig));
 
-  const locCount = storageConfig.locations.length;
-  document.getElementById('configMsg').textContent = `✓ 已配置 ${locCount} 個儲位：${aisle}${String(startNum).padStart(3, '0')} → ${aisle}${String(endNum).padStart(3, '0')} (${sortOrder === 'asc' ? '小到大' : '大到小'})`;
+  const locs = storageConfig.locations;
+  const locCount = locs.length;
+  const first = locs[0] || '—';
+  const last = locs[locCount - 1] || '—';
+  document.getElementById('configMsg').textContent = `✓ 已配置 ${locCount} 個儲位（僅尾數2/3/4）：${first} → ${last} (${sortOrder === 'asc' ? '小到大' : '大到小'})`;
 }
 
 // 排序函數：按 SKU 字母序 + 件數小到大 ──
