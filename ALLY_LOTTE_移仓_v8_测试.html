@@ -84,8 +84,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     </div>
 
     <div class="scanner">
-      <div class="lbl">① 掃描或輸入棧板條碼（orderId）</div>
-      <input id="qrInput" class="inp" placeholder="掃描 QR Code 或輸入 orderId..." autofocus>
+      <div class="lbl">① 掃貼紙 QR Code，或手打入庫單號後 3 碼（001~187）</div>
+      <input id="qrInput" class="inp" placeholder="掃 QR Code(LOTTE-...) 或輸入 001~187 後按 Enter" autofocus>
     </div>
 
     <div id="palletInfo" class="disp" style="display:none">
@@ -133,32 +133,246 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="photoSelected()">
 
 <script>
-// 測試資料：精簡版的 PALLET_DATA 結構
-const PALLET_LOOKUP = {};
+// ===== 真實 187 板資料（與列印器一致）=====
+// orderId 已依列印器 sortPalletsBySKUandQty（SKU 字母序 + 件數小到大）重新編號 001-187。
+// 每筆同時帶 sourceId（QR Code 內容）與 orderId（貼紙入庫單號），兩者指向同一塊板。
+const PALLET_DATA_SORTED = [
+  {"orderId": "20260622-001", "sourceId": "LOTTE-20260622-Air_con622_2-036", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 40, "qtyPcs": 1600, "destLoc": "", "srcLoc": "C05B0302-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-002", "sourceId": "LOTTE-20260622-Air_con622_2-014", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 56, "qtyPcs": 2240, "destLoc": "", "srcLoc": "C05A0512-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-003", "sourceId": "LOTTE-20260622-Air_con622_1-001", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0194-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-004", "sourceId": "LOTTE-20260622-Air_con622_1-002", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0214-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-005", "sourceId": "LOTTE-20260622-Air_con622_1-003", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0234-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "46466"},
+  {"orderId": "20260622-006", "sourceId": "LOTTE-20260622-Air_con622_1-004", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0254-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-007", "sourceId": "LOTTE-20260622-Air_con622_1-005", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0274-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-008", "sourceId": "LOTTE-20260622-Air_con622_1-006", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0294-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-009", "sourceId": "LOTTE-20260622-Air_con622_1-007", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0295-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-010", "sourceId": "LOTTE-20260622-Air_con622_1-008", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0314-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-011", "sourceId": "LOTTE-20260622-Air_con622_1-009", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0315-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-012", "sourceId": "LOTTE-20260622-Air_con622_1-030", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0065-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-013", "sourceId": "LOTTE-20260622-Air_con622_1-031", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0085-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-014", "sourceId": "LOTTE-20260622-Air_con622_1-032", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0104-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-015", "sourceId": "LOTTE-20260622-Air_con622_1-033", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0124-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-016", "sourceId": "LOTTE-20260622-Air_con622_1-034", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0145-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-017", "sourceId": "LOTTE-20260622-Air_con622_1-035", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0164-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-018", "sourceId": "LOTTE-20260622-Air_con622_2-015", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0513-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-019", "sourceId": "LOTTE-20260622-Air_con622_2-016", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0533-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-020", "sourceId": "LOTTE-20260622-Air_con622_2-017", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0553-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-021", "sourceId": "LOTTE-20260622-Air_con622_2-018", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0573-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-022", "sourceId": "LOTTE-20260622-Air_con622_2-019", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0594-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-023", "sourceId": "LOTTE-20260622-Air_con622_2-020", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0615-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-024", "sourceId": "LOTTE-20260622-Air_con622_2-021", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0734-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-025", "sourceId": "LOTTE-20260622-Air_con622_2-037", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0342-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-026", "sourceId": "LOTTE-20260622-Air_con622_2-038", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0522-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-027", "sourceId": "LOTTE-20260622-Air_con622_2-039", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0523-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-028", "sourceId": "LOTTE-20260622-Air_con622_2-040", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0543-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-029", "sourceId": "LOTTE-20260622-Air_con622_2-041", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0662-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-030", "sourceId": "LOTTE-20260622-Air_con622_2-042", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0704-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-031", "sourceId": "LOTTE-20260622-Air_con622_2-043", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0705-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-032", "sourceId": "LOTTE-20260622-Air_con622_2-044", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0723-0", "trip": "Air-con6/22-2", "ean": "28801062478907", "expDate": "2027/03/27"},
+  {"orderId": "20260622-033", "sourceId": "LOTTE-20260622-Air_con622_1-029", "sku": "BK9275", "name": "LOTTE Pepero 杏仁巧克力口味餅乾棒32g", "qtyBox": 90, "qtyPcs": 3600, "destLoc": "", "srcLoc": "C05B0025-0", "trip": "Air-con6/22-1", "ean": "28801062478907", "expDate": "2027/03/20"},
+  {"orderId": "20260622-034", "sourceId": "LOTTE-20260622-Air_con622_3-022", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 16, "qtyPcs": 640, "destLoc": "", "srcLoc": "C05A0753-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-035", "sourceId": "LOTTE-20260622-Air_con622_1-010", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0334-0", "trip": "Air-con6/22-1", "ean": "58801062636353", "expDate": "2027/03/18"},
+  {"orderId": "20260622-036", "sourceId": "LOTTE-20260622-Air_con622_1-011", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0335-0", "trip": "Air-con6/22-1", "ean": "58801062636353", "expDate": "2027/03/18"},
+  {"orderId": "20260622-037", "sourceId": "LOTTE-20260622-Air_con622_2-012", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0353-0", "trip": "Air-con6/22-2", "ean": "58801062636353", "expDate": "2027/03/18"},
+  {"orderId": "20260622-038", "sourceId": "LOTTE-20260622-Air_con622_3-013", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0354-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/03/18"},
+  {"orderId": "20260622-039", "sourceId": "LOTTE-20260622-Air_con622_3-023", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0754-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-040", "sourceId": "LOTTE-20260622-Air_con622_3-024", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0774-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-041", "sourceId": "LOTTE-20260622-Air_con622_3-025", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0792-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-042", "sourceId": "LOTTE-20260622-Air_con622_3-026", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0793-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-043", "sourceId": "LOTTE-20260622-Air_con622_3-027", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0795-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-044", "sourceId": "LOTTE-20260622-Air_con622_3-028", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05A0833-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-045", "sourceId": "LOTTE-20260622-Air_con622_3-045", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0764-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-046", "sourceId": "LOTTE-20260622-Air_con622_3-046", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0765-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-047", "sourceId": "LOTTE-20260622-Air_con622_3-047", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0782-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-048", "sourceId": "LOTTE-20260622-Air_con622_3-048", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0785-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-049", "sourceId": "LOTTE-20260622-Air_con622_3-049", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0802-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-050", "sourceId": "LOTTE-20260622-Air_con622_3-050", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0803-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-051", "sourceId": "LOTTE-20260622-Air_con622_3-051", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0842-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-052", "sourceId": "LOTTE-20260622-Air_con622_3-052", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0862-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-053", "sourceId": "LOTTE-20260622-Air_con622_3-053", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0863-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-054", "sourceId": "LOTTE-20260622-Air_con622_3-054", "sku": "BK9276", "name": "LOTTE Pepero 白巧克力口味餅乾棒32g", "qtyBox": 80, "qtyPcs": 3200, "destLoc": "", "srcLoc": "C05B0882-0", "trip": "Air-con6/22-3", "ean": "58801062636353", "expDate": "2027/04/16"},
+  {"orderId": "20260622-055", "sourceId": "LOTTE-20260622-622_1-082", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 8, "qtyPcs": 80, "destLoc": "BI012", "srcLoc": "A19B1605-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/16"},
+  {"orderId": "20260622-056", "sourceId": "LOTTE-20260622-622_1-081", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 40, "qtyPcs": 400, "destLoc": "BI012", "srcLoc": "A19B1584-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-057", "sourceId": "LOTTE-20260622-622_1-065", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1473-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-058", "sourceId": "LOTTE-20260622-622_1-066", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1474-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-059", "sourceId": "LOTTE-20260622-622_1-067", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1492-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-060", "sourceId": "LOTTE-20260622-622_1-068", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1493-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-061", "sourceId": "LOTTE-20260622-622_1-069", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1494-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-062", "sourceId": "LOTTE-20260622-622_1-071", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1514-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-063", "sourceId": "LOTTE-20260622-622_1-072", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1534-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-064", "sourceId": "LOTTE-20260622-622_1-073", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1554-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-065", "sourceId": "LOTTE-20260622-622_1-075", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1573-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/16"},
+  {"orderId": "20260622-066", "sourceId": "LOTTE-20260622-622_1-076", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1574-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-067", "sourceId": "LOTTE-20260622-622_1-078", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1593-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/16"},
+  {"orderId": "20260622-068", "sourceId": "LOTTE-20260622-622_1-079", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1613-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/16"},
+  {"orderId": "20260622-069", "sourceId": "LOTTE-20260622-622_1-080", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1614-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/16"},
+  {"orderId": "20260622-070", "sourceId": "LOTTE-20260622-622_1-083", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19B1623-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-071", "sourceId": "LOTTE-20260622-622_1-084", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03A0272-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-072", "sourceId": "LOTTE-20260622-622_1-086", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03A0352-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/12"},
+  {"orderId": "20260622-073", "sourceId": "LOTTE-20260622-622_1-089", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03A0392-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/12"},
+  {"orderId": "20260622-074", "sourceId": "LOTTE-20260622-622_1-104", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03A0854-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/12"},
+  {"orderId": "20260622-075", "sourceId": "LOTTE-20260622-622_1-106", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03A0892-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/12"},
+  {"orderId": "20260622-076", "sourceId": "LOTTE-20260622-622_1-109", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03B0403-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-077", "sourceId": "LOTTE-20260622-622_1-110", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03B0405-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-078", "sourceId": "LOTTE-20260622-622_1-117", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03B0644-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/06/12"},
+  {"orderId": "20260622-079", "sourceId": "LOTTE-20260622-622_1-088", "sku": "BT0065", "name": "樂天小熊餅－家庭號巧克力風味195g", "qtyBox": 56, "qtyPcs": 560, "destLoc": "BI012", "srcLoc": "B03A0375-0", "trip": "6/22-1", "ean": "5 885 2008 30026 5", "expDate": "2027/07/01"},
+  {"orderId": "20260622-080", "sourceId": "LOTTE-20260622-622_1-091", "sku": "BT0066", "name": "樂天小熊餅－家庭號草莓風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03A0512-0", "trip": "6/22-1", "ean": "5 885 2008 30029 6", "expDate": "2027/07/08"},
+  {"orderId": "20260622-081", "sourceId": "LOTTE-20260622-622_1-092", "sku": "BT0066", "name": "樂天小熊餅－家庭號草莓風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03A0554-0", "trip": "6/22-1", "ean": "5 885 2008 30029 6", "expDate": "2027/07/08"},
+  {"orderId": "20260622-082", "sourceId": "LOTTE-20260622-622_1-112", "sku": "BT0066", "name": "樂天小熊餅－家庭號草莓風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03B0522-0", "trip": "6/22-1", "ean": "5 885 2008 30029 6", "expDate": "2027/07/08"},
+  {"orderId": "20260622-083", "sourceId": "LOTTE-20260622-622_1-114", "sku": "BT0066", "name": "樂天小熊餅－家庭號草莓風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03B0543-0", "trip": "6/22-1", "ean": "5 885 2008 30029 6", "expDate": "2027/07/08"},
+  {"orderId": "20260622-084", "sourceId": "LOTTE-20260622-622_1-115", "sku": "BT0066", "name": "樂天小熊餅－家庭號草莓風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "B03B0544-0", "trip": "6/22-1", "ean": "5 885 2008 30029 6", "expDate": "2027/07/08"},
+  {"orderId": "20260622-085", "sourceId": "LOTTE-20260622-622_1-057", "sku": "BT0068", "name": "樂天小熊餅家庭號－濃黑巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1251-0", "trip": "6/22-1", "ean": "58852008304911", "expDate": "2027/07/20"},
+  {"orderId": "20260622-086", "sourceId": "LOTTE-20260622-622_1-062", "sku": "BT0068", "name": "樂天小熊餅家庭號－濃黑巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1292-0", "trip": "6/22-1", "ean": "58852008304911", "expDate": "2027/07/20"},
+  {"orderId": "20260622-087", "sourceId": "LOTTE-20260622-622_1-063", "sku": "BT0068", "name": "樂天小熊餅家庭號－濃黑巧克力風味195g", "qtyBox": 48, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1312-0", "trip": "6/22-1", "ean": "58852008304911", "expDate": "2027/07/20"},
+  {"orderId": "20260622-088", "sourceId": "LOTTE-20260622-622_2-118", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 30, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "C07A0034-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-089", "sourceId": "LOTTE-20260622-622_2-085", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0332-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-090", "sourceId": "LOTTE-20260622-622_2-087", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0372-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-091", "sourceId": "LOTTE-20260622-622_2-090", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0413-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-092", "sourceId": "LOTTE-20260622-622_2-108", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03B0402-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-093", "sourceId": "LOTTE-20260622-622_2-120", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "T06A0055-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-094", "sourceId": "LOTTE-20260622-622_2-121", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "T06A0075-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-095", "sourceId": "LOTTE-20260622-622_2-148", "sku": "BV0005", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "T07B0345-0", "trip": "6/22-2", "ean": "08935341301337", "expDate": "2027/04/21"},
+  {"orderId": "20260622-096", "sourceId": "LOTTE-20260622-622_2-055", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 5, "qtyPcs": 40, "destLoc": "BI012", "srcLoc": "A19A1212-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/02/09"},
+  {"orderId": "20260622-097", "sourceId": "LOTTE-20260622-622_2-059", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 10, "qtyPcs": 80, "destLoc": "BI012", "srcLoc": "A19A1252-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/02/09"},
+  {"orderId": "20260622-098", "sourceId": "LOTTE-20260622-622_2-152", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 20, "qtyPcs": 160, "destLoc": "BI012", "srcLoc": "T09A0374-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-099", "sourceId": "LOTTE-20260622-622_2-130", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 50, "qtyPcs": 400, "destLoc": "BI012", "srcLoc": "T06B0564-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/04/01"},
+  {"orderId": "20260622-100", "sourceId": "LOTTE-20260622-622_2-151", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 50, "qtyPcs": 400, "destLoc": "BI012", "srcLoc": "T09A0374-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-101", "sourceId": "LOTTE-20260622-622_2-056", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1232-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/02/09"},
+  {"orderId": "20260622-102", "sourceId": "LOTTE-20260622-622_2-058", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1252-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/02/09"},
+  {"orderId": "20260622-103", "sourceId": "LOTTE-20260622-622_2-060", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1272-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/02/09"},
+  {"orderId": "20260622-104", "sourceId": "LOTTE-20260622-622_2-061", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1291-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-105", "sourceId": "LOTTE-20260622-622_2-064", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1352-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-106", "sourceId": "LOTTE-20260622-622_2-070", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1511-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-107", "sourceId": "LOTTE-20260622-622_2-074", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1571-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-108", "sourceId": "LOTTE-20260622-622_2-077", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "A19A1591-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-109", "sourceId": "LOTTE-20260622-622_2-131", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0565-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/04/01"},
+  {"orderId": "20260622-110", "sourceId": "LOTTE-20260622-622_2-132", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0585-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/04/01"},
+  {"orderId": "20260622-111", "sourceId": "LOTTE-20260622-622_2-133", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0602-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/04/01"},
+  {"orderId": "20260622-112", "sourceId": "LOTTE-20260622-622_2-134", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0603-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/04/01"},
+  {"orderId": "20260622-113", "sourceId": "LOTTE-20260622-622_2-135", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0605-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/04/01"},
+  {"orderId": "20260622-114", "sourceId": "LOTTE-20260622-622_2-154", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 70, "qtyPcs": 560, "destLoc": "BI012", "srcLoc": "T10B0306-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-115", "sourceId": "LOTTE-20260622-622_2-153", "sku": "BV0006", "name": "LOTTE巧克力布雪蛋糕－經典起司口味(12顆裝)", "qtyBox": 80, "qtyPcs": 640, "destLoc": "BI012", "srcLoc": "T10B0246-0", "trip": "6/22-2", "ean": "08935341301238", "expDate": "2027/03/20"},
+  {"orderId": "20260622-116", "sourceId": "LOTTE-20260622-622_3-119", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 20, "qtyPcs": 320, "destLoc": "BI012", "srcLoc": "C11B0184-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/22"},
+  {"orderId": "20260622-117", "sourceId": "LOTTE-20260622-622_3-093", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0695-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-118", "sourceId": "LOTTE-20260622-622_3-094", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0712-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-119", "sourceId": "LOTTE-20260622-622_3-095", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0713-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-120", "sourceId": "LOTTE-20260622-622_3-096", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0715-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-121", "sourceId": "LOTTE-20260622-622_3-097", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0732-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-122", "sourceId": "LOTTE-20260622-622_3-098", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0733-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-123", "sourceId": "LOTTE-20260622-622_3-099", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0735-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-124", "sourceId": "LOTTE-20260622-622_3-100", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0752-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-125", "sourceId": "LOTTE-20260622-622_3-101", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0772-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-126", "sourceId": "LOTTE-20260622-622_3-102", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0773-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-127", "sourceId": "LOTTE-20260622-622_3-103", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0774-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-128", "sourceId": "LOTTE-20260622-622_3-105", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03A0875-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-129", "sourceId": "LOTTE-20260622-622_3-107", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03B0382-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-130", "sourceId": "LOTTE-20260622-622_3-111", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03B0422-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-131", "sourceId": "LOTTE-20260622-622_3-113", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03B0542-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-132", "sourceId": "LOTTE-20260622-622_3-116", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "B03B0602-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/14"},
+  {"orderId": "20260622-133", "sourceId": "LOTTE-20260622-622_3-122", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "T06A0452-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/22"},
+  {"orderId": "20260622-134", "sourceId": "LOTTE-20260622-622_3-137", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "T07A0034-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/22"},
+  {"orderId": "20260622-135", "sourceId": "LOTTE-20260622-622_3-149", "sku": "BV0007", "name": "LOTTE巧克力布雪蛋糕(6顆裝)", "qtyBox": 60, "qtyPcs": 960, "destLoc": "BI012", "srcLoc": "T07B0363-0", "trip": "6/22-3", "ean": "08935341300736", "expDate": "2027/04/22"},
+  {"orderId": "20260622-136", "sourceId": "LOTTE-20260622-622_2-123", "sku": "BV0008", "name": "LOTTE巧克力布雪蛋糕(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0383-0", "trip": "6/22-2", "ean": "08935341300637", "expDate": "2027/03/30"},
+  {"orderId": "20260622-137", "sourceId": "LOTTE-20260622-622_2-124", "sku": "BV0008", "name": "LOTTE巧克力布雪蛋糕(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0444-0", "trip": "6/22-2", "ean": "08935341300637", "expDate": "2027/03/30"},
+  {"orderId": "20260622-138", "sourceId": "LOTTE-20260622-622_2-125", "sku": "BV0008", "name": "LOTTE巧克力布雪蛋糕(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0445-0", "trip": "6/22-2", "ean": "08935341300637", "expDate": "2027/03/30"},
+  {"orderId": "20260622-139", "sourceId": "LOTTE-20260622-622_2-126", "sku": "BV0008", "name": "LOTTE巧克力布雪蛋糕(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0464-0", "trip": "6/22-2", "ean": "08935341300637", "expDate": "2027/03/30"},
+  {"orderId": "20260622-140", "sourceId": "LOTTE-20260622-622_2-127", "sku": "BV0008", "name": "LOTTE巧克力布雪蛋糕(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0522-0", "trip": "6/22-2", "ean": "08935341300637", "expDate": "2027/03/30"},
+  {"orderId": "20260622-141", "sourceId": "LOTTE-20260622-622_2-128", "sku": "BV0008", "name": "LOTTE巧克力布雪蛋糕(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0525-0", "trip": "6/22-2", "ean": "08935341300637", "expDate": "2027/03/30"},
+  {"orderId": "20260622-142", "sourceId": "LOTTE-20260622-622_2-129", "sku": "BV0008", "name": "LOTTE巧克力布雪蛋糕(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T06B0545-0", "trip": "6/22-2", "ean": "08935341300637", "expDate": "2027/03/30"},
+  {"orderId": "20260622-143", "sourceId": "LOTTE-20260622-622_3-146", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 20, "qtyPcs": 160, "destLoc": "BI012", "srcLoc": "T07A0392-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-144", "sourceId": "LOTTE-20260622-622_3-136", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0014-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-145", "sourceId": "LOTTE-20260622-622_3-138", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0054-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-146", "sourceId": "LOTTE-20260622-622_3-139", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0174-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-147", "sourceId": "LOTTE-20260622-622_3-140", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0254-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-148", "sourceId": "LOTTE-20260622-622_3-141", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0274-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-149", "sourceId": "LOTTE-20260622-622_3-142", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0312-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-150", "sourceId": "LOTTE-20260622-622_3-143", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0332-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-151", "sourceId": "LOTTE-20260622-622_3-144", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0334-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-152", "sourceId": "LOTTE-20260622-622_3-145", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0354-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-153", "sourceId": "LOTTE-20260622-622_3-147", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI012", "srcLoc": "T07A0455-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-154", "sourceId": "LOTTE-20260622-622_3-150", "sku": "BV0011", "name": "LOTTE巧克力派－日式抹茶口味(12顆裝)", "qtyBox": 60, "qtyPcs": 480, "destLoc": "BI013", "srcLoc": "T07B0365-0", "trip": "6/22-3", "ean": "8935341301832", "expDate": "2027/04/10"},
+  {"orderId": "20260622-155", "sourceId": "LOTTE-20260622-622_4-172", "sku": "DK9012", "name": "LOTTE檸檬糖17.5g", "qtyBox": 6, "qtyPcs": 288, "destLoc": "BI013", "srcLoc": "C07A0113-0", "trip": "6/22-4", "ean": "38801062221975", "expDate": "2027/04/06"},
+  {"orderId": "20260622-156", "sourceId": "LOTTE-20260622-622_4-173", "sku": "DK9012", "name": "LOTTE檸檬糖17.5g", "qtyBox": 57, "qtyPcs": 2736, "destLoc": "BI013", "srcLoc": "C07A0173-0", "trip": "6/22-4", "ean": "38801062221975", "expDate": "2027/03/26"},
+  {"orderId": "20260622-157", "sourceId": "LOTTE-20260622-622_4-174", "sku": "DK9012", "name": "LOTTE檸檬糖17.5g", "qtyBox": 140, "qtyPcs": 6720, "destLoc": "BI013", "srcLoc": "C11B0047-0", "trip": "6/22-4", "ean": "38801062221975", "expDate": "2027/04/06"},
+  {"orderId": "20260622-158", "sourceId": "LOTTE-20260622-622_4-175", "sku": "DK9012", "name": "LOTTE檸檬糖17.5g", "qtyBox": 140, "qtyPcs": 6720, "destLoc": "BI013", "srcLoc": "C11B0127-0", "trip": "6/22-4", "ean": "38801062221975", "expDate": "2027/03/26"},
+  {"orderId": "20260622-159", "sourceId": "LOTTE-20260622-622_4-176", "sku": "DK9012", "name": "LOTTE檸檬糖17.5g", "qtyBox": 140, "qtyPcs": 6720, "destLoc": "BI013", "srcLoc": "C11B0167-0", "trip": "6/22-4", "ean": "38801062221975", "expDate": "2027/04/06"},
+  {"orderId": "20260622-160", "sourceId": "LOTTE-20260622-622_4-179", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 28, "qtyPcs": 560, "destLoc": "BI013", "srcLoc": "T11A0175-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/29"},
+  {"orderId": "20260622-161", "sourceId": "LOTTE-20260622-622_4-178", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 36, "qtyPcs": 720, "destLoc": "BI013", "srcLoc": "T11A0155-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-162", "sourceId": "LOTTE-20260622-622_4-180", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T11A0193-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/29"},
+  {"orderId": "20260622-163", "sourceId": "LOTTE-20260622-622_4-181", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T11A0194-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/29"},
+  {"orderId": "20260622-164", "sourceId": "LOTTE-20260622-622_4-182", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T11A0274-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/29"},
+  {"orderId": "20260622-165", "sourceId": "LOTTE-20260622-622_4-183", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T12A0374-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/29"},
+  {"orderId": "20260622-166", "sourceId": "LOTTE-20260622-622_4-184", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T12A0431-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/29"},
+  {"orderId": "20260622-167", "sourceId": "LOTTE-20260622-622_4-185", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T12B0044-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-168", "sourceId": "LOTTE-20260622-622_4-186", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T12B0423-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-169", "sourceId": "LOTTE-20260622-622_4-187", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 42, "qtyPcs": 840, "destLoc": "BI013", "srcLoc": "T12B0484-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/29"},
+  {"orderId": "20260622-170", "sourceId": "LOTTE-20260622-622_4-155", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1172-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-171", "sourceId": "LOTTE-20260622-622_4-156", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1192-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-172", "sourceId": "LOTTE-20260622-622_4-157", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1271-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-173", "sourceId": "LOTTE-20260622-622_4-158", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1331-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-174", "sourceId": "LOTTE-20260622-622_4-159", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1351-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-175", "sourceId": "LOTTE-20260622-622_4-160", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1353-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-176", "sourceId": "LOTTE-20260622-622_4-161", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1373-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-177", "sourceId": "LOTTE-20260622-622_4-162", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1392-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/03/11"},
+  {"orderId": "20260622-178", "sourceId": "LOTTE-20260622-622_4-163", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1393-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-179", "sourceId": "LOTTE-20260622-622_4-164", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1412-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/03/11"},
+  {"orderId": "20260622-180", "sourceId": "LOTTE-20260622-622_4-165", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1413-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/03/11"},
+  {"orderId": "20260622-181", "sourceId": "LOTTE-20260622-622_4-166", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1452-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/03/11"},
+  {"orderId": "20260622-182", "sourceId": "LOTTE-20260622-622_4-167", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1453-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/03/11"},
+  {"orderId": "20260622-183", "sourceId": "LOTTE-20260622-622_4-168", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19A1513-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/03/11"},
+  {"orderId": "20260622-184", "sourceId": "LOTTE-20260622-622_4-169", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19B1362-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-185", "sourceId": "LOTTE-20260622-622_4-170", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19B1382-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-186", "sourceId": "LOTTE-20260622-622_4-171", "sku": "DK9051", "name": "LOTTE 青葡萄糖153g", "qtyBox": 60, "qtyPcs": 1200, "destLoc": "BI013", "srcLoc": "A19B1402-0", "trip": "6/22-4", "ean": "58801062009522", "expDate": "2027/04/14"},
+  {"orderId": "20260622-187", "sourceId": "LOTTE-20260622-622_4-177", "sku": "DK9075", "name": "LOTTE檸檬糖17.5g  FOX PX", "qtyBox": 140, "qtyPcs": 6720, "destLoc": "BI013", "srcLoc": "T06A0053-0", "trip": "6/22-4", "ean": "", "expDate": "2027/03/26"}
+];
 
-// 初始化查詢表
+// ===== 查詢索引 =====
+// PALLET_LOOKUP_BY_SOURCEID：以 sourceId（QR Code 內容）為 key
+// PALLET_LOOKUP_BY_ORDERID ：以 orderId（手打入庫單號）為 key
+const PALLET_LOOKUP_BY_SOURCEID = {};
+const PALLET_LOOKUP_BY_ORDERID = {};
+// 相容舊變數名
+const PALLET_LOOKUP = PALLET_LOOKUP_BY_ORDERID;
+
 function initPalletLookup() {
-  // 從原始 QR 列印器的 PALLET_DATA 建立簡化查詢表
-  // 這裡用代理資料（實際應用會導入完整資料）
-  const sampleData = [
-    {orderId:'20260622-001',sku:'BK9275',name:'LOTTE Pepero 杏仁巧克力口味餅乾棒32g',qtyBox:80,qtyPcs:3200,destLoc:''},
-    {orderId:'20260622-002',sku:'BK9275',name:'LOTTE Pepero 杏仁巧克力口味餅乾棒32g',qtyBox:80,qtyPcs:3200,destLoc:''},
-    {orderId:'20260622-003',sku:'BK9276',name:'LOTTE Pepero 草莓巧克力口味餅乾棒32g',qtyBox:40,qtyPcs:960,destLoc:'BI010'},
-  ];
+  PALLET_DATA_SORTED.forEach(function(p) {
+    PALLET_LOOKUP_BY_SOURCEID[p.sourceId] = p;
+    PALLET_LOOKUP_BY_ORDERID[p.orderId] = p;
+  });
+}
 
-  // 建立查詢表以支持排序後的 orderId
-  for(let i = 1; i <= 187; i++) {
-    const id = '20260622-' + String(i).padStart(3,'0');
-    // 實際應用會查詢完整資料，這裡模擬
-    PALLET_LOOKUP[id] = sampleData[i % sampleData.length] || {
-      orderId: id,
-      sku: 'SKU' + i,
-      name: '商品' + i,
-      qtyBox: 40 + (i % 80),
-      qtyPcs: 320 + (i % 3200),
-      destLoc: 'BI' + String(i % 20).padStart(3,'0')
-    };
+// ===== 統一掃描/輸入解析 =====
+// 同時支援：掃 QR Code(sourceId)、手打數字(1-187)、完整 orderId、JSON 格式
+function handleScan(input) {
+  input = (input || '').trim();
+  if (!input) return null;
+  let pallet = null;
+
+  // 方式C：QR 為 JSON 格式時先嘗試解析（JSON 字串內也含 LOTTE，須最先判斷）
+  if (input.charAt(0) === '{') {
+    try {
+      const d = JSON.parse(input);
+      const sid = d.s || d.sourceId || d.source;
+      const oid = d.o || d.orderId || d.order;
+      if (sid) pallet = PALLET_LOOKUP_BY_SOURCEID[sid];
+      if (!pallet && oid) pallet = PALLET_LOOKUP_BY_ORDERID[oid];
+    } catch (e) {}
   }
+  // 方式A：掃 QR Code → 輸入是 sourceId（LOTTE-... 純文字，列印器實際格式）
+  else if (input.indexOf('LOTTE') !== -1) {
+    pallet = PALLET_LOOKUP_BY_SOURCEID[input];
+  }
+  // 方式B：手打 orderId → 純數字 1-3 碼（001 / 1 / 187）
+  else if (/^\d{1,3}$/.test(input)) {
+    const orderId = '20260622-' + input.padStart(3, '0');
+    pallet = PALLET_LOOKUP_BY_ORDERID[orderId];
+  }
+  // 完整 orderId（20260622-XXX）
+  else if (input.indexOf('20260622-') === 0) {
+    pallet = PALLET_LOOKUP_BY_ORDERID[input];
+  }
+
+  return pallet || null;
 }
 
 // 會話資料結構
@@ -197,23 +411,21 @@ function startSession() {
   goScreen(1);
 }
 
-// 掃描 QR 或輸入 orderId
+// 掃描 QR Code(sourceId) 或輸入 orderId — 統一交給 handleScan 解析
 document.getElementById('qrInput').addEventListener('keypress', function(e) {
   if(e.key === 'Enter') {
-    const orderId = this.value.trim();
-    if(!orderId) return;
+    const raw = this.value.trim();
+    if(!raw) return;
 
-    // 允許部分輸入（如：001 → 20260622-001）
-    let fullId = orderId;
-    if(/^\d{3}$/.test(orderId)) {
-      fullId = '20260622-' + orderId;
-    }
-
-    const pallet = PALLET_LOOKUP[fullId];
+    // 同時支援：掃貼紙 QR(LOTTE-...)、手打數字(001)、完整 orderId、JSON
+    const pallet = handleScan(raw);
     if(!pallet) {
-      toast('找不到棧板：' + fullId);
+      toast('找不到棧板：' + raw);
       return;
     }
+
+    // 一律以 orderId 為照片綁定的 key（掃 QR 或手打都綁到同一塊板）
+    const fullId = pallet.orderId;
 
     // 顯示棧板資訊
     document.getElementById('infoId').textContent = fullId;
@@ -301,10 +513,10 @@ function completePallet() {
   const qr = document.getElementById('qrInput').value.trim();
   if(!qr) return;
 
-  let fullId = qr;
-  if(/^\d{3}$/.test(qr)) {
-    fullId = '20260622-' + qr;
-  }
+  // 用 handleScan 解析（支援掃 QR 的 sourceId），統一取得 orderId
+  const p = handleScan(qr);
+  if(!p) return;
+  const fullId = p.orderId;
 
   const pallet = session.photos[fullId];
   if(!pallet) return;
