@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ALLY × LOTTE 移倉時點驗 APP</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --primary: #1E293B;
+  --secondary: #334155;
+  --accent: #FFD700;
+  --success: #22C55E;
+  --danger: #EF4444;
+  --bg: #0F172A;
+  --card: #1A2847;
+  --border: #334155;
+  --text: #F8FAFC;
+  --muted: #94A3B8;
+  --white: #FFFFFF;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  height: 100%;
+  font-family: "Noto Sans TC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 10px;
+}
+
+/* DEVICE FRAME */
+.device {
+  width: 390px;
+  height: 844px;
+  background: var(--bg);
+  border-radius: 40px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #222, 0 40px 120px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.05);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* STATUS BAR */
+.statusbar {
+  height: 44px;
+  background: var(--card);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.statusbar .time {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.statusbar .icons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+  color: var(--white);
+}
+
+.status-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.status-icon.online {
+  background: var(--success);
+}
+
+.status-icon.syncing {
+  background: var(--accent);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* SCREEN CONTAINER */
+.screen-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.topbar {
+  background: var(--card);
+  padding: 12px 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.sync-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sync-badge.online {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.sync-badge.syncing {
+  background: rgba(255, 215, 0, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.sync-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* CONTENT AREA */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: none;
+}
+
+.content.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* SCREEN STYLES */
+.screen-scan { }
+.screen-verify { }
+.screen-issues { }
+.screen-confirm { }
+
+/* SECTION */
+.section {
+  margin-bottom: 16px;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* SCAN INPUT */
+.scan-box {
+  background: var(--primary);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.scan-input {
+  width: 100%;
+  padding: 14px 14px;
+  background: transparent;
+  border: none;
+  color: var(--success);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  outline: none;
+}
+
+.scan-input::placeholder {
+  color: var(--muted);
+}
+
+.scan-input:focus {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+/* CARD */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  transition: all 150ms ease;
+}
+
+.card.scanned {
+  border-color: var(--success);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.card.issue {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--white);
+  flex: 1;
+}
+
+.card-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-status.scanned {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--success);
+}
+
+.card-status.pending {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--muted);
+}
+
+.card-status.issue {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+.card-detail {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.card-action {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* BUTTON */
+.btn {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-family: "Noto Sans TC", sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn:active {
+  opacity: 0.8;
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  width: 100%;
+  font-size: 14px;
+  padding: 12px;
+  font-weight: 700;
+}
+
+.btn-primary:hover {
+  background: #FFF44F;
+}
+
+.btn-secondary {
+  background: var(--secondary);
+  color: var(--text);
+  flex: 1;
+}
+
+.btn-secondary:hover {
+  background: #475569;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: var(--white);
+  flex: 1;
+}
+
+.btn-danger:hover {
+  background: #DC2626;
+}
+
+.btn-success {
+  background: var(--success);
+  color: #000;
+  flex: 1;
+  font-weight: 700;
+}
+
+.btn-success:hover {
+  background: #16A34A;
+}
+
+.btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  background: var(--secondary);
+  color: var(--text);
+}
+
+.btn-icon:hover {
+  background: var(--border);
+}
+
+/* FORM */
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-input, .form-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--primary);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: "Noto Sans TC", sans-serif;
+  outline: none;
+  transition: all 150ms ease;
+}
+
+.form-input:focus, .form-textarea:focus {
+  border-color: var(--accent);
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: "Noto Sans TC", sans-serif;
+}
+
+/* SIGNATURE CANVAS */
+.signature-canvas-wrapper {
+  background: var(--primary);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+#signatureCanvas {
+  display: block;
+  width: 100%;
+  height: 120px;
+  background: var(--primary);
+  cursor: crosshair;
+  border-radius: 8px;
+}
+
+.signature-hint {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  padding: 8px;
+  background: rgba(51, 65, 85, 0.5);
+}
+
+/* PHOTO UPLOAD */
+.photo-upload {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.photo-item {
+  aspect-ratio: 1;
+  background: var(--primary);
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 150ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.photo-item:hover {
+  border-color: var(--accent);
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-placeholder {
+  color: var(--muted);
+  text-align: center;
+  font-size: 24px;
+}
+
+#photoInput {
+  display: none;
+}
+
+/* PROGRESS BAR */
+.progress-section {
+  margin-bottom: 12px;
+}
+
+.progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--success));
+  border-radius: 4px;
+  transition: width 300ms ease;
+}
+
+/* EMPTY STATE */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* BOTTOM TABS */
+.tabbar {
+  height: 60px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-shrink: 0;
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: color 150ms ease;
+  border: none;
+  background: none;
+}
+
+.tab.active {
+  color: var(--accent);
+}
+
+.tab-icon {
+  font-size: 20px;
+}
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--primary);
+  color: var(--text);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 1000;
+  animation: slideUp 300ms ease;
+}
+
+.toast.success {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.toast.error {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* RESPONSIVE */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .device {
+    width: 100%;
+    height: auto;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="device">
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <div class="time" id="currentTime">9:41</div>
+    <div class="icons">
+      <span class="status-icon online"></span>
+      <span>📶</span>
+      <span>🔋</span>
+    </div>
+  </div>
+
+  <!-- SCREEN CONTAINER -->
+  <div class="screen-container">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-title">ALLY × LOTTE</div>
+      <div class="sync-badge online">
+        <span class="dot"></span>已同步
+      </div>
+    </div>
+
+    <!-- SCREEN 1: SCAN -->
+    <div class="content screen-scan active">
+      <div class="section">
+        <div class="section-label">移倉驗收</div>
+        <div class="scan-box">
+          <input type="text" class="scan-input" id="barcodeInput" placeholder="掃描商品條碼..." autofocus>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="progress-section">
+          <div class="progress-label">
+            <span>驗收進度</span>
+            <span id="progressText">0 / 10</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">已掃商品</div>
+        <div id="scannedList"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">未掃商品</div>
+        <div id="pendingList"></div>
+      </div>
+
+      <div style="height: 16px;"></div>
+    </div>
+
+    <!-- SCREEN 2: VERIFY -->
+    <div class="content screen-verify">
+      <div class="section">
+        <div class="section-label">驗收清單</div>
+        <div id="verifyList"></div>
+      </div>
+
+      <div class="section">
+        <button class="btn btn-success" onclick="goToIssues()">
+          ✓ 下一步：標記問題
+        </button>
+      </div>
+
+      <div style="height: 16px;"></div>
+    </div>
+
+    <!-- SCREEN 3: ISSUES -->
+    <div class="content screen-issues">
+      <div class="section">
+        <div class="section-label">問題反饋</div>
+        <div id="issuesList"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">添加問題商品</div>
+        <div class="form-group">
+          <label class="form-label">商品編號</label>
+          <input type="text" class="form-input" id="issueProductId" placeholder="輸入有問題的商品編號">
+        </div>
+        <div class="form-group">
+          <label class="form-label">問題描述</label>
+          <textarea class="form-textarea" id="issueDescription" placeholder="例：數量不符、商品損壞、條碼錯誤..."></textarea>
+        </div>
+        <button class="btn btn-secondary" onclick="addIssue()">+ 添加問題</button>
+      </div>
+
+      <div class="section">
+        <button class="btn btn-success" onclick="goToConfirm()">
+          → 下一步：簽名確認
+        </button>
+      </div>
+
+      <div style="height: 16px;"></div>
+    </div>
+
+    <!-- SCREEN 4: CONFIRM -->
+    <div class="content screen-confirm">
+      <div class="section">
+        <div class="section-label">簽名確認</div>
+        <div class="form-group">
+          <label class="form-label">收貨人簽名</label>
+          <div class="signature-canvas-wrapper">
+            <canvas id="signatureCanvas"></canvas>
+          </div>
+          <div class="signature-hint">點擊並在上方簽名</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="clearSignature()">清除</button>
+          <button class="btn btn-primary" style="flex: 1;" onclick="saveSignature()">保存簽名</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">拍照記錄</div>
+        <div class="form-group">
+          <div class="photo-upload">
+            <div class="photo-item" onclick="triggerPhotoInput(0)">
+              <div id="photo0" class="photo-placeholder">📷</div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoInput(1)">
+              <div id="photo1" class="photo-placeholder">📷</div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoInput(2)">
+              <div id="photo2" class="photo-placeholder">📷</div>
+            </div>
+            <div class="photo-item" onclick="triggerPhotoInput(3)">
+              <div id="photo3" class="photo-placeholder">📷</div>
+            </div>
+          </div>
+          <input type="file" id="photoInput" accept="image/*" onchange="handlePhotoUpload(event)">
+        </div>
+      </div>
+
+      <div class="section">
+        <button class="btn btn-primary" onclick="submitVerification()">
+          ✓ 完成驗收並同步
+        </button>
+      </div>
+
+      <div style="height: 16px;"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM TAB BAR -->
+  <div class="tabbar">
+    <button class="tab active" onclick="switchScreen(0)">
+      <span class="tab-icon">📋</span>
+      <span>掃描</span>
+    </button>
+    <button class="tab" onclick="switchScreen(1)">
+      <span class="tab-icon">✓</span>
+      <span>驗收</span>
+    </button>
+    <button class="tab" onclick="switchScreen(2)">
+      <span class="tab-icon">⚠️</span>
+      <span>問題</span>
+    </button>
+    <button class="tab" onclick="switchScreen(3)">
+      <span class="tab-icon">✍️</span>
+      <span>確認</span>
+    </button>
+  </div>
+</div>
+
+<script>
+// ============ DATA MANAGEMENT ============
+let appData = {
+  shipmentId: "SH2024061001",
+  products: [
+    { id: "SKU001", name: "咖啡粉 250g", qty: 10, category: "飲品" },
+    { id: "SKU002", name: "糖果盒", qty: 20, category: "食品" },
+    { id: "SKU003", name: "紙杯", qty: 50, category: "耗材" },
+    { id: "SKU004", name: "膠帶", qty: 5, category: "耗材" },
+    { id: "SKU005", name: "標籤貼紙", qty: 100, category: "耗材" },
+    { id: "SKU006", name: "箱子L號", qty: 30, category: "包裝" },
+    { id: "SKU007", name: "保護膜", qty: 15, category: "包裝" },
+    { id: "SKU008", name: "泡棉", qty: 8, category: "包裝" },
+    { id: "SKU009", name: "膠水", qty: 12, category: "耗材" },
+    { id: "SKU010", name: "標籤紙", qty: 40, category: "耗材" }
+  ],
+  scanned: [],
+  issues: [],
+  photos: [null, null, null, null],
+  signature: null
+};
+
+// ============ UTILITIES ============
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function updateTime() {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const mins = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('currentTime').textContent = `${hours}:${mins}`;
+}
+
+function updateProgress() {
+  const total = appData.products.length;
+  const scanned = appData.scanned.length;
+  const percent = (scanned / total) * 100;
+
+  document.getElementById('progressFill').style.width = percent + '%';
+  document.getElementById('progressText').textContent = `${scanned} / ${total}`;
+}
+
+// ============ SCREEN NAVIGATION ============
+function switchScreen(index) {
+  document.querySelectorAll('.content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+
+  const screens = document.querySelectorAll('.content');
+  const tabs = document.querySelectorAll('.tab');
+
+  screens[index].classList.add('active');
+  tabs[index].classList.add('active');
+}
+
+function goToIssues() {
+  switchScreen(2);
+}
+
+function goToConfirm() {
+  switchScreen(3);
+}
+
+// ============ BARCODE SCANNING ============
+document.getElementById('barcodeInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    const barcode = this.value.trim();
+    if (!barcode) return;
+
+    const product = appData.products.find(p => p.id === barcode || p.name.includes(barcode));
+
+    if (product) {
+      if (!appData.scanned.includes(product.id)) {
+        appData.scanned.push(product.id);
+        updateProgress();
+        updateProductLists();
+        showToast(`✓ ${product.name} 已掃描`, 'success');
+      } else {
+        showToast(`已掃描過 ${product.name}`, 'error');
+      }
+    } else {
+      showToast('未找到該商品', 'error');
+    }
+
+    this.value = '';
+  }
+});
+
+// ============ PRODUCT LISTS ============
+function updateProductLists() {
+  const scannedList = document.getElementById('scannedList');
+  const pendingList = document.getElementById('pendingList');
+
+  scannedList.innerHTML = '';
+  pendingList.innerHTML = '';
+
+  appData.products.forEach(product => {
+    const isScanned = appData.scanned.includes(product.id);
+    const card = document.createElement('div');
+    card.className = `card ${isScanned ? 'scanned' : ''}`;
+
+    const statusClass = isScanned ? 'scanned' : 'pending';
+    const statusText = isScanned ? '已掃' : '待掃';
+
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">${product.name}</div>
+        <div class="card-status ${statusClass}">${statusText}</div>
+      </div>
+      <div class="card-detail">
+        編號: <strong>${product.id}</strong> | 數量: <strong>${product.qty}</strong>件 | 分類: ${product.category}
+      </div>
+    `;
+
+    if (isScanned) {
+      scannedList.appendChild(card);
+    } else {
+      pendingList.appendChild(card);
+    }
+  });
+
+  // Empty states
+  if (scannedList.children.length === 0) {
+    scannedList.innerHTML = `
+      <div class="empty-state" style="padding: 20px;">
+        <div class="empty-icon">📭</div>
+        <div class="empty-title">未掃描商品</div>
+      </div>
+    `;
+  }
+
+  if (pendingList.children.length === 0) {
+    pendingList.innerHTML = `
+      <div class="empty-state" style="padding: 20px;">
+        <div class="empty-icon">🎉</div>
+        <div class="empty-title">所有商品已掃描!</div>
+      </div>
+    `;
+  }
+}
+
+function updateVerifyList() {
+  const verifyList = document.getElementById('verifyList');
+  verifyList.innerHTML = '';
+
+  appData.products.forEach(product => {
+    const isScanned = appData.scanned.includes(product.id);
+    const card = document.createElement('div');
+    card.className = `card ${isScanned ? 'scanned' : ''}`;
+
+    const statusClass = isScanned ? 'scanned' : 'pending';
+    const statusText = isScanned ? '✓ 已驗收' : '✗ 未驗收';
+
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">${product.name}</div>
+        <div class="card-status ${statusClass}">${statusText}</div>
+      </div>
+      <div class="card-detail">
+        ${product.id} | 數量: ${product.qty}件 | ${product.category}
+      </div>
+    `;
+
+    verifyList.appendChild(card);
+  });
+}
+
+function updateIssuesList() {
+  const issuesList = document.getElementById('issuesList');
+  issuesList.innerHTML = '';
+
+  if (appData.issues.length === 0) {
+    issuesList.innerHTML = `
+      <div class="empty-state" style="padding: 20px;">
+        <div class="empty-icon">✨</div>
+        <div class="empty-title">暫無問題報告</div>
+      </div>
+    `;
+    return;
+  }
+
+  appData.issues.forEach((issue, index) => {
+    const card = document.createElement('div');
+    card.className = 'card issue';
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">${issue.productId}</div>
+        <div class="card-status issue">問題</div>
+      </div>
+      <div class="card-detail">${issue.description}</div>
+      <div class="card-action">
+        <button class="btn btn-danger" onclick="removeIssue(${index})">刪除</button>
+      </div>
+    `;
+    issuesList.appendChild(card);
+  });
+}
+
+// ============ ISSUES MANAGEMENT ============
+function addIssue() {
+  const productId = document.getElementById('issueProductId').value.trim();
+  const description = document.getElementById('issueDescription').value.trim();
+
+  if (!productId || !description) {
+    showToast('請填寫商品編號和問題描述', 'error');
+    return;
+  }
+
+  appData.issues.push({ productId, description });
+  document.getElementById('issueProductId').value = '';
+  document.getElementById('issueDescription').value = '';
+
+  updateIssuesList();
+  showToast('✓ 問題已添加', 'success');
+}
+
+function removeIssue(index) {
+  appData.issues.splice(index, 1);
+  updateIssuesList();
+  showToast('✓ 問題已移除', 'success');
+}
+
+// ============ SIGNATURE ============
+let isDrawing = false;
+let signatureCtx = null;
+
+function initSignature() {
+  const canvas = document.getElementById('signatureCanvas');
+  signatureCtx = canvas.getContext('2d');
+
+  // Set canvas resolution
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+
+  // Set fill color
+  signatureCtx.fillStyle = '#F8FAFC';
+  signatureCtx.strokeStyle = '#FFD700';
+  signatureCtx.lineWidth = 2;
+  signatureCtx.lineCap = 'round';
+  signatureCtx.lineJoin = 'round';
+
+  canvas.addEventListener('mousedown', startDrawing);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', stopDrawing);
+  canvas.addEventListener('mouseleave', stopDrawing);
+
+  canvas.addEventListener('touchstart', startDrawing);
+  canvas.addEventListener('touchmove', draw);
+  canvas.addEventListener('touchend', stopDrawing);
+}
+
+function startDrawing(e) {
+  isDrawing = true;
+  const pos = getMousePos(e);
+  signatureCtx.beginPath();
+  signatureCtx.moveTo(pos.x, pos.y);
+}
+
+function draw(e) {
+  if (!isDrawing) return;
+  const pos = getMousePos(e);
+  signatureCtx.lineTo(pos.x, pos.y);
+  signatureCtx.stroke();
+}
+
+function stopDrawing() {
+  isDrawing = false;
+}
+
+function getMousePos(e) {
+  const canvas = document.getElementById('signatureCanvas');
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+  return { x, y };
+}
+
+function clearSignature() {
+  const canvas = document.getElementById('signatureCanvas');
+  signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
+  appData.signature = null;
+  showToast('✓ 簽名已清除', 'success');
+}
+
+function saveSignature() {
+  const canvas = document.getElementById('signatureCanvas');
+  const isEmpty = !canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data.some(channel => channel !== 0);
+
+  if (isEmpty) {
+    showToast('請先簽名', 'error');
+    return;
+  }
+
+  appData.signature = canvas.toDataURL();
+  showToast('✓ 簽名已保存', 'success');
+}
+
+// ============ PHOTO UPLOAD ============
+let currentPhotoIndex = 0;
+
+function triggerPhotoInput(index) {
+  currentPhotoIndex = index;
+  document.getElementById('photoInput').click();
+}
+
+function handlePhotoUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const photoEl = document.getElementById(`photo${currentPhotoIndex}`);
+    photoEl.innerHTML = `<img src="${e.target.result}" alt="照片${currentPhotoIndex + 1}">`;
+    appData.photos[currentPhotoIndex] = e.target.result;
+    showToast('✓ 照片已上傳', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============ SUBMIT ============
+async function submitVerification() {
+  if (appData.scanned.length === 0) {
+    showToast('請至少掃描一個商品', 'error');
+    return;
+  }
+
+  if (!appData.signature) {
+    showToast('請先簽名', 'error');
+    return;
+  }
+
+  // Simulate sync to Google Sheets & Firebase
+  showToast('同步中...', 'success');
+
+  console.log('提交數據:', {
+    shipmentId: appData.shipmentId,
+    scannedCount: appData.scanned.length,
+    totalCount: appData.products.length,
+    issues: appData.issues,
+    signature: appData.signature ? '已簽名' : '未簽名',
+    photos: appData.photos.filter(p => p).length + ' 張'
+  });
+
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  showToast('✓ 驗收完成！已同步到系統', 'success');
+
+  // Reset data
+  setTimeout(() => {
+    resetApp();
+  }, 1500);
+}
+
+function resetApp() {
+  appData.scanned = [];
+  appData.issues = [];
+  appData.photos = [null, null, null, null];
+  appData.signature = null;
+
+  document.getElementById('barcodeInput').value = '';
+  document.getElementById('issueProductId').value = '';
+  document.getElementById('issueDescription').value = '';
+  document.getElementById('photoInput').value = '';
+
+  // Clear photos
+  for (let i = 0; i < 4; i++) {
+    document.getElementById(`photo${i}`).innerHTML = '📷';
+  }
+
+  // Clear signature
+  const canvas = document.getElementById('signatureCanvas');
+  signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+  updateProgress();
+  updateProductLists();
+  switchScreen(0);
+
+  document.getElementById('barcodeInput').focus();
+}
+
+// ============ INITIALIZATION ============
+document.addEventListener('DOMContentLoaded', function() {
+  setInterval(updateTime, 60000);
+  initSignature();
+  updateProgress();
+  updateProductLists();
+  document.getElementById('barcodeInput').focus();
+});
+</script>
+
+</body>
+</html>

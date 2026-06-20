@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALLY × LOTTE 板標列印器 - v7.1</title>
+
+<!-- Code128 Barcode Library（貼紙雙一維條碼：入庫單號 + 儲位）-->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { font-family:"Noto Sans TC", sans-serif; background:#f5f5f5; }
+
+body {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  padding:20px;
+}
+
+.container {
+  width:100%;
+  max-width:1200px;
+  background:white;
+  border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+  padding:30px;
+}
+
+h1 {
+  color:#0D1B3E;
+  margin-bottom:10px;
+  font-size:28px;
+}
+
+.subtitle {
+  color:#6B7A99;
+  margin-bottom:30px;
+  font-size:14px;
+}
+
+/* SECTION */
+.section {
+  margin-bottom:40px;
+  padding-bottom:20px;
+  border-bottom:1px solid #eee;
+}
+
+.section:last-child {
+  border-bottom:none;
+}
+
+/* SETUP PANEL */
+.setup-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+  margin-bottom:20px;
+}
+
+.setup-group {
+  display:flex;
+  flex-direction:column;
+}
+
+.setup-label {
+  font-size:12px;
+  font-weight:700;
+  color:#6B7A99;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  margin-bottom:6px;
+}
+
+.setup-input, .setup-select {
+  padding:10px 12px;
+  border:1.5px solid #ddd;
+  border-radius:4px;
+  font-size:14px;
+  font-family:"Noto Sans TC", sans-serif;
+}
+
+.setup-input:focus, .setup-select:focus {
+  outline:none;
+  border-color:#007B6F;
+  background:#f9fafb;
+}
+
+.btn-primary {
+  padding:12px 24px;
+  background:#0D1B3E;
+  color:white;
+  border:none;
+  border-radius:4px;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+
+.btn-primary:hover {
+  background:#1A2F6B;
+  box-shadow:0 2px 8px rgba(13,27,62,0.2);
+}
+
+.btn-primary:disabled {
+  background:#ccc;
+  cursor:not-allowed;
+}
+
+/* STICKER PREVIEW */
+.sticker {
+  width:100mm;
+  height:100mm;
+  border:1px dashed #ccc;
+  display:inline-block;
+  margin:5px;
+  padding:8px;
+  background:white;
+  page-break-inside:avoid;
+  break-inside:avoid;
+  position:relative;
+  font-size:11px;
+}
+
+.sticker-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(100mm, 1fr));
+  gap:10px;
+  margin:20px 0;
+}
+
+.sticker-content {
+  display:flex;
+  flex-direction:column;
+  height:100%;
+}
+
+.sticker-header {
+  text-align:center;
+  border-bottom:none;
+  padding-bottom:0;
+  margin-bottom:0;
+  font-size:11px;
+  font-weight:700;
+  color:#000;
+  margin-bottom:2px;
+}
+
+.sticker-id {
+  font-family:"JetBrains Mono", monospace;
+  font-weight:700;
+  font-size:18px;
+  letter-spacing:.02em;
+  color:#000;
+  word-break:break-all;
+  margin:2px 0;
+}
+
+.sticker-divider {
+  border-top:1px solid #000;
+  margin:4px 0;
+}
+
+.sticker-footer {
+  font-size:11px;
+  color:#666;
+  text-align:center;
+  margin-top:2px;
+}
+
+/* QR 區改為 ID 條碼區：撐滿中段、水平垂直置中 */
+.sticker-qr {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  margin:2px 0;
+}
+
+.sticker-qr > div {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.sticker-qr svg {
+  display:block;
+  width:100%;
+  height:40px;
+  margin:2px 0;
+}
+
+.sticker-qr canvas, .sticker-qr img {
+  display:block;
+  max-width:100%;
+}
+
+.sticker-location {
+  text-align:center;
+  border-top:1px solid #000;
+  padding-top:6px;
+}
+
+.sticker-loc-label {
+  font-weight:700;
+  font-size:12px;
+  color:#000;
+  text-align:center;
+}
+
+.sticker-loc-value {
+  font-family:"JetBrains Mono", monospace;
+  font-weight:700;
+  font-size:20px;
+  margin:2px 0 4px;
+  color:#000;
+}
+
+.sticker-location svg {
+  display:block;
+  margin:0 auto;
+  max-width:100%;
+}
+
+/* STATS */
+.stats-box {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:15px;
+  margin:20px 0;
+  padding:20px;
+  background:#f9fafb;
+  border-radius:4px;
+}
+
+.stat-item {
+  text-align:center;
+}
+
+.stat-value {
+  font-size:32px;
+  font-weight:700;
+  color:#0D1B3E;
+}
+
+.stat-label {
+  font-size:12px;
+  color:#6B7A99;
+  margin-top:4px;
+}
+
+/* PRINT STYLES */
+@page {
+  margin:8mm;
+}
+@media print {
+  body {
+    background:white;
+    padding:0;
+  }
+  .container {
+    max-width:100%;
+    box-shadow:none;
+    padding:0;
+  }
+  .section, h1, .subtitle, .setup-grid, .stats-box, .btn-primary {
+    display:none;
+  }
+  .sticker {
+    margin:0;
+    border:1px solid #ccc;
+    page-break-inside:avoid;
+  }
+}
+
+.message {
+  padding:12px 16px;
+  border-radius:4px;
+  margin:10px 0;
+  font-size:13px;
+}
+
+.message.info {
+  background:#d1e7ff;
+  color:#004085;
+  border:1px solid #b8daff;
+}
+
+.message.success {
+  background:#d4edda;
+  color:#155724;
+  border:1px solid #c3e6cb;
+}
+
+.message.warning {
+  background:#fff3cd;
+  color:#856404;
+  border:1px solid #ffeaa7;
+}
+
+.message.error {
+  background:#f8d7da;
+  color:#721c24;
+  border:1px solid #f5c6cb;
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+  <h1>🏷️ 板標列印器</h1>
+  <div class="subtitle">ALLY × LOTTE 移倉系統 v7.1 — 雙一維條碼（入庫單號 Code128 + 儲位 Code128）</div>
+
+  <!-- SETUP SECTION -->
+  <div class="section">
+    <h2 style="color:#0D1B3E;margin-bottom:20px;">設定參數</h2>
+
+    <div class="setup-grid">
+      <div class="setup-group">
+        <label class="setup-label">移出日期</label>
+        <input type="date" id="moveDate" class="setup-input">
+      </div>
+
+      <div class="setup-group">
+        <label class="setup-label">車趟</label>
+        <select id="tripSelect" class="setup-select">
+          <option value="">-- 選擇 --</option>
+          <option value="1">A1</option>
+          <option value="2">A2</option>
+          <option value="3">A3</option>
+          <option value="4">B1</option>
+          <option value="5">B2</option>
+          <option value="6">B3</option>
+        </select>
+      </div>
+
+      <div class="setup-group">
+        <label class="setup-label">走道</label>
+        <select id="aisleSelect" class="setup-select">
+          <option value="">-- 選擇 --</option>
+          <option value="BA">BA</option>
+          <option value="BB">BB</option>
+          <option value="BC">BC</option>
+          <option value="BD">BD</option>
+          <option value="BE">BE</option>
+          <option value="BF">BF</option>
+          <option value="BG">BG</option>
+          <option value="BH">BH</option>
+          <option value="BI">BI</option>
+          <option value="BJ">BJ</option>
+          <option value="BK">BK</option>
+          <option value="BL">BL</option>
+          <option value="BM">BM</option>
+          <option value="BN">BN</option>
+          <option value="BO">BO</option>
+          <option value="BP">BP</option>
+        </select>
+      </div>
+
+      <div class="setup-group">
+        <label class="setup-label">Google Sheet ID</label>
+        <input type="text" id="sheetId" class="setup-input" placeholder="Sheet ID 用於讀儲位清單">
+      </div>
+
+      <div class="setup-group">
+        <label class="setup-label">API Key（選填）</label>
+        <input type="text" id="apiKey" class="setup-input" placeholder="留空＝免金鑰CSV讀取（須設Sheet可檢視）">
+      </div>
+
+      <div class="setup-group">
+        <label class="setup-label">板數</label>
+        <input type="number" id="boardCount" class="setup-input" value="32" min="1" max="100">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn-primary" onclick="generateStickers()" style="flex:1;min-width:200px;font-size:15px;">① 產生這趟貼紙（依板數）</button>
+      <button class="btn-primary" onclick="window.print()" style="background:#007B6F;flex:1;min-width:160px;font-size:15px;">② 🖨️ 列印 / 存 PDF</button>
+    </div>
+    <div style="font-size:12px;color:#6B7A99;margin-top:8px;">提示：列印視窗選「另存為 PDF」即可下載 PDF；紙張建議 10cm×10cm 連續出紙。</div>
+
+    <div id="message" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- PREVIEW SECTION -->
+  <div class="section">
+    <h2 style="color:#0D1B3E;margin-bottom:20px;">貼紙預覽</h2>
+
+    <div class="stats-box">
+      <div class="stat-item">
+        <div class="stat-value" id="totalStickers">0</div>
+        <div class="stat-label">總貼紙數</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="generatedStickers">0</div>
+        <div class="stat-label">已產生</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="sheetRows">—</div>
+        <div class="stat-label">已配儲位數</div>
+      </div>
+    </div>
+
+    <div id="stickerContainer" class="sticker-grid"></div>
+  </div>
+
+  <!-- INFO SECTION -->
+  <div class="section">
+    <h2 style="color:#0D1B3E;margin-bottom:20px;">說明</h2>
+
+    <div class="message info">
+      <strong>來源單號格式：</strong> ALLY-{YYYYMMDD}-{A|B}-{trip}-{board#}
+      <br>例：ALLY-20260614-A-1-001, ALLY-20260614-A-1-002, ... ALLY-20260614-A-1-032
+    </div>
+
+    <div class="message info">
+      <strong>儲位預配：</strong> 讀 Google Sheet「儲位清單」分頁，為每板配發「建議儲位」
+      <br>走道（BA~BP）→ 第2~4層 → 逐板顧客指定（QA-HOLD / 散貨 等特殊位）
+    </div>
+
+    <div class="message info">
+      <strong>列印規格：</strong> 10cm × 10cm 瀏覽器列印（A4 連續出紙）
+      <br>每張貼紙：入庫單號 Code128 一維條碼 + 建議儲位 Code128 一維條碼 + 移倉日
+    </div>
+
+    <div class="message warning">
+      <strong>⚠️ Google Sheet 設定：</strong>
+      <br>① 分頁名須為「儲位清單」，欄位：走道(A) | 儲位(B) | 狀態(C)
+      <br>② 只有狀態 = <strong>AVAILABLE</strong> 的列會被配發（其他值如 QA-HOLD/散貨會被略過）
+      <br>③ Sheet 須設「共用 → 知道連結者可檢視」，否則讀不到
+      <br>④ <strong>API Key 留空</strong>＝走免金鑰 CSV；填了則走官方 API（兩者都需上述共用設定）
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// 配置與全局變數
+// ══════════════════════════════════════════
+
+const LOC_POOLS = {}; // { aisle: ['位置1', '位置2', ...] }
+let CONFIG = {
+  sheets: {
+    apiKey: '',
+    sheetId: ''
+  }
+};
+
+// ══════════════════════════════════════════
+// 工具函式
+// ══════════════════════════════════════════
+
+function showMessage(text, type = 'info') {
+  const el = document.getElementById('message');
+  el.textContent = text;
+  el.className = 'message ' + type;
+}
+
+function getTodayDate() {
+  const d = new Date();
+  return d.getFullYear() +
+    String(d.getMonth()+1).padStart(2,'0') +
+    String(d.getDate()).padStart(2,'0');
+}
+
+function generateSourceId(date, trip, boardNum) {
+  const vehicleType = trip <= 3 ? 'A' : 'B';
+  const tripInType = ((trip - 1) % 3) + 1;
+  return 'ALLY-' + date + '-' + vehicleType + '-' + tripInType + '-' + String(boardNum).padStart(3,'0');
+}
+
+// 免金鑰讀取 Google Sheet（gviz JSONP，以 script 標籤載入，不受 CORS 限制）
+// 須將 Sheet 設「共用 → 知道連結的任何人 → 檢視者」。回傳已去表頭的資料列：[[走道,儲位,狀態], ...]
+function loadViaGviz(sheetId, tab) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'gvizCb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('連線逾時')); }, 15000);
+    function cleanup() {
+      clearTimeout(timer);
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function (resp) {
+      cleanup();
+      try {
+        if (!resp || !resp.table || !resp.table.rows) { reject(new Error('回傳格式異常')); return; }
+        const rows = resp.table.rows.map(r =>
+          (r.c || []).map(cell => (cell && cell.v != null) ? String(cell.v) : '')
+        );
+        resolve(rows);
+      } catch (e) { reject(e); }
+    };
+    // headers=1 → 第1列視為表頭，table.rows 僅含資料列
+    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(tab)}&headers=1`;
+    script.onerror = function () { cleanup(); reject(new Error('Sheet 無法存取（請設為知道連結者可檢視）')); };
+    document.head.appendChild(script);
+  });
+}
+
+// 從 Google Sheet 讀儲位清單（分頁名固定為「儲位清單」，欄位：走道|儲位|狀態）
+async function loadLocationsList(needCount) {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const sheetId = document.getElementById('sheetId').value.trim();
+  const aisle = document.getElementById('aisleSelect').value;
+  const want = needCount || 32;
+  const TAB = '儲位清單';
+
+  // 至少要有 Sheet ID 才能連線；沒填 → 略過（建議儲位顯示「—」手寫）
+  if (!sheetId) {
+    showMessage('ℹ️ 未填 Google Sheet ID，將略過儲位預配（建議儲位留空，現場手寫）', 'info');
+    return false;
+  }
+  if (!aisle) {
+    showMessage('❌ 請選擇走道', 'error');
+    return false;
+  }
+
+  try {
+    let dataRows;
+    if (apiKey) {
+      // 方法 1：Google Sheets API v4（需 API Key；Sheet 需「知道連結者可檢視」）
+      showMessage('⏳ 正在讀取儲位清單（API Key 模式）...', 'info');
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(TAB)}?key=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!data.values) {
+        showMessage('❌ 無法讀取「儲位清單」。請確認：① Sheet ID/API Key 正確 ② 分頁名為「儲位清單」 ③ Sheet 已設「知道連結者可檢視」', 'error');
+        return false;
+      }
+      dataRows = data.values.slice(1); // 去掉表頭
+    } else {
+      // 方法 2：免金鑰 JSONP（不受 CORS 限制；Sheet 須設「知道連結者可檢視」）
+      showMessage('⏳ 正在讀取儲位清單（免金鑰模式）...', 'info');
+      try {
+        dataRows = await loadViaGviz(sheetId, TAB); // 已去表頭
+      } catch (e) {
+        showMessage('❌ 免金鑰讀取失敗（' + e.message + '）。請確認 Sheet 已設「知道連結者可檢視」且分頁名為「儲位清單」，或改填 API Key', 'error');
+        return false;
+      }
+    }
+    if (!dataRows || !dataRows.length) {
+      showMessage('❌ 「儲位清單」分頁無資料，或分頁名不符', 'error');
+      return false;
+    }
+
+    // 解析：走道(A) | 儲位(B) | 狀態(C)
+    const locations = {};
+    dataRows.forEach(row => {
+      const rowAisle = (row[0] || '').toString().trim();
+      const locId = (row[1] || '').toString().trim();
+      const status = (row[2] || 'AVAILABLE').toString().trim().toUpperCase();
+
+      if (rowAisle && locId && status === 'AVAILABLE') {
+        if (!locations[rowAisle]) locations[rowAisle] = [];
+        locations[rowAisle].push(locId);
+      }
+    });
+
+    // 只保留選定走道
+    const found = locations[aisle] ? locations[aisle].length : 0;
+    if (found < want) {
+      showMessage(`⚠️ ${aisle} 走道可用儲位不足（需 ${want} 個，找到 ${found} 個）— 不足的板建議儲位留空手寫`, 'warning');
+      // 仍保留找到的儲位，讓前 found 板有預配
+      if (found > 0) LOC_POOLS[aisle] = locations[aisle];
+      return found > 0;
+    }
+
+    LOC_POOLS[aisle] = locations[aisle];
+    showMessage(`✅ 已讀 ${aisle} 走道的 ${found} 個可用儲位`, 'success');
+    return true;
+  } catch (e) {
+    showMessage('❌ 讀取失敗：' + e.message, 'error');
+    return false;
+  }
+}
+
+// 產生 192 張貼紙
+async function generateStickers() {
+  const date = document.getElementById('moveDate').value;
+  const trip = document.getElementById('tripSelect').value;
+  const aisle = document.getElementById('aisleSelect').value;
+  const boardCount = parseInt(document.getElementById('boardCount').value) || 32;
+
+  if (!date || !trip || !aisle) {
+    showMessage('❌ 請填入日期、車趟、走道', 'error');
+    return;
+  }
+
+  // 轉換日期格式
+  const [y, m, d] = date.split('-');
+  const dateStr = y + m + d;
+
+  // 讀儲位清單（傳入需要的板數）
+  const hasLocs = await loadLocationsList(boardCount);
+  const locs = hasLocs ? LOC_POOLS[aisle] : null;
+
+  // 產生貼紙
+  const container = document.getElementById('stickerContainer');
+  container.innerHTML = '';
+  let totalStickers = 0;
+
+  for (let i = 1; i <= boardCount; i++) {
+    const sourceId = generateSourceId(dateStr, parseInt(trip), i);
+    const suggestedLoc = locs && locs[i-1] ? locs[i-1] : '—';
+
+    const sticker = document.createElement('div');
+    sticker.className = 'sticker';
+    const moveDate = document.getElementById('moveDate').value;
+    const [y, m, d] = moveDate.split('-');
+    const moveDateDisplay = `${m}/${d}`;
+
+    sticker.innerHTML = `
+      <div class="sticker-content">
+        <div class="sticker-header">入庫單號</div>
+        <div class="sticker-id">${sourceId}</div>
+        <div class="sticker-qr">
+          <svg id="idbar-${i}" style="width:100%;height:40px;"></svg>
+        </div>
+        <div class="sticker-divider"></div>
+        <div class="sticker-header">建議儲位</div>
+        <div class="sticker-loc-value">${suggestedLoc}</div>
+        <div class="sticker-location">
+          <svg id="locbar-${i}" style="width:100%;height:40px;"></svg>
+        </div>
+        <div class="sticker-footer">移倉日：${moveDateDisplay}</div>
+      </div>
+    `;
+    container.appendChild(sticker);
+
+    // 生成雙 Code128 條碼（來源單號 + 儲位）
+    setTimeout(() => {
+      // 生成 Code128 來源單號條碼
+      try {
+        JsBarcode('#idbar-' + i, sourceId, {
+          format: 'CODE128',
+          width: 2,
+          height: 40,
+          displayValue: false,
+          margin: 0
+        });
+      } catch (e) {
+        console.error('Code128 來源單號生成失敗:', e);
+      }
+
+      // 生成 Code128 儲位條碼
+      var locValue = suggestedLoc;
+      if (locValue && locValue !== '—') {
+        try {
+          JsBarcode('#locbar-' + i, locValue, {
+            format: 'CODE128',
+            width: 2,
+            height: 40,
+            displayValue: false,
+            margin: 0
+          });
+        } catch(e) {
+          console.warn('Code128 儲位生成失敗:', locValue, e);
+          // 條碼生成失敗（例如特殊字元），文字備援仍可用
+        }
+      }
+    }, i * 10);
+
+    totalStickers++;
+  }
+
+  document.getElementById('totalStickers').textContent = totalStickers;
+  document.getElementById('generatedStickers').textContent = totalStickers;
+  var locCount = (locs || []).filter(function(l){ return l && l !== '—'; }).length;
+  document.getElementById('sheetRows').textContent = locCount;
+  if (hasLocs) {
+    showMessage(`✅ 已讀儲位並產生 ${totalStickers} 張貼紙（雙 Code128）— 可按「② 列印 / 存 PDF」`, 'success');
+  } else {
+    // 沒讀到儲位：保留 loadLocationsList 的錯誤提示，僅補充已產生張數
+    const el = document.getElementById('message');
+    el.textContent = (el.textContent || '') + `（已產生 ${totalStickers} 張貼紙，但建議儲位為「—」、無 Code128）`;
+    el.className = 'message warning';
+  }
+}
+
+// 下載 PDF（簡單版，實際需完整實現）
+function downloadStickers() {
+  showMessage('📥 列印到 PDF 的功能需要額外 PDF 庫支援，建議直接用瀏覽器「列印到 PDF」功能', 'info');
+  setTimeout(() => window.print(), 500);
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+  const today = new Date();
+  const dateStr = today.getFullYear() + '-' +
+    String(today.getMonth()+1).padStart(2,'0') + '-' +
+    String(today.getDate()).padStart(2,'0');
+  document.getElementById('moveDate').value = dateStr;
+  // 預填儲位清單 Sheet ID（可手動覆寫）
+  document.getElementById('sheetId').value = '1krZGpN4fCvTCgzCJLPjQPtE7eyo1vsR-gsChGTKWOM4';
+});
+</script>
+
+</body>
+</html>
