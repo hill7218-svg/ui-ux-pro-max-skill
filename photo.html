@@ -46,6 +46,21 @@ html, body {
 .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(8,66,152,.3); border-radius: 50%; border-top-color: #084298; animation: spin .8s linear infinite; margin-right: 6px; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #canvas { display: none; }
+
+/* 手動輸入 ID 面板 */
+.id-input-panel {
+  background: #fff; border-radius: 12px; padding: 20px 16px;
+  width: 100%; text-align: center; border: 2px solid #007B6F;
+}
+.id-input-panel h3 { color: #0D1B3E; font-size: 16px; margin-bottom: 6px; }
+.id-input-panel p { color: #6B7A99; font-size: 12px; margin-bottom: 14px; line-height: 1.5; }
+.id-input-field {
+  width: 100%; padding: 12px 14px; border: 2px solid #ddd; border-radius: 8px;
+  font-size: 14px; font-family: "JetBrains Mono", monospace;
+  margin-bottom: 12px; outline: none; color: #0D1B3E;
+}
+.id-input-field:focus { border-color: #007B6F; }
+.id-input-hint { font-size: 11px; color: #856404; background: #fff3cd; padding: 8px 10px; border-radius: 6px; margin-bottom: 12px; text-align: left; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -56,9 +71,23 @@ html, body {
 </div>
 
 <div class="container">
+
+  <!-- 手動輸入 ID（貼紙沒有URL QR時使用） -->
+  <div class="id-input-panel" id="idInputPanel" style="display:none">
+    <h3>🔍 輸入棧板 ID</h3>
+    <p>貼紙沒有掃碼跳轉？<br>用條碼 App 掃貼紙條碼後貼入，或手動輸入</p>
+    <div class="id-input-hint">💡 步驟：開任意條碼 App → 掃貼紙條碼 → 複製文字 → 貼入下方</div>
+    <input class="id-input-field" id="manualIdInput" type="text"
+      placeholder="LOTTE-20260622-..." autocomplete="off" autocorrect="off"
+      spellcheck="false" inputmode="text" />
+    <div class="button-row" style="margin-top:0">
+      <button class="btn btn-primary" onclick="confirmManualId()">✓ 確認開始拍照</button>
+    </div>
+  </div>
+
   <video id="video" playsinline autoplay muted></video>
 
-  <div class="info-panel">
+  <div class="info-panel" id="infoPanel">
     <div class="info-row"><span class="info-label">板號 ID:</span><span class="info-value" id="palletId">—</span></div>
     <div class="info-row"><span class="info-label">商品:</span><span class="info-value" id="palletSku">—</span></div>
     <div class="info-row"><span class="info-label">名稱:</span><span class="info-value" id="palletName">—</span></div>
@@ -102,8 +131,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   APP.sourceId = params.get('id');
 
   if (!APP.sourceId) {
-    showMessage('❌ 無效連結：缺少 id 參數\n請從貼紙 QR Code 開啟', 'error');
+    // 無 ?id= 參數：顯示手動輸入面板（貼紙舊版 QR 只有 sourceId 文字時使用）
+    document.getElementById('idInputPanel').style.display = 'block';
+    document.getElementById('video').style.display = 'none';
+    document.getElementById('infoPanel').style.display = 'none';
     document.getElementById('captureBtn').disabled = true;
+    document.getElementById('status').textContent = '請輸入板號';
+    showMessage('請輸入棧板 ID 後按確認', 'info');
+    document.getElementById('manualIdInput').focus();
+    // 支援 Enter 鍵確認
+    document.getElementById('manualIdInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') confirmManualId();
+    });
     return;
   }
   document.getElementById('palletId').textContent = APP.sourceId;
@@ -111,6 +150,24 @@ window.addEventListener('DOMContentLoaded', async () => {
   await initCamera();          // 開相機
   fetchPalletInfo();           // 查明細（非阻塞，best-effort）
 });
+
+// ============ 手動確認 ID（無 URL 參數時使用）============
+async function confirmManualId() {
+  const val = document.getElementById('manualIdInput').value.trim();
+  if (!val) { showMessage('⚠️ 請輸入棧板 ID', 'error'); return; }
+  APP.sourceId = val;
+  APP.uploadCount = 0;
+
+  // 隱藏輸入面板，顯示相機 UI
+  document.getElementById('idInputPanel').style.display = 'none';
+  document.getElementById('video').style.display = 'block';
+  document.getElementById('infoPanel').style.display = 'block';
+  document.getElementById('palletId').textContent = APP.sourceId;
+  document.getElementById('status').textContent = '準備中...';
+
+  await initCamera();
+  fetchPalletInfo();
+}
 
 // ============ 相機 ============
 async function initCamera() {
