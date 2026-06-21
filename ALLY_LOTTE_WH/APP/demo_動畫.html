@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📽️ 照相驗收 操作示範動畫</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:"Noto Sans TC",-apple-system,sans-serif;
+  background:linear-gradient(135deg,#0D1B3E 0%,#1a2f6b 100%);
+  min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:20px; padding:20px;
+}
+.title { color:#fff; text-align:center; }
+.title h1 { font-size:22px; margin-bottom:6px; }
+.title p { font-size:13px; opacity:.8; }
+
+/* 手機外框 */
+.phone {
+  width:300px; height:600px; background:#000; border-radius:36px;
+  padding:12px; box-shadow:0 20px 60px rgba(0,0,0,.5); position:relative;
+  border:3px solid #333;
+}
+.notch { position:absolute; top:12px; left:50%; transform:translateX(-50%);
+  width:120px; height:22px; background:#000; border-radius:0 0 16px 16px; z-index:20; }
+.screen {
+  width:100%; height:100%; background:#1a1a1a; border-radius:26px;
+  overflow:hidden; position:relative; display:flex; flex-direction:column;
+}
+
+/* header */
+.hdr { padding:14px 16px 10px; background:#0D1B3E; color:#fff; font-weight:700;
+  font-size:14px; display:flex; justify-content:space-between; align-items:center; }
+.hdr .st { font-size:11px; opacity:.9; font-weight:400; }
+
+.body { flex:1; padding:10px; display:flex; flex-direction:column; gap:8px; overflow:hidden; }
+
+/* 相機區 */
+.cam { position:relative; width:100%; aspect-ratio:4/3; border-radius:10px; overflow:hidden;
+  background:linear-gradient(160deg,#2a2a2a,#1a1a1a); flex-shrink:0; }
+.cam-scene { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:60px; filter:grayscale(.3); }
+/* QR 掃描框 */
+.scanbox { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:58%; aspect-ratio:1; border:3px solid #00e676; border-radius:8px;
+  box-shadow:0 0 0 600px rgba(0,0,0,.45); transition:opacity .3s; }
+.scanline { position:absolute; left:0; right:0; height:2px; background:#00e676;
+  box-shadow:0 0 8px #00e676; animation:scan 1.6s ease-in-out infinite; }
+@keyframes scan { 0%,100%{top:8%} 50%{top:90%} }
+.scan-hint { position:absolute; bottom:8px; left:0; right:0; text-align:center;
+  color:#fff; font-size:11px; font-weight:700; text-shadow:0 1px 3px #000; }
+
+/* 資訊面板 */
+.info { background:rgba(255,255,255,.96); border-radius:10px; padding:10px 12px;
+  font-size:11px; color:#0D1B3E; transition:all .3s; }
+.info.on { border:2px solid #007B6F; box-shadow:0 0 12px rgba(0,123,111,.3); }
+.irow { display:flex; justify-content:space-between; margin-bottom:4px; }
+.irow:last-child { margin-bottom:0; }
+.ilbl { color:#6B7A99; font-weight:700; font-size:10px; }
+.ival { font-weight:600; font-family:monospace; text-align:right; font-size:10px;
+  max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* 訊息 */
+.msg { padding:8px 10px; border-radius:8px; font-size:11px; font-weight:600;
+  text-align:center; transition:all .3s; }
+.msg.info{background:#d1ecf1;color:#0c5460} .msg.ok{background:#d4edda;color:#155724}
+.msg.load{background:#cfe2ff;color:#084298}
+
+/* 按鈕 */
+.btns { display:flex; gap:8px; margin-top:auto; }
+.b { flex:1; padding:12px; border:none; border-radius:9px; font-size:12px;
+  font-weight:700; color:#fff; transition:all .2s; position:relative; }
+.b.green{background:#007B6F} .b.gray{background:#6B7A99} .b.dark{background:#155724}
+.b.tap { animation:tap .4s ease; }
+@keyframes tap { 50%{ transform:scale(.9); filter:brightness(.8); } }
+/* 點擊漣漪 */
+.ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,.5);
+  width:60px; height:60px; top:50%; left:50%; transform:translate(-50%,-50%) scale(0);
+  animation:rip .5s ease-out; }
+@keyframes rip { to{ transform:translate(-50%,-50%) scale(2.5); opacity:0; } }
+/* 假手指 */
+.finger { position:absolute; font-size:34px; z-index:30; pointer-events:none;
+  opacity:0; transition:all .5s cubic-bezier(.4,0,.2,1); filter:drop-shadow(0 4px 6px rgba(0,0,0,.4)); }
+
+/* 步驟指示器 */
+.steps { display:flex; gap:8px; }
+.step { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.3);
+  transition:all .3s; }
+.step.active { background:#00e676; transform:scale(1.4); box-shadow:0 0 10px #00e676; }
+.caption { color:#fff; font-size:14px; font-weight:700; text-align:center; min-height:22px;
+  background:rgba(0,0,0,.3); padding:6px 16px; border-radius:20px; }
+.replay { background:#00e676; color:#0D1B3E; border:none; padding:10px 24px;
+  border-radius:24px; font-weight:700; font-size:14px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <h1>📽️ 照相驗收 操作示範</h1>
+  <p>每板只需「掃 QR → 確認 → 拍照 → 下一板」</p>
+</div>
+
+<div class="caption" id="caption">準備開始…</div>
+
+<div class="phone">
+  <div class="notch"></div>
+  <div class="screen">
+    <div class="hdr">
+      <div>📷 照相驗收</div>
+      <div class="st" id="st">🔍 掃描中</div>
+    </div>
+    <div class="body">
+      <div class="cam">
+        <div class="cam-scene" id="scene">📦</div>
+        <div class="scanbox" id="scanbox"><div class="scanline"></div></div>
+        <div class="scan-hint" id="scanhint">對準貼紙 QR Code</div>
+      </div>
+
+      <div class="info" id="info">
+        <div class="irow"><span class="ilbl">板號</span><span class="ival" id="v-id">— 掃描後顯示 —</span></div>
+        <div class="irow"><span class="ilbl">商品</span><span class="ival" id="v-sku">—</span></div>
+        <div class="irow"><span class="ilbl">名稱</span><span class="ival" id="v-name">—</span></div>
+        <div class="irow"><span class="ilbl">數量</span><span class="ival" id="v-qty">—</span></div>
+      </div>
+
+      <div class="msg info" id="msg">📲 請將 QR Code 對準框內</div>
+
+      <div class="btns" id="btns">
+        <button class="b gray" id="b1">⌨️ 手動輸入</button>
+      </div>
+    </div>
+    <div class="finger" id="finger">👆</div>
+  </div>
+</div>
+
+<div class="steps">
+  <div class="step" id="s0"></div>
+  <div class="step" id="s1"></div>
+  <div class="step" id="s2"></div>
+  <div class="step" id="s3"></div>
+</div>
+
+<button class="replay" id="replay" style="display:none" onclick="play()">🔄 重新播放</button>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 示範資料（取自真實 187 板）
+const DEMO = {
+  id: 'LOTTE-20260622-Air_con622_1-001',
+  sku: 'BK9275',
+  name: 'LOTTE Pepero 杏仁巧克力口味餅乾棒32g',
+  qty: '80 箱 / 3200 件'
+};
+
+function setStep(n){ [0,1,2,3].forEach(i=>$('s'+i).classList.toggle('active', i===n)); }
+function caption(t){ $('caption').textContent = t; }
+function msg(t,c){ $('msg').textContent = t; $('msg').className = 'msg '+c; }
+function setBtns(html){ $('btns').innerHTML = html; }
+
+// 假手指移到某按鈕並「點擊」
+async function tapBtn(btnId){
+  const finger = $('finger');
+  const btn = $(btnId);
+  const screen = btn.closest('.screen').getBoundingClientRect();
+  const r = btn.getBoundingClientRect();
+  const x = r.left - screen.left + r.width/2 - 17;
+  const y = r.top - screen.top + r.height/2 - 5;
+  finger.style.left = x+'px'; finger.style.top = y+'px';
+  finger.style.opacity = '1';
+  await sleep(550);
+  btn.classList.add('tap');
+  const rip = document.createElement('div'); rip.className='ripple';
+  btn.appendChild(rip);
+  if(navigator.vibrate) navigator.vibrate(30);
+  await sleep(400);
+  btn.classList.remove('tap'); rip.remove();
+  finger.style.opacity = '0';
+  await sleep(200);
+}
+
+async function play(){
+  $('replay').style.display = 'none';
+  // ── 重置 ──
+  $('scene').textContent = '📦';
+  $('scanbox').style.opacity = '1'; $('scanhint').style.opacity='1';
+  $('info').classList.remove('on');
+  $('v-id').textContent = '— 掃描後顯示 —';
+  ['sku','name','qty'].forEach(k=>$('v-'+k).textContent='—');
+  $('st').textContent = '🔍 掃描中';
+  msg('📲 請將 QR Code 對準框內','info');
+  setBtns('<button class="b gray" id="b1">⌨️ 手動輸入</button>');
+
+  // ── STEP 0：開書籤，掃描 QR ──
+  setStep(0);
+  caption('① 開書籤，相機自動掃描 QR Code');
+  await sleep(2200);
+
+  // QR 辨識成功
+  $('scanbox').style.opacity = '0'; $('scanhint').style.opacity='0';
+  $('scene').textContent = '✅';
+  if(navigator.vibrate) navigator.vibrate([80,40,80]);
+
+  // ── STEP 1：辨識成功，帶出資訊 ──
+  setStep(1);
+  caption('② 自動辨識，帶出商品資訊');
+  $('st').textContent = '✅ 已辨識';
+  $('info').classList.add('on');
+  $('v-id').textContent = DEMO.id;
+  await sleep(400); $('v-sku').textContent = DEMO.sku;
+  await sleep(200); $('v-name').textContent = DEMO.name;
+  await sleep(200); $('v-qty').textContent = DEMO.qty;
+  msg('✅ QR Code 已辨識，確認後拍照','ok');
+  setBtns('<button class="b gray" id="b1">↩ 重新掃描</button><button class="b green" id="b2">📷 確認拍照</button>');
+  await sleep(700);
+  await tapBtn('b2');
+
+  // ── STEP 2：拍照 ──
+  setStep(2);
+  caption('③ 對準棧板，按拍照');
+  $('st').textContent = '📷 拍照模式';
+  $('scene').textContent = '📦';
+  $('scene').style.filter = 'none';
+  msg('📷 請對準棧板後拍照','info');
+  setBtns('<button class="b green" id="b1">📷 拍照</button>');
+  await sleep(700);
+  await tapBtn('b1');
+
+  // 閃光效果
+  const flash = document.createElement('div');
+  flash.style.cssText='position:absolute;inset:0;background:#fff;z-index:25;opacity:0;';
+  $('btns').closest('.screen').appendChild(flash);
+  flash.animate([{opacity:0},{opacity:.9},{opacity:0}],{duration:300});
+  await sleep(300); flash.remove();
+
+  // 上傳中
+  msg('⏳ 上傳 Google Drive 中…','load');
+  $('st').textContent = '⏳ 上傳中';
+  await sleep(1500);
+
+  // ── STEP 3：上傳成功 → 下一板 ──
+  setStep(3);
+  caption('④ 上傳成功，按「下一板」繼續');
+  msg('✅ 第 1 張已上傳 Google Drive','ok');
+  $('st').textContent = '✅ 1 張已存';
+  if(navigator.vibrate) navigator.vibrate(50);
+  setBtns('<button class="b gray" id="b1">🔄 再拍一張</button><button class="b dark" id="b2">➡ 下一板</button>');
+  await sleep(900);
+  await tapBtn('b2');
+
+  caption('↩ 回到掃描，處理下一板（循環）');
+  await sleep(1200);
+
+  caption('✅ 示範完成 — 每板 2 個按鍵');
+  $('replay').style.display = 'block';
+}
+
+window.addEventListener('load', () => setTimeout(play, 600));
+</script>
+</body>
+</html>

@@ -215,6 +215,24 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+// ============ 手動確認 ID（無 URL 參數時使用）============
+async function confirmManualId() {
+  const val = document.getElementById('manualIdInput').value.trim();
+  if (!val) { showMessage('⚠️ 請輸入棧板 ID', 'error'); return; }
+  APP.sourceId = val;
+  APP.uploadCount = 0;
+
+  // 隱藏輸入面板，顯示相機 UI
+  document.getElementById('idInputPanel').style.display = 'none';
+  document.getElementById('video').style.display = 'block';
+  document.getElementById('infoPanel').style.display = 'block';
+  document.getElementById('palletId').textContent = APP.sourceId;
+  document.getElementById('status').textContent = '準備中...';
+
+  await initCamera();
+  fetchPalletInfo();
+}
+
 // ============ 相機 ============
 async function startCamera() {
   try {
