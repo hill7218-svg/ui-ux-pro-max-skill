@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>✅ 貼紙核對工具</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{font-family:"Noto Sans TC",-apple-system,sans-serif;background:#1a1a1a;min-height:100vh;overflow-y:auto;display:flex;flex-direction:column;color:#fff}
+.hdr{padding:12px 16px;background:#0D1B3E;font-weight:700;font-size:16px;position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center}
+.hdr .cnt{font-size:13px;font-weight:400}
+.container{flex:1;padding:12px;display:flex;flex-direction:column;gap:10px;padding-bottom:24px}
+#video{width:100%;aspect-ratio:4/3;max-height:240px;object-fit:cover;border-radius:10px;background:#000}
+.video-wrap{position:relative}
+.scanbox{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:55%;aspect-ratio:1;border:3px solid #00e676;border-radius:8px;box-shadow:0 0 0 600px rgba(0,0,0,.4)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:#252525;border-radius:10px;padding:12px 8px;text-align:center}
+.stat .n{font-size:24px;font-weight:700;font-family:monospace}
+.stat .l{font-size:11px;opacity:.7;margin-top:2px}
+.stat.ok .n{color:#00e676} .stat.dup .n{color:#ffb74d} .stat.miss .n{color:#ff6b6b}
+.toast{padding:12px;border-radius:10px;font-size:14px;font-weight:700;text-align:center}
+.toast.ok{background:#1b3a26;color:#00e676} .toast.dup{background:#3a2f1b;color:#ffb74d} .toast.bad{background:#3a1f1f;color:#ff6b6b} .toast.info{background:#1f2f3a;color:#7cc4ff}
+.tripgrid{display:flex;flex-direction:column;gap:6px}
+.triprow{background:#252525;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;font-size:13px}
+.triprow .bar{flex:1;margin:0 10px;height:8px;background:#333;border-radius:4px;overflow:hidden}
+.triprow .fill{height:100%;background:#00e676;transition:width .3s}
+.triprow .num{font-family:monospace;font-weight:700;min-width:56px;text-align:right}
+.triprow.done .fill{background:#00e676} .triprow.done .num{color:#00e676}
+.btn{padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;color:#fff;cursor:pointer}
+.btn.green{background:#007B6F} .btn.gray{background:#555} .btn.blue{background:#1565c0}
+.btnrow{display:flex;gap:8px}
+.btnrow .btn{flex:1}
+input{padding:12px;border-radius:8px;border:2px solid #444;background:#252525;color:#fff;font-size:14px;font-family:monospace;width:100%}
+details{background:#252525;border-radius:8px;padding:10px 12px;font-size:12px}
+summary{cursor:pointer;font-weight:700}
+.misslist{margin-top:8px;max-height:160px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.7;color:#ff9999}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:s .8s linear infinite;vertical-align:middle}
+@keyframes s{to{transform:rotate(360deg)}}
+#canvas{display:none}
+</style>
+</head>
+<body>
+<div class="hdr"><div>✅ 貼紙核對</div><div class="cnt"><span id="scanned">0</span> / 187</div></div>
+<div class="container">
+  <div class="video-wrap">
+    <video id="video" playsinline autoplay muted></video>
+    <div class="scanbox"></div>
+  </div>
+  <div id="toast" class="toast info">📲 掃描每張貼紙的 QR Code 來核對</div>
+  <div class="stats">
+    <div class="stat ok"><div class="n" id="n-ok">0</div><div class="l">已核對</div></div>
+    <div class="stat dup"><div class="n" id="n-dup">0</div><div class="l">重複掃描</div></div>
+    <div class="stat miss"><div class="n" id="n-miss">187</div><div class="l">尚未掃到</div></div>
+  </div>
+  <div class="btnrow">
+    <button class="btn blue" onclick="toggleManual()">⌨️ 手動輸入</button>
+    <button class="btn gray" onclick="resetAll()">↺ 重置</button>
+  </div>
+  <div id="manualBox" style="display:none">
+    <input id="manualInput" placeholder="輸入或貼上 sourceId / 條碼" autocomplete="off" spellcheck="false"/>
+    <button class="btn green" style="width:100%;margin-top:6px" onclick="submitManual()">確認核對</button>
+  </div>
+  <div class="tripgrid" id="tripgrid"></div>
+  <details>
+    <summary>📋 尚未掃到的貼紙清單（<span id="missCount">187</span> 張）</summary>
+    <div class="misslist" id="misslist"></div>
+  </details>
+  <details>
+    <summary>📊 匯出核對結果</summary>
+    <div style="margin-top:8px"><button class="btn green" style="width:100%" onclick="exportResult()">下載核對報告 CSV</button></div>
+  </details>
+</div>
+<canvas id="canvas"></canvas>
+<script>
+const PALLETS = [{"id": "LOTTE-20260622-Air_con622_1-001", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-002", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-003", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-004", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-005", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-006", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-007", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-008", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-009", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-010", "trip": "Air-con6/22-1", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_1-011", "trip": "Air-con6/22-1", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_1-029", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-030", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-031", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-032", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-033", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-034", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_1-035", "trip": "Air-con6/22-1", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-012", "trip": "Air-con6/22-2", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_2-014", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-015", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-016", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-017", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-018", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-019", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-020", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-021", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-036", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-037", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-038", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-039", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-040", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-041", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-042", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-043", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_2-044", "trip": "Air-con6/22-2", "sku": "BK9275"}, {"id": "LOTTE-20260622-Air_con622_3-013", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-022", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-023", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-024", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-025", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-026", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-027", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-028", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-045", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-046", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-047", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-048", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-049", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-050", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-051", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-052", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-053", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-Air_con622_3-054", "trip": "Air-con6/22-3", "sku": "BK9276"}, {"id": "LOTTE-20260622-622_2-055", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-056", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-058", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-059", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-060", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-061", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-064", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-070", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-074", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-077", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-085", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-087", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-090", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-108", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-118", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-120", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-121", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-123", "trip": "6/22-2", "sku": "BV0008"}, {"id": "LOTTE-20260622-622_2-124", "trip": "6/22-2", "sku": "BV0008"}, {"id": "LOTTE-20260622-622_2-125", "trip": "6/22-2", "sku": "BV0008"}, {"id": "LOTTE-20260622-622_2-126", "trip": "6/22-2", "sku": "BV0008"}, {"id": "LOTTE-20260622-622_2-127", "trip": "6/22-2", "sku": "BV0008"}, {"id": "LOTTE-20260622-622_2-128", "trip": "6/22-2", "sku": "BV0008"}, {"id": "LOTTE-20260622-622_2-129", "trip": "6/22-2", "sku": "BV0008"}, {"id": "LOTTE-20260622-622_2-130", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-131", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-132", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-133", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-134", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-135", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-148", "trip": "6/22-2", "sku": "BV0005"}, {"id": "LOTTE-20260622-622_2-151", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-152", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-153", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_2-154", "trip": "6/22-2", "sku": "BV0006"}, {"id": "LOTTE-20260622-622_1-057", "trip": "6/22-1", "sku": "BT0068"}, {"id": "LOTTE-20260622-622_1-062", "trip": "6/22-1", "sku": "BT0068"}, {"id": "LOTTE-20260622-622_1-063", "trip": "6/22-1", "sku": "BT0068"}, {"id": "LOTTE-20260622-622_1-065", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-066", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-067", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-068", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-069", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-071", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-072", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-073", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-075", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-076", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-078", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-079", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-080", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-081", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-082", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-083", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-084", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-086", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-088", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-089", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-091", "trip": "6/22-1", "sku": "BT0066"}, {"id": "LOTTE-20260622-622_1-092", "trip": "6/22-1", "sku": "BT0066"}, {"id": "LOTTE-20260622-622_1-104", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-106", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-109", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-110", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_1-112", "trip": "6/22-1", "sku": "BT0066"}, {"id": "LOTTE-20260622-622_1-114", "trip": "6/22-1", "sku": "BT0066"}, {"id": "LOTTE-20260622-622_1-115", "trip": "6/22-1", "sku": "BT0066"}, {"id": "LOTTE-20260622-622_1-117", "trip": "6/22-1", "sku": "BT0065"}, {"id": "LOTTE-20260622-622_3-093", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-094", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-095", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-096", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-097", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-098", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-099", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-100", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-101", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-102", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-103", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-105", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-107", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-111", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-113", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-116", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-119", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-122", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-136", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-137", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-138", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-139", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-140", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-141", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-142", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-143", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-144", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-145", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-146", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-147", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_3-149", "trip": "6/22-3", "sku": "BV0007"}, {"id": "LOTTE-20260622-622_3-150", "trip": "6/22-3", "sku": "BV0011"}, {"id": "LOTTE-20260622-622_4-155", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-156", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-157", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-158", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-159", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-160", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-161", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-162", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-163", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-164", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-165", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-166", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-167", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-168", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-169", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-170", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-171", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-172", "trip": "6/22-4", "sku": "DK9012"}, {"id": "LOTTE-20260622-622_4-173", "trip": "6/22-4", "sku": "DK9012"}, {"id": "LOTTE-20260622-622_4-174", "trip": "6/22-4", "sku": "DK9012"}, {"id": "LOTTE-20260622-622_4-175", "trip": "6/22-4", "sku": "DK9012"}, {"id": "LOTTE-20260622-622_4-176", "trip": "6/22-4", "sku": "DK9012"}, {"id": "LOTTE-20260622-622_4-177", "trip": "6/22-4", "sku": "DK9075"}, {"id": "LOTTE-20260622-622_4-178", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-179", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-180", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-181", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-182", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-183", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-184", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-185", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-186", "trip": "6/22-4", "sku": "DK9051"}, {"id": "LOTTE-20260622-622_4-187", "trip": "6/22-4", "sku": "DK9051"}];
+const VALID = new Map(PALLETS.map(p=>[p.id,p]));
+const scanned = new Map(); // id -> count
+let stream=null, raf=null, lastScan='', lastTime=0;
+
+const $=id=>document.getElementById(id);
+
+// 車趟統計初始化
+const tripTotals={};
+PALLETS.forEach(p=>tripTotals[p.trip]=(tripTotals[p.trip]||0)+1);
+function buildTrips(){
+  $('tripgrid').innerHTML='';
+  Object.keys(tripTotals).sort().forEach(t=>{
+    const done=[...scanned.keys()].filter(id=>VALID.get(id)&&VALID.get(id).trip===t).length;
+    const tot=tripTotals[t];
+    const pct=Math.round(done/tot*100);
+    const row=document.createElement('div');
+    row.className='triprow'+(done>=tot?' done':'');
+    row.innerHTML=`<span>${t}</span><div class="bar"><div class="fill" style="width:${pct}%"></div></div><span class="num">${done}/${tot}</span>`;
+    $('tripgrid').appendChild(row);
+  });
+}
+
+function updateStats(){
+  const ok=[...scanned.keys()].filter(id=>VALID.has(id)).length;
+  const dup=[...scanned.values()].filter(c=>c>1).length;
+  const miss=187-ok;
+  $('n-ok').textContent=ok;
+  $('n-dup').textContent=dup;
+  $('n-miss').textContent=miss;
+  $('scanned').textContent=ok;
+  // 未掃清單
+  const missing=PALLETS.filter(p=>!scanned.has(p.id));
+  $('missCount').textContent=missing.length;
+  $('misslist').innerHTML=missing.map(p=>p.id).join('<br>')||'🎉 全部掃完！';
+  buildTrips();
+}
+
+function toast(msg,cls){ $('toast').className='toast '+cls; $('toast').innerHTML=msg; }
+
+function handleId(raw){
+  let id=raw.trim();
+  try{ const u=new URL(id); const p=u.searchParams.get('id'); if(p)id=p; }catch(_){}
+  if(!id) return;
+  if(!VALID.has(id)){
+    toast('❌ 不在 187 板清單內：<br>'+id,'bad');
+    if(navigator.vibrate)navigator.vibrate([100,50,100]);
+    return;
+  }
+  const prev=scanned.get(id)||0;
+  scanned.set(id,prev+1);
+  const info=VALID.get(id);
+  if(prev===0){
+    toast('✅ 核對成功 ['+info.trip+' / '+info.sku+']<br>'+id,'ok');
+    if(navigator.vibrate)navigator.vibrate(60);
+  }else{
+    toast('⚠️ 重複！這張已掃過 '+(prev+1)+' 次<br>'+id,'dup');
+    if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
+  }
+  updateStats();
+}
+
+async function initCam(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}},audio:false});
+    $('video').srcObject=stream;
+    await new Promise(r=>$('video').addEventListener('loadedmetadata',r,{once:true}));
+    loop();
+  }catch(e){ toast('❌ 相機啟動失敗，請用手動輸入<br>'+e.message,'bad'); }
+}
+
+function loop(){
+  const v=$('video'),c=$('canvas'),ctx=c.getContext('2d');
+  if(v.readyState===v.HAVE_ENOUGH_DATA){
+    c.width=v.videoWidth;c.height=v.videoHeight;ctx.drawImage(v,0,0);
+    const img=ctx.getImageData(0,0,c.width,c.height);
+    const qr=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
+    if(qr&&qr.data){
+      const now=Date.now();
+      if(qr.data!==lastScan||now-lastTime>1500){ // 防連續重觸發
+        lastScan=qr.data;lastTime=now;
+        handleId(qr.data);
+      }
+    }
+  }
+  raf=requestAnimationFrame(loop);
+}
+
+function toggleManual(){ const b=$('manualBox'); b.style.display=b.style.display==='none'?'block':'none'; if(b.style.display==='block')$('manualInput').focus(); }
+function submitManual(){ const v=$('manualInput').value; if(v){handleId(v);$('manualInput').value='';$('manualInput').focus();} }
+$('manualInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitManual();});
+
+function resetAll(){ if(confirm('確定清空所有核對紀錄？')){ scanned.clear(); lastScan=''; updateStats(); toast('↺ 已重置','info'); } }
+
+function exportResult(){
+  let csv='\ufeffsourceId,trip,sku,狀態,掃描次數\r\n';
+  PALLETS.forEach(p=>{
+    const c=scanned.get(p.id)||0;
+    const st=c===0?'未掃到':(c>1?'重複x'+c:'已核對');
+    csv+=`${p.id},${p.trip},${p.sku},${st},${c}\r\n`;
+  });
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='貼紙核對報告_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+
+window.addEventListener('load',()=>{ updateStats(); initCam(); });
+window.addEventListener('beforeunload',()=>{ if(raf)cancelAnimationFrame(raf); if(stream)stream.getTracks().forEach(t=>t.stop()); });
+</script>
+</body>
+</html>
