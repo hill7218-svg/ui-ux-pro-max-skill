@@ -383,43 +383,24 @@ async function capturePhoto() {
 
   // 倒數計時：3 → 2 → 1 → 拍照
   for (let i = 3; i >= 1; i--) {
-    showMsg(`🎯 保持靜止\n\n${i}`, 'info');
-    if (navigator.vibrate) navigator.vibrate(100);
+    showMsg(`請拍攝整個棧版並保持不動\n\n${i}`, 'info');
     await new Promise(r => setTimeout(r, 1000));
   }
 
-  showMsg('<span class="spinner"></span>拍照中...', 'loading');
+  showMsg('<span class="spinner"></span>上傳中...', 'loading');
   try {
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // 拍照時的閃光效果
-    const flash = document.createElement('div');
-    flash.style.cssText = `
-      position: fixed; inset: 0; background: #fff;
-      z-index: 100; opacity: 0; pointer-events: none;
-    `;
-    document.body.appendChild(flash);
-
-    // 閃光動畫
-    flash.animate([
-      { opacity: '0' },
-      { opacity: '0.8' },
-      { opacity: '0' }
-    ], { duration: 300, easing: 'ease-out' });
-
-    // 等待閃光完成後才截圖（視覺同步）
-    await new Promise(r => setTimeout(r, 150));
+    // 等待後才截圖
+    await new Promise(r => setTimeout(r, 100));
     canvas.getContext('2d').drawImage(video, 0, 0);
-
-    flash.remove();
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-    // 拍照成功提示
-    showMsg('✅ 拍照成功！\n上傳中...', 'success');
+    // 拍照成功提示 + 雙振動
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
     await uploadPhoto(dataUrl);
