@@ -562,12 +562,13 @@ function generate(){
   const container=document.getElementById('stickerContainer'); container.innerHTML='';
   list.forEach(p=>{
     const dest = p.destLoc && p.destLoc.trim() ? p.destLoc : '—';
+    const displayName = p.name && p.name.length > 30 ? p.name.substring(0, 30) + '...' : p.name;
     const st=document.createElement('div'); st.className='sticker';
     st.innerHTML=`
       <div class="sk-content">
         <div class="fk sk-row-top" data-fk="rowtop"><span>#${String(p.no).padStart(3,'0')}</span><span>${p.trip}</span></div>
         <div class="fk sk-sku" data-fk="sku">${p.sku}</div>
-        <div class="fk sk-name" data-fk="name">${p.name}</div>
+        <div class="fk sk-name" data-fk="name">${displayName}</div>
         <div class="fk sk-qty" data-fk="qty">${p.qtyBox} 箱 / ${p.qtyPcs} 件</div>
         <div class="fk sk-ean" data-fk="ean">國際條碼：${p.ean||'—'}</div>
         <div class="fk sk-srcloc" data-fk="srcloc">來源儲位 ${p.srcLoc}　效期 ${p.expDate}</div>
@@ -646,6 +647,7 @@ function getSortedPallets() {
 
 // 每板 → WMS 22 欄一列（數量預設用「件數 qtyPcs」，與官方範本量級一致）
 function palletToWmsRow(p) {
+  const wmsName = p.name ? (p.name.length > 30 ? p.name.substring(0, 30) : p.name) : '';
   return [
     WMS_VENDOR.taxId,            // 廠商統編
     WMS_VENDOR.contact,         // 廠商聯絡人
@@ -656,7 +658,7 @@ function palletToWmsRow(p) {
     p.sourceId,                 // 來源單號
     '',                         // 主檔備註
     p.sku,                      // 商品貨號
-    p.name || '',               // 商品名稱
+    wmsName,                    // 商品名稱
     p.qtyPcs,                   // 數量（件數）
     '',                         // 製造日期
     fmtExpDate(p.expDate),      // 有效日期
