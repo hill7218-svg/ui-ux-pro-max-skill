@@ -393,7 +393,8 @@ function goScan() {
 
   document.getElementById('scanOverlay').style.display = 'flex';
   document.getElementById('photoOverlay').style.display = 'none';
-  hideCamControls();
+  document.getElementById('zoomControl').classList.add('show');
+  document.getElementById('tapHint').classList.remove('show');
   document.getElementById('infoPanel').classList.remove('confirmed');
   document.getElementById('palletId').textContent = '— 掃描 QR Code 後顯示 —';
   ['palletSku','palletName','palletQty','palletDest'].forEach(id => {
@@ -401,7 +402,7 @@ function goScan() {
   });
 
   showBtns('btnScan');
-  showMsg('📲 請將 QR Code 對準框內', 'info');
+  showMsg('📲 請將 QR Code 對準框內（可滑動變焦）', 'info');
   document.getElementById('status').textContent = '🔍 掃描中';
   startScanLoop();
 }
@@ -467,9 +468,13 @@ function startScanLoop() {
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const qr = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert'
-      });
+      // 嘗試多次掃描（包括反轉圖像）以提高成功率
+      let qr = jsQR(imageData.data, imageData.width, imageData.height);
+      if (!qr || !qr.data) {
+        qr = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'attemptBoth'
+        });
+      }
       if (qr && qr.data) {
         onQRFound(qr.data);
         return;
