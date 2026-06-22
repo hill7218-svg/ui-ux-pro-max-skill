@@ -460,6 +460,7 @@ function startScanLoop() {
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
+  let scanAttempts = 0;
 
   function tick() {
     if (STATE !== 'scan' || scanLocked) return;
@@ -468,17 +469,34 @@ function startScanLoop() {
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      // 嘗試多次掃描（包括反轉圖像）以提高成功率
-      let qr = jsQR(imageData.data, imageData.width, imageData.height);
+
+      // 多層次掃描策略（針對大 QR Code）
+      let qr = null;
+
+      // 1. 標準掃描
+      qr = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth'
+      });
+
+      // 2. 如果失敗，嘗試增強對比度（大 QR Code 可能需要）
       if (!qr || !qr.data) {
-        qr = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'attemptBoth'
-        });
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2];
+          const lum = 0.299*r + 0.587*g + 0.114*b;
+          const threshold = 128;
+          const val = lum > threshold ? 255 : 0;
+          data[i] = data[i+1] = data[i+2] = val;
+        }
+        qr = jsQR(data, imageData.width, imageData.height);
       }
+
       if (qr && qr.data) {
         onQRFound(qr.data);
         return;
       }
+
+      scanAttempts++;
     }
     scanRAF = requestAnimationFrame(tick);
   }
