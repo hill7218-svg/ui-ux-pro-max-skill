@@ -529,14 +529,16 @@ function applyStorageConfig() {
 }
 
 // 解析趟次取得移倉月日（回傳 {mmdd, code}）
-// 例： "6/23-4" -> {mmdd:"0623", code:"0623-4"}；"6/23空調-1" -> {mmdd:"0623", code:"0623空調-1"}
+// 例： "6/23-4" -> {mmdd:"0623", code:"0623-4"}；"6/23空調-1" -> {mmdd:"0623", code:"0623AIRCON-1"}
+// 註：CODE128 條碼無法編碼中文，空調/恆溫一律轉成 AIRCON
 function parseTrip(trip) {
   const m = String(trip || '').match(/(\d{1,2})\/(\d{1,2})(.*)$/);
   if (m) {
     const mm = m[1].padStart(2, '0'), dd = m[2].padStart(2, '0');
-    return { mmdd: mm + dd, code: mm + dd + (m[3] || '') };
+    const rest = (m[3] || '').replace(/空調|恆溫/g, 'AIRCON');
+    return { mmdd: mm + dd, code: mm + dd + rest };
   }
-  return { mmdd: '', code: String(trip || '').replace(/\s+/g, '') };
+  return { mmdd: '', code: String(trip || '').replace(/空調|恆溫/g, 'AIRCON').replace(/\s+/g, '') };
 }
 
 // 入庫單號：lotte + 20260623 + 趟次(0623-4) + 流水號(每趟次重編)，限制 30 字內
@@ -544,6 +546,8 @@ function buildOrderId(trip, serial) {
   const t = parseTrip(trip);
   const date = '2026' + (t.mmdd || '');
   let oid = 'lotte' + date + t.code + serial;
+  // CODE128 僅支援 ASCII，移除殘留非 ASCII 字元避免條碼無法產生
+  oid = oid.replace(/[^\x20-\x7E]/g, '');
   return oid.length > 30 ? oid.slice(0, 30) : oid;
 }
 
