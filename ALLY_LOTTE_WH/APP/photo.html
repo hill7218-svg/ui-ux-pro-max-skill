@@ -455,7 +455,7 @@ function goDone(count) {
   document.getElementById('status').textContent = `✅ 已上傳 ${count} 張`;
 }
 
-// ============ QR 掃描迴圈 ============
+// ============ QR/條碼掃描迴圈 ============
 function startScanLoop() {
   stopScanLoop();
   if (!window.ZXing) {
@@ -467,7 +467,20 @@ function startScanLoop() {
   const video = document.getElementById('video');
   if (!zxingReader) {
     try {
-      zxingReader = new ZXing.BrowserMultiFormatReader();
+      // 設定掃描格式：支援所有二維和一維條碼
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.QR_CODE,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.DATA_MATRIX,
+        ZXing.BarcodeFormat.CODABAR
+      ]);
+      zxingReader = new ZXing.BrowserMultiFormatReader(hints);
     } catch (e) {
       showMsg('❌ ZXing 初始化失敗', 'error');
       return;
@@ -478,8 +491,9 @@ function startScanLoop() {
     if (STATE !== 'scan' || scanLocked) return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       try {
-        // 用 ZXing 掃描視頻幀
-        const result = zxingReader.decodeFromCanvas(getVideoCanvas(video));
+        const canvas = getVideoCanvas(video);
+        // 用 ZXing 掃描視頻幀（支援所有格式）
+        const result = zxingReader.decodeFromCanvas(canvas);
         if (result && result.text) {
           onQRFound(result.text);
           return;
