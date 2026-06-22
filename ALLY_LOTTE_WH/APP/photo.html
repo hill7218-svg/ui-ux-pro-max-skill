@@ -313,14 +313,28 @@ async function confirmManualId() {
 // ============ 相機 ============
 async function startCamera() {
   try {
+    // 要求最高解析度 + 連續自動對焦（硬體輔助）
     APP.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1920 }, height: { ideal: 1080 },
+        focusMode: 'continuous'
+      },
       audio: false
     });
     document.getElementById('video').srcObject = APP.stream;
     await new Promise(r => document.getElementById('video').addEventListener('loadedmetadata', r, { once: true }));
 
     APP.track = APP.stream.getVideoTracks()[0];
+
+    // 開啟硬體連續自動對焦（避免變焦後失焦）
+    try {
+      const caps = APP.track.getCapabilities ? APP.track.getCapabilities() : {};
+      if (caps.focusMode && caps.focusMode.includes('continuous')) {
+        await APP.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      }
+    } catch (_) {}
+
     setupZoom();
     setupTapFocus();
   } catch (e) {
@@ -329,41 +343,34 @@ async function startCamera() {
   }
 }
 
-// ── 變焦：依裝置能力設定滑桿 ──
+// ── 變焦：只用手機硬體變焦（畫質清晰）。不支援則隱藏滑桿，請靠遠近距離 ──
 function setupZoom() {
   const slider = document.getElementById('zoomSlider');
   const valLbl = document.getElementById('zoomVal');
+  const control = document.getElementById('zoomControl');
   let caps = {};
   try { caps = APP.track.getCapabilities ? APP.track.getCapabilities() : {}; } catch (_) {}
 
   if (caps && caps.zoom && caps.zoom.max && caps.zoom.max > caps.zoom.min) {
-    // 硬體變焦（多數 Android 後鏡頭支援）
+    // 硬體變焦（光學/感光元件級，清晰不模糊）
     APP.zoomMode = 'hardware';
+    APP.hasZoom = true;
     slider.min = caps.zoom.min;
     slider.max = caps.zoom.max;
     slider.step = caps.zoom.step || 0.1;
     slider.value = caps.zoom.min;
     valLbl.textContent = Number(caps.zoom.min).toFixed(1) + 'x';
-  } else {
-    // 軟體變焦（iOS / 不支援硬體變焦時，用 CSS 放大畫面）
-    APP.zoomMode = 'software';
-    slider.min = 1; slider.max = 5; slider.step = 0.1; slider.value = 1;
-    valLbl.textContent = '1.0x';
-  }
-
-  slider.oninput = () => {
-    const z = parseFloat(slider.value);
-    valLbl.textContent = z.toFixed(1) + 'x';
-    if (APP.zoomMode === 'hardware') {
+    slider.oninput = () => {
+      const z = parseFloat(slider.value);
+      valLbl.textContent = z.toFixed(1) + 'x';
       try { APP.track.applyConstraints({ advanced: [{ zoom: z }] }); } catch (_) {}
-    } else {
-      // CSS 放大（拍照時 canvas 會擷取放大後的畫面，需同步裁切）
-      const v = document.getElementById('video');
-      v.style.transform = `scale(${z})`;
-      v.style.transformOrigin = 'center center';
-      APP.softZoom = z;
-    }
-  };
+    };
+  } else {
+    // 無硬體變焦 → 不做軟體變焦（會失焦），直接隱藏滑桿
+    APP.zoomMode = 'none';
+    APP.hasZoom = false;
+    if (control) control.style.display = 'none';
+  }
 }
 
 // ── 點擊對焦 ──
@@ -412,7 +419,7 @@ function goScan() {
 
   document.getElementById('scanOverlay').style.display = 'flex';
   document.getElementById('photoOverlay').style.display = 'none';
-  document.getElementById('zoomControl').classList.add('show');
+  if (APP.hasZoom) document.getElementById('zoomControl').classList.add('show');
   document.getElementById('tapHint').classList.remove('show');
   document.getElementById('infoPanel').classList.remove('confirmed');
   document.getElementById('palletId').textContent = '— 掃描 QR Code 後顯示 —';
@@ -421,7 +428,7 @@ function goScan() {
   });
 
   showBtns('btnScan');
-  showMsg('📲 請將 QR Code 對準框內（可滑動變焦）', 'info');
+  showMsg('📲 請將 QR Code 對準框內', 'info');
   document.getElementById('status').textContent = '🔍 掃描中';
   startScanLoop();
 }
@@ -442,28 +449,27 @@ function goConfirm() {
 function goPhoto() {
   STATE = 'photo';
   document.getElementById('photoOverlay').style.display = 'block';
-  document.getElementById('zoomControl').classList.add('show');
+  if (APP.hasZoom) document.getElementById('zoomControl').classList.add('show');
   document.getElementById('tapHint').classList.add('show');
   showBtns('btnPhoto');
   document.getElementById('captureBtn').disabled = false;
-  showMsg('📷 請對準棧板後拍照（可滑動變焦・點畫面對焦）', 'info');
+  showMsg(APP.hasZoom
+    ? '📷 請對準棧板後拍照（可滑動變焦・點畫面對焦）'
+    : '📷 請對準棧板後拍照（點畫面對焦，靠遠近調整大小）', 'info');
   document.getElementById('status').textContent = '📷 拍照模式';
 }
 
 function hideCamControls() {
   document.getElementById('zoomControl').classList.remove('show');
   document.getElementById('tapHint').classList.remove('show');
-  // 重置變焦，避免掃描畫面仍維持放大
+  // 重置硬體變焦回最小（避免下次掃描仍維持放大）
   const slider = document.getElementById('zoomSlider');
-  if (slider) {
+  if (APP.hasZoom && slider) {
     slider.value = slider.min;
     document.getElementById('zoomVal').textContent = Number(slider.min).toFixed(1) + 'x';
-  }
-  const v = document.getElementById('video');
-  if (v) v.style.transform = 'none';
-  APP.softZoom = 1;
-  if (APP.zoomMode === 'hardware' && APP.track) {
-    try { APP.track.applyConstraints({ advanced: [{ zoom: parseFloat(slider.min) }] }); } catch (_) {}
+    if (APP.track) {
+      try { APP.track.applyConstraints({ advanced: [{ zoom: parseFloat(slider.min) }] }); } catch (_) {}
+    }
   }
 }
 
@@ -636,15 +642,8 @@ async function capturePhoto() {
     await new Promise(r => setTimeout(r, 100));
     const ctx = canvas.getContext('2d');
 
-    // 軟體變焦：裁切中央區域以符合畫面所見（硬體變焦則畫面已是放大後的，直接畫即可）
-    const z = (APP.zoomMode === 'software' && APP.softZoom) ? APP.softZoom : 1;
-    if (z > 1) {
-      const sw = vw / z, sh = vh / z;
-      const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
-      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, vw, vh);
-    } else {
-      ctx.drawImage(video, 0, 0);
-    }
+    // 硬體變焦：畫面已是放大後的清晰影像，直接截圖即可
+    ctx.drawImage(video, 0, 0);
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
