@@ -249,25 +249,22 @@ const CONFIG = {
 
 // 狀態：scan | confirm | photo | done
 let STATE = 'scan';
-// orderId = 入庫單號（檔名/記錄用）；sourceId = 儲位（查商品數量用，比對棧板資訊表 sourceId 欄）
-const APP = { orderId: null, sourceId: null, stream: null, uploadCount: 0 };
+// 【鎖定規範】QR = 入庫單號(orderId)。orderId 同時用於：檔名、Sheet 記錄、畫面顯示、查商品數量。
+const APP = { orderId: null, stream: null, uploadCount: 0 };
 let scanRAF = null;
 let scanLocked = false;   // 防止 QR 重複觸發
 let palletCache = null;   // 從 GAS 讀到的全部棧板資料
 
 // ============ 啟動 ============
 window.addEventListener('DOMContentLoaded', async () => {
-  // 先看 URL 有沒有 ?id= (URL QR 舊模式相容)
-  const params = new URLSearchParams(window.location.search);
-  const urlId = params.get('id');
-  const urlLoc = params.get('loc');   // 新版 QR 帶儲位
+  // 先看 URL 有沒有 ?id= (URL QR 直開模式)
+  const urlId = new URLSearchParams(window.location.search).get('id');
   await startCamera();
 
   if (urlId) {
     APP.orderId = urlId;
-    APP.sourceId = urlLoc || urlId;   // 無 loc 時回退用 id（舊版相容）
     showPalletId(urlId);
-    fetchPalletCache().then(() => fillPalletInfo(APP.sourceId));
+    fetchPalletCache().then(() => fillPalletInfo(urlId));
     goConfirm();
   } else {
     goScan();
@@ -280,7 +277,6 @@ async function confirmManualId() {
   const val = document.getElementById('manualIdInput').value.trim();
   if (!val) { showMessage('⚠️ 請輸入棧板 ID', 'error'); return; }
   APP.orderId = val;
-  APP.sourceId = val;   // 手動輸入時兩者相同
   APP.uploadCount = 0;
 
   // 隱藏輸入面板，顯示相機 UI
@@ -291,7 +287,7 @@ async function confirmManualId() {
   document.getElementById('status').textContent = '準備中...';
 
   await startCamera();
-  fetchPalletCache().then(() => fillPalletInfo(APP.sourceId));
+  fetchPalletCache().then(() => fillPalletInfo(APP.orderId));
   goConfirm();
 }
 
@@ -392,7 +388,6 @@ function setupTapFocus() {
 function goScan() {
   STATE = 'scan';
   APP.orderId = null;
-  APP.sourceId = null;
   APP.uploadCount = 0;
   scanLocked = false;
 
@@ -491,20 +486,16 @@ function stopScanLoop() {
 
 function onQRFound(text) {
   scanLocked = true;
-  // 相容三種格式：純文字、舊 URL(?id=儲位)、新 URL(?id=入庫單號&loc=儲位)
-  let orderId = text, loc = null;
+  // 【鎖定規範】QR = 入庫單號。相容純文字或 URL(?id=入庫單號)
+  let orderId = text;
   try {
-    const u = new URL(text);
-    const pid = u.searchParams.get('id');
-    const ploc = u.searchParams.get('loc');
+    const pid = new URL(text).searchParams.get('id');
     if (pid) orderId = pid;
-    if (ploc) loc = ploc;
   } catch (_) {}
 
   APP.orderId = orderId;
-  APP.sourceId = loc || orderId;   // 有 loc 用儲位查數量，否則回退
   showPalletId(orderId);
-  fillPalletInfo(APP.sourceId);
+  fillPalletInfo(orderId);
   goConfirm();
 }
 
@@ -519,15 +510,16 @@ async function fetchPalletCache() {
   } catch (_) {}
 }
 
-function fillPalletInfo(sourceId) {
+function fillPalletInfo(key) {
   if (!palletCache) return;
   const headers = palletCache[0].map(h => String(h).trim());
   const col = n => headers.indexOf(n);
-  const idIdx = col('sourceId');
+  // 比對欄優先 orderId(入庫單號)，表裡沒有則退回 sourceId(儲位)
+  const idIdx = col('orderId') !== -1 ? col('orderId') : col('sourceId');
   if (idIdx === -1) return;
   for (let i = 1; i < palletCache.length; i++) {
     const row = palletCache[i];
-    if (String(row[idIdx]) === String(sourceId)) {
+    if (String(row[idIdx]) === String(key)) {
       const get = n => { const c = col(n); return c === -1 ? '' : row[c]; };
       document.getElementById('palletSku').textContent  = get('sku')  || '—';
       document.getElementById('palletName').textContent = get('name') || '—';

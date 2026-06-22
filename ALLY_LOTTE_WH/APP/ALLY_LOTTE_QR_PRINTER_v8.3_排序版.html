@@ -618,10 +618,10 @@ function generate(){
       try{JsBarcode('#ob-'+p.no,p.orderId,{format:'CODE128',width:1.6,height:42.5,displayValue:false,margin:0});}catch(e){}
       if(dest!=='—'){ try{JsBarcode('#lb-'+p.no,dest,{format:'CODE128',width:1.4,height:42.5,displayValue:false,margin:0});}catch(e){} }
       try{
-        // QR 帶 id=入庫單號(檔名用) + loc=儲位(查數量用，沿用棧板資訊表的 sourceId 比對)
+        // 【鎖定規範】QR = 入庫單號(orderId)，不綁其他參數
         const photoUrl = PHOTO_PAGE_URL.includes('YOUR_GITHUB')
           ? p.orderId
-          : `${PHOTO_PAGE_URL}?id=${encodeURIComponent(p.orderId)}&loc=${encodeURIComponent(p.sourceId)}`;
+          : `${PHOTO_PAGE_URL}?id=${encodeURIComponent(p.orderId)}`;
         new QRCode(document.getElementById('qr-'+p.no),{text:photoUrl,width:142,height:142,correctLevel:QRCode.CorrectLevel.M});
       }catch(e){}
       applyLayout();
