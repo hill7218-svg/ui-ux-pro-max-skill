@@ -364,7 +364,8 @@ async function importDataFile(){
       const arrayBuffer = await file.arrayBuffer();
       const wb = XLSX.read(arrayBuffer, {type:'array'});
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws);
+      // defval:'' 保留整欄空白的欄位（如 srcLoc / ean），避免被略過導致驗證失敗
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
       data = rows;
     }else if(file.name.endsWith('.csv')){
       const text = await file.text();
