@@ -1,185 +1,211 @@
 #!/usr/bin/env python3
 """
-Convert customer XLSX (總表 + 工作表1) to v8.3 printer import format
-Deduplicates by storage location (儲位) - each unique location = one pallet
+Convert customer XLSX (總表 + 工作表1) to v8.3 printer import format.
+
+規則：
+  - 每個唯一儲位 = 一板（去重）
+  - 箱數 qtyBox = 該儲位「大」欄加總（客戶已換算好，單位皆為箱）
+  - 件數 qtyPcs = 該儲位「數量」加總（銷售單位）
+  - 條碼 ean：贈品 → 單品條碼（產品條碼）；其他 → 外箱條碼
+  - 條碼來源：商品主檔 a0d64486-...xlsm
 """
 
-import sys
-import os
-
+import sys, os, csv
 try:
     import openpyxl
 except ImportError:
-    print("❌ openpyxl not found. Installing...")
     os.system("pip install openpyxl")
     import openpyxl
 
-def read_customer_xlsx(filepath):
-    """Read customer XLSX with 總表 and 工作表1"""
-    try:
-        wb = openpyxl.load_workbook(filepath, data_only=True)
-        sheets = wb.sheetnames
-        print(f"✅ Found sheets: {sheets}\n")
+CUST = "/root/.claude/uploads/cc3263d7-cb46-55b2-8ea0-151cb63cd9f8/e3d77ba7-0623__1_1.xlsx"
+MASTER = "/root/.claude/uploads/cc3263d7-cb46-55b2-8ea0-151cb63cd9f8/a0d64486-jtu0612____________20260605__.xlsm"
+OUT_BASE = "/home/user/ui-ux-pro-max-skill/ALLY_LOTTE_WH/DATA/customer_converted"
 
-        # Read 工作表1 (details)
-        details = []
-        if '工作表1' in sheets:
-            ws = wb['工作表1']
-            headers = [cell.value for cell in ws[1]]
-            print(f"Column headers: {headers}\n")
+JUNK = {'', 'NO', 'N/A', 'NA', 'NONE', 'NO ', '#VALUE!', '0'}
 
-            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-                if not row[0]:  # Skip empty rows
-                    continue
-                details.append(dict(zip(headers, row)))
+def clean_barcode(v):
+    """正規化條碼，去除雜訊值"""
+    if v is None:
+        return ''
+    s = str(v).strip()
+    # openpyxl 有時讀成 float，如 4903333175451.0
+    if s.endswith('.0'):
+        s = s[:-2]
+    if s.upper() in JUNK:
+        return ''
+    # 只保留數字（條碼）
+    return s if s.isdigit() else ''
 
-        return details, sheets
-    except Exception as e:
-        print(f"❌ Error reading file: {e}")
-        sys.exit(1)
+def build_master_lookup():
+    """建立 sku -> {single, box, is_gift, name}"""
+    wb = openpyxl.load_workbook(MASTER, data_only=True, read_only=True)
+    lookup = {}
 
-def deduplicate_by_location(details):
-    """
-    Group by unique storage location (儲位)
-    Each unique 儲位 = one pallet
-    Return deduplicated data with aggregated quantities
-    """
-    pallet_map = {}
-
-    for row in details:
-        location = row.get('儲位', '').strip() if row.get('儲位') else ''
-        if not location:
-            print(f"⚠️  Skipping row with missing 儲位: {row}")
+    # 1) DSV系統 商品資料：欄位 品號0, 品名1, 條碼13(單品), 箱條碼23(外箱)
+    dsv = wb['DSV系統 商品資料']
+    drows = dsv.iter_rows(values_only=True)
+    dh = next(drows)
+    di = {n: i for i, n in enumerate(dh)}
+    for r in drows:
+        sku = r[0]
+        if not sku:
             continue
+        sku = str(sku).strip()
+        lookup.setdefault(sku, {'single': '', 'box': '', 'is_gift': False, 'name': r[1] or ''})
+        s = clean_barcode(r[di.get('條碼')]) if '條碼' in di else ''
+        b = clean_barcode(r[di.get('箱條碼')]) if '箱條碼' in di else ''
+        if s and not lookup[sku]['single']:
+            lookup[sku]['single'] = s
+        if b and not lookup[sku]['box']:
+            lookup[sku]['box'] = b
 
-        # Each location becomes one pallet entry
-        if location not in pallet_map:
-            pallet_map[location] = {
-                'sourceId': location,  # Use storage location as sourceId
-                'sku': row.get('品號', '').strip() or '',
-                'name': row.get('品名', '').strip() or '',
-                'trip': row.get('移倉', '').strip() or '',
-                'expDate': row.get('到期日', '') or '',
-                'qtyBox': 0,
-                'qtyPcs': 0,
-                'srcLoc': '',  # Empty as per user request
-                'destLoc': '',
-                'ean': '',
-                'rows': []  # Track original rows for verification
-            }
+    # 2) 各國/贈品分頁：產品條碼 / 外箱條碼 / 產品細分類(判斷贈品)
+    for sn in wb.sheetnames:
+        if sn in ('分析', 'DSV系統 商品資料'):
+            continue
+        ws = wb[sn]
+        rws = list(ws.iter_rows(values_only=True))
+        hrow = None
+        for i, r in enumerate(rws[:4]):
+            if r and any(c and 'Item Code' in str(c) for c in r):
+                hrow = i
+                break
+        if hrow is None:
+            # 贈品包材POSM 用「客戶貨號」當 key（無條碼欄，僅補贈品標記）
+            continue
+        h = rws[hrow]
+        ci = {}
+        for i, c in enumerate(h):
+            if not c:
+                continue
+            cs = str(c)
+            if '產品條碼' in cs: ci['single'] = i
+            if '外箱條碼' in cs: ci['box'] = i
+            if '產品細分類' in cs: ci['cat'] = i
+        for r in rws[hrow + 1:]:
+            sku = r[0]
+            if not sku:
+                continue
+            sku = str(sku).strip()
+            ent = lookup.setdefault(sku, {'single': '', 'box': '', 'is_gift': False, 'name': ''})
+            if 'single' in ci:
+                s = clean_barcode(r[ci['single']])
+                if s and not ent['single']:
+                    ent['single'] = s
+            if 'box' in ci:
+                b = clean_barcode(r[ci['box']])
+                if b and not ent['box']:
+                    ent['box'] = b
+            if 'cat' in ci and r[ci['cat']] and '贈品' in str(r[ci['cat']]):
+                ent['is_gift'] = True
 
-        # Aggregate quantities
-        qty_box = row.get('外箱', 0) or 0
-        qty_pcs = row.get('數量', 0) or 0
-        try:
-            pallet_map[location]['qtyBox'] += int(qty_box) if qty_box else 0
-            pallet_map[location]['qtyPcs'] += int(qty_pcs) if qty_pcs else 0
-        except (ValueError, TypeError):
-            pass
+    return lookup
 
-        pallet_map[location]['rows'].append(row)
+def is_gift(sku, name, master_ent):
+    if master_ent and master_ent.get('is_gift'):
+        return True
+    if str(sku).upper().startswith('SW'):
+        return True
+    if name and '贈品' in str(name):
+        return True
+    return False
 
-    return pallet_map
+def pick_barcode(sku, name, master_ent):
+    """贈品用單品條碼；其他用外箱條碼。無對應則退而求其次。"""
+    if not master_ent:
+        return '', 'none'
+    if is_gift(sku, name, master_ent):
+        bc = master_ent['single'] or master_ent['box']
+        return bc, 'single' if master_ent['single'] else ('box' if master_ent['box'] else 'none')
+    else:
+        bc = master_ent['box'] or master_ent['single']
+        return bc, 'box' if master_ent['box'] else ('single' if master_ent['single'] else 'none')
 
-def generate_csv(pallet_map, output_path):
-    """Generate CSV in v8.3 printer import format"""
-    import csv
-
-    # v8.3 format columns: sourceId, sku, name, qtyBox, qtyPcs, srcLoc, destLoc, trip, expDate, ean
-    with open(output_path, 'w', newline='', encoding='utf-8-sig') as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            'sourceId', 'sku', 'name', 'qtyBox', 'qtyPcs', 'srcLoc', 'destLoc', 'trip', 'expDate', 'ean'
-        ])
-        writer.writeheader()
-
-        # Sort by trip then by sourceId for consistency
-        sorted_pallets = sorted(pallet_map.values(), key=lambda x: (x['trip'], x['sourceId']))
-
-        for pallet in sorted_pallets:
-            writer.writerow({
-                'sourceId': pallet['sourceId'],
-                'sku': pallet['sku'],
-                'name': pallet['name'],
-                'qtyBox': pallet['qtyBox'],
-                'qtyPcs': pallet['qtyPcs'],
-                'srcLoc': pallet['srcLoc'],
-                'destLoc': pallet['destLoc'],
-                'trip': pallet['trip'],
-                'expDate': pallet['expDate'],
-                'ean': pallet['ean']
-            })
-
-    print(f"✅ Generated CSV: {output_path}")
-
-def generate_xlsx(pallet_map, output_path):
-    """Generate XLSX in v8.3 printer import format"""
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "棧板資訊"
-
-    # Headers
-    headers = ['sourceId', 'sku', 'name', 'qtyBox', 'qtyPcs', 'srcLoc', 'destLoc', 'trip', 'expDate', 'ean']
-    ws.append(headers)
-
-    # Sort by trip then by sourceId
-    sorted_pallets = sorted(pallet_map.values(), key=lambda x: (x['trip'], x['sourceId']))
-
-    for pallet in sorted_pallets:
-        ws.append([
-            pallet['sourceId'],
-            pallet['sku'],
-            pallet['name'],
-            pallet['qtyBox'],
-            pallet['qtyPcs'],
-            pallet['srcLoc'],
-            pallet['destLoc'],
-            pallet['trip'],
-            pallet['expDate'],
-            pallet['ean']
-        ])
-
-    wb.save(output_path)
-    print(f"✅ Generated XLSX: {output_path}")
+def num(v):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return 0
 
 def main():
-    input_file = "/root/.claude/uploads/cc3263d7-cb46-55b2-8ea0-151cb63cd9f8/e3d77ba7-0623__1_1.xlsx"
-
-    if not os.path.exists(input_file):
-        print(f"❌ Input file not found: {input_file}")
+    if not (os.path.exists(CUST) and os.path.exists(MASTER)):
+        print("❌ 找不到輸入檔")
         sys.exit(1)
 
-    print(f"📂 Reading: {input_file}\n")
-    details, sheets = read_customer_xlsx(input_file)
+    master = build_master_lookup()
+    print(f"✅ 商品主檔載入：{len(master)} 個品號\n")
 
-    print(f"📊 Total rows in 工作表1: {len(details)}\n")
+    wb = openpyxl.load_workbook(CUST, data_only=True)
+    ws = wb['工作表1']
+    rows = list(ws.iter_rows(values_only=True))
+    # 欄位 index：儲位0,品號1,品名2,數量3,單位4,...,大6,單位7,...,到期日12,移倉16
+    H = {n: i for i, n in enumerate(rows[0])}
+    # 「大」與其後「單位」、第一個「單位」等有重複名稱，改用固定 index
+    I_LOC, I_SKU, I_NAME, I_QTY = 0, 1, 2, 3
+    I_BIG, I_EXP, I_TRIP = 6, 12, 16
 
-    # Deduplicate by storage location
-    pallet_map = deduplicate_by_location(details)
-    unique_pallets = len(pallet_map)
+    pallets = {}
+    no_barcode = []
+    for r in rows[1:]:
+        loc = r[I_LOC]
+        if not loc:
+            continue
+        loc = str(loc).strip()
+        sku = str(r[I_SKU]).strip()
+        name = r[I_NAME] or ''
+        ent = master.get(sku)
 
-    print(f"🎯 Unique storage locations (pallets): {unique_pallets}\n")
+        if loc not in pallets:
+            bc, src = pick_barcode(sku, name, ent)
+            if not bc:
+                no_barcode.append((loc, sku, name))
+            pallets[loc] = {
+                'sourceId': loc, 'sku': sku, 'name': name,
+                'qtyBox': 0, 'qtyPcs': 0, 'srcLoc': '', 'destLoc': '',
+                'trip': str(r[I_TRIP] or '').strip(),
+                'expDate': str(r[I_EXP] or '').strip(),
+                'ean': bc, 'bc_src': src, 'is_gift': is_gift(sku, name, ent),
+            }
+        pallets[loc]['qtyBox'] += num(r[I_BIG])   # 大欄 = 箱
+        pallets[loc]['qtyPcs'] += num(r[I_QTY])   # 數量 = 銷售單位
 
-    # Group summary by trip
-    trips = {}
-    for location, pallet in pallet_map.items():
-        trip = pallet['trip'] or 'UNKNOWN'
-        if trip not in trips:
-            trips[trip] = 0
-        trips[trip] += 1
+    n = len(pallets)
+    print(f"📊 工作表1 共 {len(rows)-1} 列 → 去重後 {n} 板\n")
 
-    print("📈 Summary by trip:")
-    for trip, count in sorted(trips.items()):
-        print(f"  {trip}: {count} 張")
-    print()
+    from collections import Counter
+    trips = Counter(p['trip'] for p in pallets.values())
+    print("📈 各車次板數：")
+    for t, c in sorted(trips.items()):
+        print(f"  {t}: {c} 張")
 
-    # Generate outputs
-    base_name = "/home/user/ui-ux-pro-max-skill/ALLY_LOTTE_WH/DATA/customer_converted"
+    gifts = sum(1 for p in pallets.values() if p['is_gift'])
+    print(f"\n🎁 贈品板數（用單品條碼）：{gifts}")
+    print(f"📦 一般商品板數（用外箱條碼）：{n - gifts}")
+    if no_barcode:
+        print(f"\n⚠️  無條碼的板（{len(no_barcode)}，貼紙顯示「—」，多為報表/信封/POSM）：")
+        for loc, sku, name in no_barcode:
+            print(f"    {loc}  {sku}  {str(name)[:24]}")
 
-    generate_csv(pallet_map, f"{base_name}.csv")
-    generate_xlsx(pallet_map, f"{base_name}.xlsx")
+    # 輸出
+    cols = ['sourceId','sku','name','qtyBox','qtyPcs','srcLoc','destLoc','trip','expDate','ean']
+    ordered = sorted(pallets.values(), key=lambda x: (x['trip'], x['sourceId']))
 
-    print(f"\n🎉 Conversion complete!")
-    print(f"📌 Ready to import into v8.3 printer: {unique_pallets} sticker sheets will be printed")
+    with open(f"{OUT_BASE}.csv", 'w', newline='', encoding='utf-8-sig') as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for p in ordered:
+            w.writerow({k: p[k] for k in cols})
 
-if __name__ == "__main__":
+    out = openpyxl.Workbook()
+    sh = out.active
+    sh.title = '棧板資訊'
+    sh.append(cols)
+    for p in ordered:
+        sh.append([p[k] for k in cols])
+    out.save(f"{OUT_BASE}.xlsx")
+
+    print(f"\n✅ 已輸出：{OUT_BASE}.csv / .xlsx")
+    print(f"📌 匯入 v8.3 後將印製 {n} 張貼紙（含正確箱數與國際條碼）")
+
+if __name__ == '__main__':
     main()
