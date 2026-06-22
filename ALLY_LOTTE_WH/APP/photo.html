@@ -100,6 +100,53 @@ html, body {
 }
 
 #canvas { display: none; }
+
+/* === 變焦 / 對焦 === */
+.zoom-control {
+  position: absolute; left: 10px; right: 10px; bottom: 10px;
+  display: none; align-items: center; gap: 10px;
+  background: rgba(0,0,0,0.45); border-radius: 999px; padding: 6px 14px;
+  backdrop-filter: blur(4px); z-index: 6;
+}
+.zoom-control.show { display: flex; }
+.zoom-control .zoom-icon { color: #fff; font-size: 15px; flex-shrink: 0; }
+.zoom-control input[type=range] {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 4px; background: rgba(255,255,255,0.5);
+  outline: none;
+}
+.zoom-control input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #00e676; border: 2px solid #fff; cursor: pointer;
+}
+.zoom-control input[type=range]::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #00e676; border: 2px solid #fff; cursor: pointer;
+}
+.zoom-control .zoom-val { color: #fff; font-size: 12px; font-weight: 700; min-width: 34px; text-align: right; }
+
+/* 點擊對焦光圈 */
+.focus-ring {
+  position: absolute; width: 70px; height: 70px;
+  border: 2px solid #00e676; border-radius: 50%;
+  transform: translate(-50%, -50%) scale(1.4); opacity: 0;
+  pointer-events: none; z-index: 7;
+  box-shadow: 0 0 8px rgba(0,230,118,0.6);
+}
+.focus-ring.animate { animation: focusPulse 0.6s ease-out; }
+@keyframes focusPulse {
+  0%   { transform: translate(-50%,-50%) scale(1.4); opacity: 0; }
+  30%  { transform: translate(-50%,-50%) scale(1.0); opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(0.9); opacity: 0; }
+}
+.tap-hint {
+  position: absolute; top: 8px; left: 0; right: 0; text-align: center;
+  color: #fff; font-size: 11px; font-weight: 600; z-index: 5;
+  text-shadow: 0 1px 4px rgba(0,0,0,.8); pointer-events: none;
+  display: none;
+}
+.tap-hint.show { display: block; }
 </style>
 </head>
 <body>
@@ -120,6 +167,15 @@ html, body {
     </div>
     <!-- 拍照框 (photo mode) -->
     <div class="photo-overlay" id="photoOverlay" style="display:none"></div>
+    <!-- 點擊對焦提示 + 光圈 -->
+    <div class="tap-hint" id="tapHint">👆 點畫面對焦</div>
+    <div class="focus-ring" id="focusRing"></div>
+    <!-- 變焦滑桿 -->
+    <div class="zoom-control" id="zoomControl">
+      <span class="zoom-icon">🔍</span>
+      <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1">
+      <span class="zoom-val" id="zoomVal">1.0x</span>
+    </div>
   </div>
 
   <!-- 棧板資訊 -->
@@ -237,15 +293,93 @@ async function confirmManualId() {
 async function startCamera() {
   try {
     APP.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false
     });
     document.getElementById('video').srcObject = APP.stream;
     await new Promise(r => document.getElementById('video').addEventListener('loadedmetadata', r, { once: true }));
+
+    APP.track = APP.stream.getVideoTracks()[0];
+    setupZoom();
+    setupTapFocus();
   } catch (e) {
     showMsg('❌ 相機啟動失敗：' + e.message, 'error');
     document.getElementById('status').textContent = '相機錯誤';
   }
+}
+
+// ── 變焦：依裝置能力設定滑桿 ──
+function setupZoom() {
+  const slider = document.getElementById('zoomSlider');
+  const valLbl = document.getElementById('zoomVal');
+  let caps = {};
+  try { caps = APP.track.getCapabilities ? APP.track.getCapabilities() : {}; } catch (_) {}
+
+  if (caps && caps.zoom && caps.zoom.max && caps.zoom.max > caps.zoom.min) {
+    // 硬體變焦（多數 Android 後鏡頭支援）
+    APP.zoomMode = 'hardware';
+    slider.min = caps.zoom.min;
+    slider.max = caps.zoom.max;
+    slider.step = caps.zoom.step || 0.1;
+    slider.value = caps.zoom.min;
+    valLbl.textContent = Number(caps.zoom.min).toFixed(1) + 'x';
+  } else {
+    // 軟體變焦（iOS / 不支援硬體變焦時，用 CSS 放大畫面）
+    APP.zoomMode = 'software';
+    slider.min = 1; slider.max = 5; slider.step = 0.1; slider.value = 1;
+    valLbl.textContent = '1.0x';
+  }
+
+  slider.oninput = () => {
+    const z = parseFloat(slider.value);
+    valLbl.textContent = z.toFixed(1) + 'x';
+    if (APP.zoomMode === 'hardware') {
+      try { APP.track.applyConstraints({ advanced: [{ zoom: z }] }); } catch (_) {}
+    } else {
+      // CSS 放大（拍照時 canvas 會擷取放大後的畫面，需同步裁切）
+      const v = document.getElementById('video');
+      v.style.transform = `scale(${z})`;
+      v.style.transformOrigin = 'center center';
+      APP.softZoom = z;
+    }
+  };
+}
+
+// ── 點擊對焦 ──
+function setupTapFocus() {
+  const video = document.getElementById('video');
+  let caps = {};
+  try { caps = APP.track.getCapabilities ? APP.track.getCapabilities() : {}; } catch (_) {}
+  APP.canFocus = !!(caps && caps.focusMode && caps.focusMode.includes('manual'));
+  const supportsPOI = !!(caps && caps.pointsOfInterest);
+
+  video.addEventListener('click', async (e) => {
+    if (STATE !== 'photo') return;
+    const wrap = document.getElementById('videoWrap');
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // 對焦光圈動畫
+    const ring = document.getElementById('focusRing');
+    ring.style.left = x + 'px';
+    ring.style.top = y + 'px';
+    ring.classList.remove('animate');
+    void ring.offsetWidth;  // reflow 重新觸發動畫
+    ring.classList.add('animate');
+
+    // 嘗試硬體對焦（支援的裝置）
+    if (supportsPOI || APP.canFocus) {
+      const adv = {};
+      if (supportsPOI) {
+        adv.pointsOfInterest = [{ x: x / rect.width, y: y / rect.height }];
+      }
+      if (caps.focusMode && caps.focusMode.includes('continuous')) {
+        adv.focusMode = 'continuous';
+      }
+      try { await APP.track.applyConstraints({ advanced: [adv] }); } catch (_) {}
+    }
+  });
 }
 
 // ============ 狀態切換 ============
@@ -257,6 +391,7 @@ function goScan() {
 
   document.getElementById('scanOverlay').style.display = 'flex';
   document.getElementById('photoOverlay').style.display = 'none';
+  hideCamControls();
   document.getElementById('infoPanel').classList.remove('confirmed');
   document.getElementById('palletId').textContent = '— 掃描 QR Code 後顯示 —';
   ['palletSku','palletName','palletQty','palletDest'].forEach(id => {
@@ -274,6 +409,7 @@ function goConfirm() {
   stopScanLoop();
   document.getElementById('scanOverlay').style.display = 'none';
   document.getElementById('photoOverlay').style.display = 'none';
+  hideCamControls();
   document.getElementById('infoPanel').classList.add('confirmed');
   showBtns('btnConfirm');
   showMsg('✅ QR Code 已辨識，確認資訊後開始拍照', 'success');
@@ -284,10 +420,29 @@ function goConfirm() {
 function goPhoto() {
   STATE = 'photo';
   document.getElementById('photoOverlay').style.display = 'block';
+  document.getElementById('zoomControl').classList.add('show');
+  document.getElementById('tapHint').classList.add('show');
   showBtns('btnPhoto');
   document.getElementById('captureBtn').disabled = false;
-  showMsg('📷 請對準棧板後拍照', 'info');
+  showMsg('📷 請對準棧板後拍照（可滑動變焦・點畫面對焦）', 'info');
   document.getElementById('status').textContent = '📷 拍照模式';
+}
+
+function hideCamControls() {
+  document.getElementById('zoomControl').classList.remove('show');
+  document.getElementById('tapHint').classList.remove('show');
+  // 重置變焦，避免掃描畫面仍維持放大
+  const slider = document.getElementById('zoomSlider');
+  if (slider) {
+    slider.value = slider.min;
+    document.getElementById('zoomVal').textContent = Number(slider.min).toFixed(1) + 'x';
+  }
+  const v = document.getElementById('video');
+  if (v) v.style.transform = 'none';
+  APP.softZoom = 1;
+  if (APP.zoomMode === 'hardware' && APP.track) {
+    try { APP.track.applyConstraints({ advanced: [{ zoom: parseFloat(slider.min) }] }); } catch (_) {}
+  }
 }
 
 function goDone(count) {
@@ -391,12 +546,23 @@ async function capturePhoto() {
   try {
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    canvas.width = vw;
+    canvas.height = vh;
 
     // 等待後才截圖
     await new Promise(r => setTimeout(r, 100));
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    const ctx = canvas.getContext('2d');
+
+    // 軟體變焦：裁切中央區域以符合畫面所見（硬體變焦則畫面已是放大後的，直接畫即可）
+    const z = (APP.zoomMode === 'software' && APP.softZoom) ? APP.softZoom : 1;
+    if (z > 1) {
+      const sw = vw / z, sh = vh / z;
+      const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, vw, vh);
+    } else {
+      ctx.drawImage(video, 0, 0);
+    }
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
