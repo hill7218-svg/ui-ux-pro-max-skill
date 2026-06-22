@@ -548,16 +548,16 @@ function stopScanLoop() {
 
 function onQRFound(text) {
   scanLocked = true;
-  // 【鎖定規範】QR = 入庫單號。相容純文字或 URL(?id=入庫單號)
-  let orderId = text;
+  // 【鎖定規範】QR = 來源單號(sourceId)。相容純文字或 URL(?id=sourceId)
+  let sourceId = text;
   try {
     const pid = new URL(text).searchParams.get('id');
-    if (pid) orderId = pid;
+    if (pid) sourceId = pid;
   } catch (_) {}
 
-  APP.orderId = orderId;
-  showPalletId(orderId);
-  fillPalletInfo(orderId);
+  APP.orderId = sourceId;  // 內部存 sourceId
+  showPalletId(sourceId);
+  fillPalletInfo(sourceId);
   goConfirm();
 }
 
@@ -576,8 +576,8 @@ function fillPalletInfo(key) {
   if (!palletCache) return;
   const headers = palletCache[0].map(h => String(h).trim());
   const col = n => headers.indexOf(n);
-  // 比對欄優先 orderId(入庫單號)，表裡沒有則退回 sourceId(儲位)
-  const idIdx = col('orderId') !== -1 ? col('orderId') : col('sourceId');
+  // 比對欄優先 sourceId(儲位)，表裡沒有則退回 orderId(入庫單號)
+  const idIdx = col('sourceId') !== -1 ? col('sourceId') : col('orderId');
   if (idIdx === -1) return;
   for (let i = 1; i < palletCache.length; i++) {
     const row = palletCache[i];
@@ -645,7 +645,7 @@ async function uploadPhoto(dataUrl) {
   showMsg('<span class="spinner"></span>上傳中...', 'loading');
   const count = APP.uploadCount + 1;
   const ts = new Date();
-  // 檔名：入庫單號_序號_拍攝時間（沿用 6/22 邏輯，identifier 改為入庫單號）
+  // 檔名：來源單號_序號_拍攝時間
   const filename = `${APP.orderId}_${count}_${fmtStamp(ts)}.jpg`;
 
   const res = await fetch(CONFIG.webAppUrl, {
