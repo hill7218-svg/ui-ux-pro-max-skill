@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>📷 照相驗收</title>
-<script async src="https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -254,7 +254,7 @@ const APP = { orderId: null, stream: null, uploadCount: 0 };
 let scanRAF = null;
 let scanLocked = false;   // 防止 QR 重複觸發
 let palletCache = null;   // 從 GAS 讀到的全部棧板資料
-let zxingReader = null;   // ZXing 掃描器
+let html5qrcode = null;   // html5-qrcode 掃描器
 
 // ============ 啟動 ============
 window.addEventListener('DOMContentLoaded', async () => {
@@ -455,52 +455,39 @@ function goDone(count) {
   document.getElementById('status').textContent = `✅ 已上傳 ${count} 張`;
 }
 
-// ============ QR/條碼掃描迴圈 ============
+// ============ QR/條碼掃描迴圈（html5-qrcode） ============
 function startScanLoop() {
   stopScanLoop();
-  if (!window.ZXing) {
-    showMsg('⏳ ZXing 庫載入中，請稍候...', 'loading');
+
+  if (!window.Html5Qrcode) {
+    showMsg('⏳ 掃描庫載入中...', 'loading');
     setTimeout(startScanLoop, 500);
     return;
   }
 
   const video = document.getElementById('video');
-  if (!zxingReader) {
-    try {
-      // 設定掃描格式：支援所有二維和一維條碼
-      const hints = new Map();
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-        ZXing.BarcodeFormat.QR_CODE,
-        ZXing.BarcodeFormat.CODE_128,
-        ZXing.BarcodeFormat.EAN_13,
-        ZXing.BarcodeFormat.EAN_8,
-        ZXing.BarcodeFormat.UPC_A,
-        ZXing.BarcodeFormat.UPC_E,
-        ZXing.BarcodeFormat.CODE_39,
-        ZXing.BarcodeFormat.DATA_MATRIX,
-        ZXing.BarcodeFormat.CODABAR
-      ]);
-      zxingReader = new ZXing.BrowserMultiFormatReader(hints);
-    } catch (e) {
-      showMsg('❌ ZXing 初始化失敗', 'error');
-      return;
-    }
-  }
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
 
   function tick() {
     if (STATE !== 'scan' || scanLocked) return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // 嘗試掃描：先用預設參數，再嘗試反轉
       try {
-        const canvas = getVideoCanvas(video);
-        // 用 ZXing 掃描視頻幀（支援所有格式）
-        const result = zxingReader.decodeFromCanvas(canvas);
-        if (result && result.text) {
-          onQRFound(result.text);
+        const result = Html5Qrcode.getLibrary().jsQR(
+          imageData.data, imageData.width, imageData.height,
+          { inversionAttempts: 'attemptBoth' }
+        );
+        if (result && result.data) {
+          onQRFound(result.data);
           return;
         }
-      } catch (e) {
-        // ZXing 掃不到時會拋出異常，這是正常的，繼續掃
-      }
+      } catch (e) {}
     }
     scanRAF = requestAnimationFrame(tick);
   }
