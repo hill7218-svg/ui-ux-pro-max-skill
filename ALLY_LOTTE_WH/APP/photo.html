@@ -222,21 +222,21 @@ html, body {
 
     <!-- 車次選擇 -->
     <div style="margin-bottom:12px">
-      <label style="display:block;color:#6B7A99;font-size:12px;font-weight:700;margin-bottom:6px">車次</label>
+      <label style="display:block;color:#6B7A99;font-size:12px;font-weight:700;margin-bottom:6px">溫層</label>
       <select id="tripSelect" style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;font-family:monospace">
+        <option value="REGULAR">常溫</option>
         <option value="AIRCON">恆溫（AIRCON）</option>
-        <option value="">常溫（-）</option>
       </select>
     </div>
 
     <!-- 後四碼輸入 -->
     <div style="margin-bottom:16px">
-      <label style="display:block;color:#6B7A99;font-size:12px;font-weight:700;margin-bottom:6px">流水號（後四碼）</label>
-      <input id="manualInput" type="text" placeholder="0001" inputmode="numeric"
-        style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;text-align:center;font-family:monospace;font-size:20px;letter-spacing:4px"
+      <label style="display:block;color:#6B7A99;font-size:12px;font-weight:700;margin-bottom:6px">後四碼（車次+流水號）</label>
+      <input id="manualInput" type="text" placeholder="4001" inputmode="numeric"
+        style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;text-align:center;font-family:monospace;font-size:24px;letter-spacing:6px"
         autocomplete="off" spellcheck="false" maxlength="4" />
-      <div style="font-size:11px;color:#888;margin-top:6px;text-align:center">
-        組合：lotte20260623<span id="tripPreview">0623AIRCON</span>-<span id="seriesPreview">0001</span>
+      <div style="font-size:12px;color:#888;margin-top:8px;text-align:center;word-break:break-all">
+        <span id="idPreview">lotte202606230623-0000</span>
       </div>
     </div>
 
@@ -594,8 +594,8 @@ function fillPalletInfo(key) {
   if (!palletCache) return;
   const headers = palletCache[0].map(h => String(h).trim());
   const col = n => headers.indexOf(n);
-  // 比對欄優先 sourceId(儲位)，表裡沒有則退回 orderId(入庫單號)
-  const idIdx = col('sourceId') !== -1 ? col('sourceId') : col('orderId');
+  // 比對欄優先 orderId(入庫單號)，表裡沒有則退回 sourceId(儲位)
+  const idIdx = col('orderId') !== -1 ? col('orderId') : col('sourceId');
   if (idIdx === -1) return;
   for (let i = 1; i < palletCache.length; i++) {
     const row = palletCache[i];
@@ -604,7 +604,7 @@ function fillPalletInfo(key) {
       document.getElementById('palletSku').textContent  = get('sku')  || '—';
       document.getElementById('palletName').textContent = get('name') || '—';
       document.getElementById('palletQty').textContent  = `${get('qtyBox') || 0} 箱 / ${get('qtyPcs') || 0} 件`;
-      document.getElementById('palletDest').textContent = get('destLocation') || '—';
+      document.getElementById('palletDest').textContent = get('destLoc') || get('destLocation') || '—';
       return;
     }
   }
@@ -708,12 +708,20 @@ function nextPallet() {
 }
 
 // ============ 手動輸入（備用） ============
+// 鎖死前綴：恆溫 vs 常溫
+function idPrefix() {
+  const trip = document.getElementById('tripSelect').value;
+  return trip === 'AIRCON'
+    ? 'lotte202606230623AIRCON-'   // 恆溫
+    : 'lotte202606230623-';        // 常溫
+}
+
 function manualIdMode() {
   stopScanLoop();
   const modal = document.getElementById('manualModal');
   modal.style.display = 'flex';
   document.getElementById('manualInput').value = '';
-  document.getElementById('tripSelect').value = 'AIRCON';
+  document.getElementById('tripSelect').value = 'REGULAR';  // 預設常溫
   updatePreview();
   document.getElementById('manualInput').focus();
 }
@@ -724,22 +732,17 @@ function closeManual() {
 }
 
 function updatePreview() {
-  const trip = document.getElementById('tripSelect').value;
-  const tripCode = trip === 'AIRCON' ? '0623AIRCON' : '0623-';
-  const series = document.getElementById('manualInput').value.padStart(4, '0') || '0001';
-  document.getElementById('tripPreview').textContent = tripCode;
-  document.getElementById('seriesPreview').textContent = series;
+  const series = (document.getElementById('manualInput').value || '0000').padStart(4, '0');
+  document.getElementById('idPreview').textContent = idPrefix() + series;
 }
 
 function confirmManual() {
   const series = document.getElementById('manualInput').value.trim();
   if (!series || series.length !== 4 || isNaN(series)) {
-    alert('請輸入四位數字流水號');
+    alert('請輸入四位數字（車次+流水號），例如 4001');
     return;
   }
-  const trip = document.getElementById('tripSelect').value;
-  const tripCode = trip === 'AIRCON' ? '0623AIRCON' : '0623-';
-  const fullId = `lotte20260623${tripCode}-${series}`;
+  const fullId = idPrefix() + series;
   document.getElementById('manualModal').style.display = 'none';
   onQRFound(fullId);
 }

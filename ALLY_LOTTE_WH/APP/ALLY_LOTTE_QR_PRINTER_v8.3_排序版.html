@@ -142,6 +142,9 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
     <div class="btnrow">
       <button class="btn" onclick="exportOmsCSV_sorted()" style="font-size:12px">（備用）匯出 CSV・UTF-8</button>
     </div>
+    <div class="btnrow">
+      <button class="btn green" onclick="exportPalletInfoCSV()" style="font-size:12px">📋 匯出棧板資訊（含入庫單號→貼 Google Sheet）</button>
+    </div>
 
     <h2>🏢 儲位配置</h2>
     <div class="config-box">
@@ -732,6 +735,30 @@ function palletToWmsRow(p) {
 function wmsFilenameBase(trip) {
   const t = (trip === 'ALL') ? '全部187板' : trip.replace(/\//g, '');
   return '入庫單_' + t + '_2026-06-22';
+}
+
+// ── 匯出棧板資訊（含入庫單號）→ 給 photo.html 查商品數量用 ──
+// 欄位名稱與 photo.html fillPalletInfo() 對應：orderId 為查詢主鍵
+function exportPalletInfoCSV() {
+  const { trip, sorted } = getSortedPallets();
+  if (sorted.length === 0) { showMsg('⚠️ 此行次無資料'); return; }
+
+  const cols = ['orderId','sourceId','sku','name','qtyBox','qtyPcs','destLoc','trip','expDate','ean'];
+  const esc = (v) => {
+    const s = (v === undefined || v === null) ? '' : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [cols.join(',')];
+  sorted.forEach(p => {
+    lines.push(cols.map(k => esc(k === 'destLoc' ? (p.destLoc || '') : p[k])).join(','));
+  });
+
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '棧板資訊_' + (trip === 'ALL' ? '全部' : trip.replace(/[\/\\]/g, '-')) + '.csv';
+  a.click();
+  showMsg('📋 已匯出棧板資訊 ' + sorted.length + ' 筆（含入庫單號，貼到 Google Sheet「棧板資訊」分頁）');
 }
 
 // ── 主要：匯出入庫單 XLSX（WMS 可直接匯入）──
