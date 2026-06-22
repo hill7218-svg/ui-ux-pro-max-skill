@@ -17,9 +17,16 @@ except ImportError:
     os.system("pip install openpyxl")
     import openpyxl
 
-CUST = "/root/.claude/uploads/cc3263d7-cb46-55b2-8ea0-151cb63cd9f8/e3d77ba7-0623__1_1.xlsx"
-MASTER = "/root/.claude/uploads/cc3263d7-cb46-55b2-8ea0-151cb63cd9f8/a0d64486-jtu0612____________20260605__.xlsm"
-OUT_BASE = "/home/user/ui-ux-pro-max-skill/ALLY_LOTTE_WH/DATA/customer_converted"
+# 用法（明天換檔案就改這裡，或用命令列參數）：
+#   python3 convert_customer_xlsx.py <客戶訂單.xlsx> <商品主檔.xlsm> [輸出路徑(不含副檔名)]
+# 不帶參數時用以下預設值。
+DEFAULT_CUST = "/root/.claude/uploads/cc3263d7-cb46-55b2-8ea0-151cb63cd9f8/e3d77ba7-0623__1_1.xlsx"
+DEFAULT_MASTER = "/root/.claude/uploads/cc3263d7-cb46-55b2-8ea0-151cb63cd9f8/a0d64486-jtu0612____________20260605__.xlsm"
+DEFAULT_OUT = "/home/user/ui-ux-pro-max-skill/ALLY_LOTTE_WH/DATA/customer_converted"
+
+CUST = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CUST
+MASTER = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_MASTER
+OUT_BASE = sys.argv[3] if len(sys.argv) > 3 else DEFAULT_OUT
 
 JUNK = {'', 'NO', 'N/A', 'NA', 'NONE', 'NO ', '#VALUE!', '0'}
 

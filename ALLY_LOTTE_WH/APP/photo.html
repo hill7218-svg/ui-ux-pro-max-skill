@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>📷 照相驗收</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -19,88 +20,212 @@ html, body {
 .header .status { font-size: 12px; opacity: 0.9; }
 .container {
   flex: 1; display: flex; flex-direction: column;
-  align-items: center; gap: 12px; padding: 12px; padding-bottom: 24px;
+  align-items: center; gap: 12px; padding: 12px; padding-bottom: 28px;
 }
-#video { width: 100%; max-width: 100%; height: 45vw; max-height: 280px; min-height: 160px; border-radius: 8px; background: #000; object-fit: cover; }
+
+/* === 相機 === */
+.video-wrap {
+  position: relative; width: 100%; border-radius: 10px; overflow: hidden;
+  background: #000; aspect-ratio: 4/3; max-height: 300px;
+}
+#video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* QR 掃描框 */
+.scan-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.scan-box {
+  width: 55%; aspect-ratio: 1; border: 3px solid #00e676;
+  border-radius: 8px; box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
+  animation: scanPulse 1.8s ease-in-out infinite;
+}
+@keyframes scanPulse { 0%,100%{border-color:#00e676} 50%{border-color:#64ffda} }
+.scan-label {
+  position: absolute; bottom: 12px; left: 0; right: 0;
+  text-align: center; color: #fff; font-size: 13px; font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0,0,0,.8);
+}
+
+/* 拍照框（無掃描動畫） */
+.photo-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  border: 3px solid rgba(255,255,255,0.25); border-radius: 10px;
+}
+
+/* === 資訊面板 === */
 .info-panel {
-  background: rgba(255,255,255,0.95); border-radius: 8px; padding: 12px;
+  background: rgba(255,255,255,0.96); border-radius: 10px; padding: 14px;
   width: 100%; color: #0D1B3E; font-size: 13px;
 }
-.info-row { display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; }
-.info-label { font-weight: 700; min-width: 70px; color: #6B7A99; font-size: 12px; }
+.info-panel.confirmed { border: 2px solid #007B6F; }
+.info-row { display: flex; justify-content: space-between; margin-bottom: 6px; align-items: flex-start; }
+.info-row:last-child { margin-bottom: 0; }
+.info-label { font-weight: 700; min-width: 60px; color: #6B7A99; font-size: 12px; flex-shrink: 0; }
 .info-value { font-weight: 600; text-align: right; flex: 1; margin-left: 8px; font-family: "JetBrains Mono", monospace; word-break: break-all; font-size: 12px; }
-.button-row { display: flex; gap: 10px; width: 100%; justify-content: center; margin-top: 4px; }
-.btn { padding: 14px 18px; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; flex: 1; transition: all .2s; -webkit-tap-highlight-color: transparent; }
+
+/* === 버튼 === */
+.button-row { display: flex; gap: 10px; width: 100%; margin-top: 2px; }
+.btn {
+  padding: 15px 18px; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700; cursor: pointer; flex: 1;
+  transition: all .15s; -webkit-tap-highlight-color: transparent;
+  letter-spacing: 0.3px;
+}
 .btn-primary { background: #007B6F; color: #fff; }
 .btn-primary:active { background: #005a52; transform: scale(0.97); }
 .btn-primary:disabled { background: #aaa; cursor: not-allowed; opacity: .6; }
 .btn-secondary { background: #6B7A99; color: #fff; }
 .btn-secondary:active { background: #4a5570; transform: scale(0.97); }
-.btn-danger { background: #c0392b; color: #fff; }
-.btn-danger:active { background: #922b21; transform: scale(0.97); }
-.message { padding: 10px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; text-align: center; width: 100%; white-space: pre-line; }
-.message.info { background: #d1ecf1; color: #0c5460; }
+.btn-success { background: #155724; color: #fff; }
+.btn-success:active { background: #0d3a18; transform: scale(0.97); }
+.btn-outline { background: transparent; color: #6B7A99; border: 2px solid #6B7A99; }
+.btn-outline:active { background: #f0f0f0; }
+
+/* === 訊息 === */
+.message { padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: center; width: 100%; white-space: pre-line; }
+.message.info    { background: #d1ecf1; color: #0c5460; }
 .message.success { background: #d4edda; color: #155724; }
-.message.error { background: #f8d7da; color: #721c24; }
+.message.error   { background: #f8d7da; color: #721c24; }
 .message.loading { background: #cfe2ff; color: #084298; }
+.message.warn    { background: #fff3cd; color: #856404; }
 .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(8,66,152,.3); border-radius: 50%; border-top-color: #084298; animation: spin .8s linear infinite; margin-right: 6px; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* === 上傳成功 badge === */
+.upload-badge {
+  background: #007B6F; color: #fff; border-radius: 999px;
+  padding: 4px 12px; font-size: 12px; font-weight: 700;
+  display: inline-block; margin-bottom: 4px;
+}
+
 #canvas { display: none; }
 
-/* 手動輸入 ID 面板 */
-.id-input-panel {
-  background: #fff; border-radius: 12px; padding: 20px 16px;
-  width: 100%; text-align: center; border: 2px solid #007B6F;
+/* === 變焦 / 對焦 === */
+.zoom-control {
+  position: absolute; left: 10px; right: 10px; bottom: 10px;
+  display: none; align-items: center; gap: 10px;
+  background: rgba(0,0,0,0.45); border-radius: 999px; padding: 6px 14px;
+  backdrop-filter: blur(4px); z-index: 6;
 }
-.id-input-panel h3 { color: #0D1B3E; font-size: 16px; margin-bottom: 6px; }
-.id-input-panel p { color: #6B7A99; font-size: 12px; margin-bottom: 14px; line-height: 1.5; }
-.id-input-field {
-  width: 100%; padding: 12px 14px; border: 2px solid #ddd; border-radius: 8px;
-  font-size: 14px; font-family: "JetBrains Mono", monospace;
-  margin-bottom: 12px; outline: none; color: #0D1B3E;
+.zoom-control.show { display: flex; }
+.zoom-control .zoom-icon { color: #fff; font-size: 15px; flex-shrink: 0; }
+.zoom-control input[type=range] {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 4px; background: rgba(255,255,255,0.5);
+  outline: none;
 }
-.id-input-field:focus { border-color: #007B6F; }
-.id-input-hint { font-size: 11px; color: #856404; background: #fff3cd; padding: 8px 10px; border-radius: 6px; margin-bottom: 12px; text-align: left; line-height: 1.6; }
+.zoom-control input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #00e676; border: 2px solid #fff; cursor: pointer;
+}
+.zoom-control input[type=range]::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #00e676; border: 2px solid #fff; cursor: pointer;
+}
+.zoom-control .zoom-val { color: #fff; font-size: 12px; font-weight: 700; min-width: 34px; text-align: right; }
+
+/* 點擊對焦光圈 */
+.focus-ring {
+  position: absolute; width: 70px; height: 70px;
+  border: 2px solid #00e676; border-radius: 50%;
+  transform: translate(-50%, -50%) scale(1.4); opacity: 0;
+  pointer-events: none; z-index: 7;
+  box-shadow: 0 0 8px rgba(0,230,118,0.6);
+}
+.focus-ring.animate { animation: focusPulse 0.6s ease-out; }
+@keyframes focusPulse {
+  0%   { transform: translate(-50%,-50%) scale(1.4); opacity: 0; }
+  30%  { transform: translate(-50%,-50%) scale(1.0); opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(0.9); opacity: 0; }
+}
+.tap-hint {
+  position: absolute; top: 8px; left: 0; right: 0; text-align: center;
+  color: #fff; font-size: 11px; font-weight: 600; z-index: 5;
+  text-shadow: 0 1px 4px rgba(0,0,0,.8); pointer-events: none;
+  display: none;
+}
+.tap-hint.show { display: block; }
 </style>
 </head>
 <body>
 
 <div class="header">
   <div>📷 照相驗收</div>
-  <div class="status" id="status">準備中...</div>
+  <div class="status" id="status">啟動中...</div>
 </div>
 
 <div class="container">
-
-  <!-- 手動輸入 ID（貼紙沒有URL QR時使用） -->
-  <div class="id-input-panel" id="idInputPanel" style="display:none">
-    <h3>🔍 輸入棧板 ID</h3>
-    <p>貼紙沒有掃碼跳轉？<br>用條碼 App 掃貼紙條碼後貼入，或手動輸入</p>
-    <div class="id-input-hint">💡 步驟：開任意條碼 App → 掃貼紙條碼 → 複製文字 → 貼入下方</div>
-    <input class="id-input-field" id="manualIdInput" type="text"
-      placeholder="LOTTE-20260622-..." autocomplete="off" autocorrect="off"
-      spellcheck="false" inputmode="text" />
-    <div class="button-row" style="margin-top:0">
-      <button class="btn btn-primary" onclick="confirmManualId()">✓ 確認開始拍照</button>
+  <!-- 相機畫面 -->
+  <div class="video-wrap" id="videoWrap">
+    <video id="video" playsinline autoplay muted></video>
+    <!-- QR 掃描框 (scan mode) -->
+    <div class="scan-overlay" id="scanOverlay">
+      <div class="scan-box"></div>
+      <div class="scan-label">對準貼紙 QR Code</div>
+    </div>
+    <!-- 拍照框 (photo mode) -->
+    <div class="photo-overlay" id="photoOverlay" style="display:none"></div>
+    <!-- 點擊對焦提示 + 光圈 -->
+    <div class="tap-hint" id="tapHint">👆 點畫面對焦</div>
+    <div class="focus-ring" id="focusRing"></div>
+    <!-- 變焦滑桿 -->
+    <div class="zoom-control" id="zoomControl">
+      <span class="zoom-icon">🔍</span>
+      <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1">
+      <span class="zoom-val" id="zoomVal">1.0x</span>
     </div>
   </div>
 
-  <video id="video" playsinline autoplay muted></video>
-
+  <!-- 棧板資訊 -->
   <div class="info-panel" id="infoPanel">
-    <div class="info-row"><span class="info-label">板號 ID:</span><span class="info-value" id="palletId">—</span></div>
-    <div class="info-row"><span class="info-label">商品:</span><span class="info-value" id="palletSku">—</span></div>
-    <div class="info-row"><span class="info-label">名稱:</span><span class="info-value" id="palletName">—</span></div>
-    <div class="info-row"><span class="info-label">數量:</span><span class="info-value" id="palletQty">—</span></div>
-    <div class="info-row"><span class="info-label">儲位:</span><span class="info-value" id="palletDest">—</span></div>
+    <div class="info-row"><span class="info-label">入庫單號</span><span class="info-value" id="palletId">— 掃描 QR Code 後顯示 —</span></div>
+    <div class="info-row"><span class="info-label">商品</span><span class="info-value" id="palletSku">—</span></div>
+    <div class="info-row"><span class="info-label">名稱</span><span class="info-value" id="palletName">—</span></div>
+    <div class="info-row"><span class="info-label">數量</span><span class="info-value" id="palletQty">—</span></div>
+    <div class="info-row"><span class="info-label">儲位</span><span class="info-value" id="palletDest">—</span></div>
   </div>
 
   <div id="messageArea"></div>
 
-  <div class="button-row">
+  <!-- 按鈕區（依狀態切換） -->
+
+  <!-- SCAN 模式按鈕 -->
+  <div class="button-row" id="btnScan">
+    <button class="btn btn-outline" onclick="manualIdMode()">⌨️ 手動輸入 ID</button>
+  </div>
+
+  <!-- CONFIRM 模式按鈕 -->
+  <div class="button-row" id="btnConfirm" style="display:none">
+    <button class="btn btn-outline" onclick="goScan()">↩ 重新掃描</button>
+    <button class="btn btn-primary" onclick="goPhoto()">📷 確認拍照</button>
+  </div>
+
+  <!-- PHOTO 模式按鈕 -->
+  <div class="button-row" id="btnPhoto" style="display:none">
     <button class="btn btn-primary" id="captureBtn" onclick="capturePhoto()">📷 拍照</button>
-    <button class="btn btn-secondary" id="retryBtn" onclick="retryLastPhoto()" style="display:none">🔄 再拍一張</button>
-    <button class="btn btn-danger" id="doneBtn" onclick="finishSession()" style="display:none">✓ 完成此板</button>
+  </div>
+
+  <!-- DONE 模式按鈕（上傳成功後） -->
+  <div class="button-row" id="btnDone" style="display:none">
+    <button class="btn btn-secondary" onclick="retryPhoto()">🔄 再拍一張</button>
+    <button class="btn btn-success" onclick="nextPallet()">➡ 下一板</button>
+  </div>
+</div>
+
+<!-- 手動輸入 modal（備用） -->
+<div id="manualModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:12px;padding:24px 20px;width:100%;max-width:400px">
+    <h3 style="color:#0D1B3E;margin-bottom:8px">⌨️ 手動輸入棧板 ID</h3>
+    <p style="color:#666;font-size:12px;margin-bottom:16px">請輸入或貼上棧板 ID（可用條碼 App 掃一維條碼後貼上）</p>
+    <input id="manualInput" type="text" placeholder="LOTTE-20260622-..."
+      style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:12px;font-family:monospace"
+      autocomplete="off" spellcheck="false" />
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeManual()">取消</button>
+      <button class="btn btn-primary" style="flex:1" onclick="confirmManual()">確認</button>
+    </div>
   </div>
 </div>
 
@@ -108,214 +233,451 @@ html, body {
 
 <script>
 /* ============================================================
-   照相驗收頁 — 對接「v7.0 GAS 後端」(沿用既有部署，免重新授權)
-   後端 API:
-     POST text/plain {action:'uploadPhoto', imageData, filename, folderId}  -> {ok,url,id}
-     POST text/plain {action:'append', tab, rows:[[...]]}                   -> {ok,appended}
-     GET  ?tab=棧板資訊                                                       -> {ok,values:[[...]]}
+   照相驗收 v2 — QR 掃描 → 確認 → 拍照 → 下一板
+   GAS v7.0 後端 API:
+     POST text/plain {action:'uploadPhoto', imageData, filename, folderId}
+     POST text/plain {action:'append', tab, rows:[[...]]}
+     GET  ?tab=棧板資訊
    ============================================================ */
 
-// ===== 配置：填入你 v7.0 已部署的 Web App URL =====
 const CONFIG = {
   webAppUrl: 'https://script.google.com/macros/s/AKfycbxlx-rJ4UdHq6QhpFggF1g5KajsP3UnJd7xa9Ghw9sv6eeuJELPh57dlQIC58pkkNVr/exec',
-  folderId: '',            // 留空 → 後端自動建立/使用 ALLY_LOTTE_WH 資料夾
-  logTab: '照相記錄',       // 記錄分頁（不存在會自動建立）
-  palletTab: '棧板資訊'     // 棧板明細分頁（選填，用來顯示商品資訊）
+  folderId: '',
+  logTab: '照相記錄',
+  palletTab: '棧板資訊'
 };
 
-const APP = { sourceId: null, stream: null, uploadCount: 0 };
+// 狀態：scan | confirm | photo | done
+let STATE = 'scan';
+// orderId = 入庫單號（檔名/記錄用）；sourceId = 儲位（查商品數量用，比對棧板資訊表 sourceId 欄）
+const APP = { orderId: null, sourceId: null, stream: null, uploadCount: 0 };
+let scanRAF = null;
+let scanLocked = false;   // 防止 QR 重複觸發
+let palletCache = null;   // 從 GAS 讀到的全部棧板資料
 
-// ============ 初始化 ============
+// ============ 啟動 ============
 window.addEventListener('DOMContentLoaded', async () => {
+  // 先看 URL 有沒有 ?id= (URL QR 舊模式相容)
   const params = new URLSearchParams(window.location.search);
-  APP.sourceId = params.get('id');
+  const urlId = params.get('id');
+  const urlLoc = params.get('loc');   // 新版 QR 帶儲位
+  await startCamera();
 
-  if (!APP.sourceId) {
-    // 無 ?id= 參數：顯示手動輸入面板（貼紙舊版 QR 只有 sourceId 文字時使用）
-    document.getElementById('idInputPanel').style.display = 'block';
-    document.getElementById('video').style.display = 'none';
-    document.getElementById('infoPanel').style.display = 'none';
-    document.getElementById('captureBtn').disabled = true;
-    document.getElementById('status').textContent = '請輸入板號';
-    showMessage('請輸入棧板 ID 後按確認', 'info');
-    document.getElementById('manualIdInput').focus();
-    // 支援 Enter 鍵確認
-    document.getElementById('manualIdInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') confirmManualId();
-    });
-    return;
+  if (urlId) {
+    APP.orderId = urlId;
+    APP.sourceId = urlLoc || urlId;   // 無 loc 時回退用 id（舊版相容）
+    showPalletId(urlId);
+    fetchPalletCache().then(() => fillPalletInfo(APP.sourceId));
+    goConfirm();
+  } else {
+    goScan();
+    fetchPalletCache();  // 預載棧板資料，QR 掃到後查詢更快
   }
-  document.getElementById('palletId').textContent = APP.sourceId;
-
-  await initCamera();          // 開相機
-  fetchPalletInfo();           // 查明細（非阻塞，best-effort）
 });
 
 // ============ 手動確認 ID（無 URL 參數時使用）============
 async function confirmManualId() {
   const val = document.getElementById('manualIdInput').value.trim();
   if (!val) { showMessage('⚠️ 請輸入棧板 ID', 'error'); return; }
-  APP.sourceId = val;
+  APP.orderId = val;
+  APP.sourceId = val;   // 手動輸入時兩者相同
   APP.uploadCount = 0;
 
   // 隱藏輸入面板，顯示相機 UI
   document.getElementById('idInputPanel').style.display = 'none';
   document.getElementById('video').style.display = 'block';
   document.getElementById('infoPanel').style.display = 'block';
-  document.getElementById('palletId').textContent = APP.sourceId;
+  document.getElementById('palletId').textContent = APP.orderId;
   document.getElementById('status').textContent = '準備中...';
 
-  await initCamera();
-  fetchPalletInfo();
+  await startCamera();
+  fetchPalletCache().then(() => fillPalletInfo(APP.sourceId));
+  goConfirm();
 }
 
 // ============ 相機 ============
-async function initCamera() {
+async function startCamera() {
   try {
-    showMessage('⏳ 正在啟動相機...', 'loading');
     APP.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false
     });
     document.getElementById('video').srcObject = APP.stream;
-    document.getElementById('status').textContent = '✅ 相機已就緒';
-    showMessage('✅ 相機已就緒，請對準棧板拍照', 'success');
-  } catch (error) {
-    showMessage('❌ 相機啟動失敗：' + error.message + '\n請確認已用 HTTPS 開啟並允許相機權限', 'error');
-    document.getElementById('captureBtn').disabled = true;
+    await new Promise(r => document.getElementById('video').addEventListener('loadedmetadata', r, { once: true }));
+
+    APP.track = APP.stream.getVideoTracks()[0];
+    setupZoom();
+    setupTapFocus();
+  } catch (e) {
+    showMsg('❌ 相機啟動失敗：' + e.message, 'error');
+    document.getElementById('status').textContent = '相機錯誤';
   }
 }
 
-// ============ 查棧板明細（讀 棧板資訊 分頁，client 端比對 sourceId）============
-async function fetchPalletInfo() {
-  try {
-    const url = CONFIG.webAppUrl + '?tab=' + encodeURIComponent(CONFIG.palletTab);
-    const res = await fetch(url);
-    const j = await res.json().catch(() => ({ ok: false }));
-    if (!j.ok || !Array.isArray(j.values) || j.values.length < 2) return;
+// ── 變焦：依裝置能力設定滑桿 ──
+function setupZoom() {
+  const slider = document.getElementById('zoomSlider');
+  const valLbl = document.getElementById('zoomVal');
+  let caps = {};
+  try { caps = APP.track.getCapabilities ? APP.track.getCapabilities() : {}; } catch (_) {}
 
-    const headers = j.values[0].map(h => String(h).trim());
-    const col = name => headers.indexOf(name);
-    const idIdx = col('sourceId');
-    if (idIdx === -1) return;
+  if (caps && caps.zoom && caps.zoom.max && caps.zoom.max > caps.zoom.min) {
+    // 硬體變焦（多數 Android 後鏡頭支援）
+    APP.zoomMode = 'hardware';
+    slider.min = caps.zoom.min;
+    slider.max = caps.zoom.max;
+    slider.step = caps.zoom.step || 0.1;
+    slider.value = caps.zoom.min;
+    valLbl.textContent = Number(caps.zoom.min).toFixed(1) + 'x';
+  } else {
+    // 軟體變焦（iOS / 不支援硬體變焦時，用 CSS 放大畫面）
+    APP.zoomMode = 'software';
+    slider.min = 1; slider.max = 5; slider.step = 0.1; slider.value = 1;
+    valLbl.textContent = '1.0x';
+  }
 
-    for (let i = 1; i < j.values.length; i++) {
-      const row = j.values[i];
-      if (String(row[idIdx]) === String(APP.sourceId)) {
-        const get = n => { const c = col(n); return c === -1 ? '' : row[c]; };
-        document.getElementById('palletSku').textContent  = get('sku') || '—';
-        document.getElementById('palletName').textContent = get('name') || '—';
-        document.getElementById('palletQty').textContent  = `${get('qtyBox') || 0} 箱 / ${get('qtyPcs') || 0} 件`;
-        document.getElementById('palletDest').textContent = get('destLocation') || '—';
+  slider.oninput = () => {
+    const z = parseFloat(slider.value);
+    valLbl.textContent = z.toFixed(1) + 'x';
+    if (APP.zoomMode === 'hardware') {
+      try { APP.track.applyConstraints({ advanced: [{ zoom: z }] }); } catch (_) {}
+    } else {
+      // CSS 放大（拍照時 canvas 會擷取放大後的畫面，需同步裁切）
+      const v = document.getElementById('video');
+      v.style.transform = `scale(${z})`;
+      v.style.transformOrigin = 'center center';
+      APP.softZoom = z;
+    }
+  };
+}
+
+// ── 點擊對焦 ──
+function setupTapFocus() {
+  const video = document.getElementById('video');
+  let caps = {};
+  try { caps = APP.track.getCapabilities ? APP.track.getCapabilities() : {}; } catch (_) {}
+  APP.canFocus = !!(caps && caps.focusMode && caps.focusMode.includes('manual'));
+  const supportsPOI = !!(caps && caps.pointsOfInterest);
+
+  video.addEventListener('click', async (e) => {
+    if (STATE !== 'photo') return;
+    const wrap = document.getElementById('videoWrap');
+    const rect = wrap.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // 對焦光圈動畫
+    const ring = document.getElementById('focusRing');
+    ring.style.left = x + 'px';
+    ring.style.top = y + 'px';
+    ring.classList.remove('animate');
+    void ring.offsetWidth;  // reflow 重新觸發動畫
+    ring.classList.add('animate');
+
+    // 嘗試硬體對焦（支援的裝置）
+    if (supportsPOI || APP.canFocus) {
+      const adv = {};
+      if (supportsPOI) {
+        adv.pointsOfInterest = [{ x: x / rect.width, y: y / rect.height }];
+      }
+      if (caps.focusMode && caps.focusMode.includes('continuous')) {
+        adv.focusMode = 'continuous';
+      }
+      try { await APP.track.applyConstraints({ advanced: [adv] }); } catch (_) {}
+    }
+  });
+}
+
+// ============ 狀態切換 ============
+function goScan() {
+  STATE = 'scan';
+  APP.orderId = null;
+  APP.sourceId = null;
+  APP.uploadCount = 0;
+  scanLocked = false;
+
+  document.getElementById('scanOverlay').style.display = 'flex';
+  document.getElementById('photoOverlay').style.display = 'none';
+  hideCamControls();
+  document.getElementById('infoPanel').classList.remove('confirmed');
+  document.getElementById('palletId').textContent = '— 掃描 QR Code 後顯示 —';
+  ['palletSku','palletName','palletQty','palletDest'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+
+  showBtns('btnScan');
+  showMsg('📲 請將 QR Code 對準框內', 'info');
+  document.getElementById('status').textContent = '🔍 掃描中';
+  startScanLoop();
+}
+
+function goConfirm() {
+  STATE = 'confirm';
+  stopScanLoop();
+  document.getElementById('scanOverlay').style.display = 'none';
+  document.getElementById('photoOverlay').style.display = 'none';
+  hideCamControls();
+  document.getElementById('infoPanel').classList.add('confirmed');
+  showBtns('btnConfirm');
+  showMsg('✅ QR Code 已辨識，確認資訊後開始拍照', 'success');
+  document.getElementById('status').textContent = '✅ 已辨識';
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+}
+
+function goPhoto() {
+  STATE = 'photo';
+  document.getElementById('photoOverlay').style.display = 'block';
+  document.getElementById('zoomControl').classList.add('show');
+  document.getElementById('tapHint').classList.add('show');
+  showBtns('btnPhoto');
+  document.getElementById('captureBtn').disabled = false;
+  showMsg('📷 請對準棧板後拍照（可滑動變焦・點畫面對焦）', 'info');
+  document.getElementById('status').textContent = '📷 拍照模式';
+}
+
+function hideCamControls() {
+  document.getElementById('zoomControl').classList.remove('show');
+  document.getElementById('tapHint').classList.remove('show');
+  // 重置變焦，避免掃描畫面仍維持放大
+  const slider = document.getElementById('zoomSlider');
+  if (slider) {
+    slider.value = slider.min;
+    document.getElementById('zoomVal').textContent = Number(slider.min).toFixed(1) + 'x';
+  }
+  const v = document.getElementById('video');
+  if (v) v.style.transform = 'none';
+  APP.softZoom = 1;
+  if (APP.zoomMode === 'hardware' && APP.track) {
+    try { APP.track.applyConstraints({ advanced: [{ zoom: parseFloat(slider.min) }] }); } catch (_) {}
+  }
+}
+
+function goDone(count) {
+  STATE = 'done';
+  showBtns('btnDone');
+  document.getElementById('status').textContent = `✅ 已上傳 ${count} 張`;
+}
+
+// ============ QR 掃描迴圈 ============
+function startScanLoop() {
+  stopScanLoop();
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function tick() {
+    if (STATE !== 'scan' || scanLocked) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert'
+      });
+      if (qr && qr.data) {
+        onQRFound(qr.data);
         return;
       }
     }
-  } catch (e) { /* 明細查詢失敗不影響拍照 */ }
+    scanRAF = requestAnimationFrame(tick);
+  }
+  scanRAF = requestAnimationFrame(tick);
+}
+
+function stopScanLoop() {
+  if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; }
+}
+
+function onQRFound(text) {
+  scanLocked = true;
+  // 相容三種格式：純文字、舊 URL(?id=儲位)、新 URL(?id=入庫單號&loc=儲位)
+  let orderId = text, loc = null;
+  try {
+    const u = new URL(text);
+    const pid = u.searchParams.get('id');
+    const ploc = u.searchParams.get('loc');
+    if (pid) orderId = pid;
+    if (ploc) loc = ploc;
+  } catch (_) {}
+
+  APP.orderId = orderId;
+  APP.sourceId = loc || orderId;   // 有 loc 用儲位查數量，否則回退
+  showPalletId(orderId);
+  fillPalletInfo(APP.sourceId);
+  goConfirm();
+}
+
+// ============ 棧板資訊 ============
+async function fetchPalletCache() {
+  try {
+    const res = await fetch(CONFIG.webAppUrl + '?tab=' + encodeURIComponent(CONFIG.palletTab));
+    const j = await res.json().catch(() => ({}));
+    if (j.ok && Array.isArray(j.values) && j.values.length > 1) {
+      palletCache = j.values;
+    }
+  } catch (_) {}
+}
+
+function fillPalletInfo(sourceId) {
+  if (!palletCache) return;
+  const headers = palletCache[0].map(h => String(h).trim());
+  const col = n => headers.indexOf(n);
+  const idIdx = col('sourceId');
+  if (idIdx === -1) return;
+  for (let i = 1; i < palletCache.length; i++) {
+    const row = palletCache[i];
+    if (String(row[idIdx]) === String(sourceId)) {
+      const get = n => { const c = col(n); return c === -1 ? '' : row[c]; };
+      document.getElementById('palletSku').textContent  = get('sku')  || '—';
+      document.getElementById('palletName').textContent = get('name') || '—';
+      document.getElementById('palletQty').textContent  = `${get('qtyBox') || 0} 箱 / ${get('qtyPcs') || 0} 件`;
+      document.getElementById('palletDest').textContent = get('destLocation') || '—';
+      return;
+    }
+  }
+}
+
+function showPalletId(id) {
+  document.getElementById('palletId').textContent = id;
 }
 
 // ============ 拍照 ============
 async function capturePhoto() {
-  if (!APP.stream) { showMessage('❌ 相機未就緒', 'error'); return; }
-  try {
-    document.getElementById('captureBtn').disabled = true;
-    showMessage('📸 拍照中...', 'loading');
+  document.getElementById('captureBtn').disabled = true;
 
+  // 倒數計時：3 → 2 → 1 → 拍照
+  for (let i = 3; i >= 1; i--) {
+    showMsg(`請拍攝整個棧版並保持不動\n\n${i}`, 'info');
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  showMsg('<span class="spinner"></span>上傳中...', 'loading');
+  try {
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    canvas.width = vw;
+    canvas.height = vh;
+
+    // 等待後才截圖
     await new Promise(r => setTimeout(r, 100));
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    const ctx = canvas.getContext('2d');
+
+    // 軟體變焦：裁切中央區域以符合畫面所見（硬體變焦則畫面已是放大後的，直接畫即可）
+    const z = (APP.zoomMode === 'software' && APP.softZoom) ? APP.softZoom : 1;
+    if (z > 1) {
+      const sw = vw / z, sh = vh / z;
+      const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, vw, vh);
+    } else {
+      ctx.drawImage(video, 0, 0);
+    }
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+    // 拍照成功提示 + 雙振動
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
     await uploadPhoto(dataUrl);
-  } catch (error) {
-    showMessage('❌ 拍照失敗：' + error.message, 'error');
+  } catch (e) {
+    showMsg('❌ 拍照失敗：' + e.message, 'error');
     document.getElementById('captureBtn').disabled = false;
   }
 }
 
-// ============ 上傳（對接 v7.0 後端 uploadPhoto）============
+// ============ 上傳 ============
 async function uploadPhoto(dataUrl) {
-  try {
-    showMessage('<span class="spinner"></span>上傳中...', 'loading');
-    document.getElementById('captureBtn').disabled = true;
+  showMsg('<span class="spinner"></span>上傳中...', 'loading');
+  const count = APP.uploadCount + 1;
+  const ts = new Date();
+  // 檔名：入庫單號_序號_拍攝時間（沿用 6/22 邏輯，identifier 改為入庫單號）
+  const filename = `${APP.orderId}_${count}_${fmtStamp(ts)}.jpg`;
 
-    const count = APP.uploadCount + 1;
-    const ts = new Date();
-    const filename = `${APP.sourceId}_${count}_${fmtStamp(ts)}.jpg`;
+  const res = await fetch(CONFIG.webAppUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'uploadPhoto', imageData: dataUrl, filename, folderId: CONFIG.folderId || '' })
+  });
+  const j = await res.json().catch(() => ({ ok: false }));
+  if (!j.ok) throw new Error(j.error || '後端回傳失敗');
 
-    // 1) 上傳照片到 Google Drive
-    const res = await fetch(CONFIG.webAppUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },  // 避免 CORS 預檢，後端自行 JSON.parse
-      body: JSON.stringify({
-        action: 'uploadPhoto',
-        imageData: dataUrl,
-        filename: filename,
-        folderId: CONFIG.folderId || ''
-      })
-    });
-    const j = await res.json().catch(() => ({ ok: false }));
-    if (!j.ok) throw new Error(j.error || '後端回傳失敗');
+  APP.uploadCount = count;
+  appendLog(ts, count, j.url || '').catch(() => {});
 
-    APP.uploadCount = count;
-
-    // 2) 寫一列到「照相記錄」分頁（best-effort）
-    appendLog(ts, count, j.url || '').catch(() => {});
-
-    const timeStr = ts.toLocaleTimeString('zh-TW');
-    showMessage(`✅ 第 ${count} 張照片已上傳 Google Drive (${timeStr})`, 'success');
-    document.getElementById('captureBtn').style.display = 'none';
-    document.getElementById('retryBtn').style.display = 'inline-block';
-    document.getElementById('doneBtn').style.display = 'inline-block';
-    console.log('[上傳成功]', j);
-  } catch (error) {
-    showMessage('❌ 上傳失敗：' + error.message + '\n請按拍照重試', 'error');
-    document.getElementById('captureBtn').disabled = false;
-  }
+  const timeStr = ts.toLocaleTimeString('zh-TW');
+  showMsg(`<div class="upload-badge">✅ 第 ${count} 張已上傳</div><div style="font-size:12px;margin-top:4px;color:#155724">${timeStr}</div>`, 'success');
+  document.getElementById('status').textContent = `✅ ${count} 張已存`;
+  goDone(count);
 }
 
-// ============ 記錄到 Sheet（append）============
+// ============ 記錄 ============
 async function appendLog(ts, count, fileUrl) {
   const opTime = fmtStamp(ts).replace('_', ' ');
   await fetch(CONFIG.webAppUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
-      action: 'append',
-      tab: CONFIG.logTab,
-      rows: [[ts.toISOString(), APP.sourceId, count, fileUrl, '成功', opTime]]
+      action: 'append', tab: CONFIG.logTab,
+      rows: [[ts.toISOString(), APP.orderId, count, fileUrl, '成功', opTime]]
     })
   });
 }
 
-// ============ 操作流程 ============
-function retryLastPhoto() {
-  document.getElementById('captureBtn').style.display = 'inline-block';
-  document.getElementById('retryBtn').style.display = 'none';
-  document.getElementById('doneBtn').style.display = 'none';
-  document.getElementById('captureBtn').disabled = false;
-  showMessage('請對準棧板再拍一張', 'info');
+// ============ 操作按鈕 ============
+function retryPhoto() {
+  goPhoto();
 }
 
-function finishSession() {
-  const ok = confirm(`🏁 本板已上傳 ${APP.uploadCount} 張照片\n\n按「確定」結束，掃下一板 QR Code 即可繼續`);
-  if (!ok) return;
-  document.getElementById('status').textContent = '✓ 已完成';
-  showMessage(`✓ 本板 ${APP.uploadCount} 張已完成，請掃描下一板 QR Code`, 'success');
-  if (APP.stream) APP.stream.getTracks().forEach(t => t.stop());
+function nextPallet() {
+  // 清空並回到掃描模式
+  showMsg('📲 請對準下一板 QR Code', 'info');
+  goScan();
 }
+
+// ============ 手動輸入（備用） ============
+function manualIdMode() {
+  stopScanLoop();
+  const modal = document.getElementById('manualModal');
+  modal.style.display = 'flex';
+  document.getElementById('manualInput').value = '';
+  document.getElementById('manualInput').focus();
+}
+
+function closeManual() {
+  document.getElementById('manualModal').style.display = 'none';
+  if (STATE === 'scan') startScanLoop();
+}
+
+function confirmManual() {
+  const val = document.getElementById('manualInput').value.trim();
+  if (!val) { alert('請輸入棧板 ID'); return; }
+  document.getElementById('manualModal').style.display = 'none';
+  onQRFound(val);
+}
+
+document.getElementById('manualInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmManual();
+});
 
 // ============ 工具 ============
+function showBtns(activeId) {
+  ['btnScan','btnConfirm','btnPhoto','btnDone'].forEach(id => {
+    document.getElementById(id).style.display = id === activeId ? 'flex' : 'none';
+  });
+}
+
+function showMsg(html, type = 'info') {
+  document.getElementById('messageArea').innerHTML = `<div class="message ${type}">${html}</div>`;
+}
+
 function fmtStamp(d) {
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
-function showMessage(html, type = 'info') {
-  document.getElementById('messageArea').innerHTML = `<div class="message ${type}">${html}</div>`;
-}
+
 window.addEventListener('beforeunload', () => {
+  stopScanLoop();
   if (APP.stream) APP.stream.getTracks().forEach(t => t.stop());
 });
 </script>
