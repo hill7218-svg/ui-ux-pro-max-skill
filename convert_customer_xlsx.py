@@ -10,12 +10,29 @@ Convert customer XLSX (總表 + 工作表1) to v8.3 printer import format.
   - 條碼來源：商品主檔 a0d64486-...xlsm
 """
 
-import sys, os, csv
+import sys, os, csv, re
 try:
     import openpyxl
 except ImportError:
     os.system("pip install openpyxl")
     import openpyxl
+
+# ── 重現 v8.3 列印器的入庫單號(orderId)邏輯，確保與印出貼紙一致 ──
+def parse_trip(trip):
+    s = str(trip or '')
+    m = re.match(r'(\d{1,2})/(\d{1,2})(.*)$', s)
+    if m:
+        mm, dd = m.group(1).zfill(2), m.group(2).zfill(2)
+        rest = re.sub(r'空調|恆溫', 'AIRCON', m.group(3) or '')
+        return mm + dd, mm + dd + rest
+    rest = re.sub(r'\s+', '', re.sub(r'空調|恆溫', 'AIRCON', s))
+    return '', rest
+
+def build_order_id(trip, serial):
+    mmdd, code = parse_trip(trip)
+    oid = 'lotte' + '2026' + mmdd + code + serial
+    oid = ''.join(c for c in oid if 0x20 <= ord(c) <= 0x7E)  # CODE128 僅 ASCII
+    return oid[:30]
 
 # 用法（明天換檔案就改這裡，或用命令列參數）：
 #   python3 convert_customer_xlsx.py <客戶訂單.xlsx> <商品主檔.xlsm> [輸出路徑(不含副檔名)]
@@ -193,10 +210,15 @@ def main():
         for loc, sku, name in no_barcode:
             print(f"    {loc}  {sku}  {str(name)[:24]}")
 
-    # 輸出
-    cols = ['sourceId','sku','name','qtyBox','qtyPcs','srcLoc','destLoc','trip','expDate','ean']
-    ordered = sorted(pallets.values(), key=lambda x: (x['trip'], x['sourceId']))
+    # ── 產生 orderId（與 v8.3 一致：SKU字母序 + 件數小到大，每車次流水3碼）──
+    ordered = sorted(pallets.values(), key=lambda x: (str(x['sku']), int(x['qtyPcs'] or 0)))
+    counters = {}
+    for p in ordered:
+        counters[p['trip']] = counters.get(p['trip'], 0) + 1
+        p['orderId'] = build_order_id(p['trip'], str(counters[p['trip']]).zfill(3))
 
+    # 輸出（v8.3 匯入用，10 欄）
+    cols = ['sourceId','sku','name','qtyBox','qtyPcs','srcLoc','destLoc','trip','expDate','ean']
     with open(f"{OUT_BASE}.csv", 'w', newline='', encoding='utf-8-sig') as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
@@ -211,8 +233,18 @@ def main():
         sh.append([p[k] for k in cols])
     out.save(f"{OUT_BASE}.xlsx")
 
-    print(f"\n✅ 已輸出：{OUT_BASE}.csv / .xlsx")
-    print(f"📌 匯入 v8.3 後將印製 {n} 張貼紙（含正確箱數與國際條碼）")
+    # 棧板資訊（貼 Google Sheet 用，orderId 為主鍵，photo.html 查商品）
+    info_cols = ['orderId','sourceId','sku','name','qtyBox','qtyPcs','destLoc','trip','expDate','ean']
+    with open(f"{OUT_BASE}_棧板資訊.csv", 'w', newline='', encoding='utf-8-sig') as f:
+        w = csv.DictWriter(f, fieldnames=info_cols)
+        w.writeheader()
+        for p in ordered:
+            w.writerow({k: p[k] for k in info_cols})
+
+    print(f"\n✅ 已輸出：")
+    print(f"   {OUT_BASE}.csv / .xlsx（匯入 v8.3 列印貼紙）")
+    print(f"   {OUT_BASE}_棧板資訊.csv（含入庫單號，貼 Google Sheet「棧板資訊」分頁）")
+    print(f"📌 共 {n} 板（含正確箱數、國際條碼、入庫單號）")
 
 if __name__ == '__main__':
     main()
