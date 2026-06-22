@@ -528,6 +528,25 @@ function applyStorageConfig() {
   document.getElementById('configMsg').textContent = `✓ 已配置 ${locCount} 個儲位（僅尾數2/3/4）：${first} → ${last} (${sortOrder === 'asc' ? '小到大' : '大到小'})`;
 }
 
+// 解析趟次取得移倉月日（回傳 {mmdd, code}）
+// 例： "6/23-4" -> {mmdd:"0623", code:"0623-4"}；"6/23空調-1" -> {mmdd:"0623", code:"0623空調-1"}
+function parseTrip(trip) {
+  const m = String(trip || '').match(/(\d{1,2})\/(\d{1,2})(.*)$/);
+  if (m) {
+    const mm = m[1].padStart(2, '0'), dd = m[2].padStart(2, '0');
+    return { mmdd: mm + dd, code: mm + dd + (m[3] || '') };
+  }
+  return { mmdd: '', code: String(trip || '').replace(/\s+/g, '') };
+}
+
+// 入庫單號：lotte + 20260623 + 趟次(0623-4) + 流水號(每趟次重編)，限制 30 字內
+function buildOrderId(trip, serial) {
+  const t = parseTrip(trip);
+  const date = '2026' + (t.mmdd || '');
+  let oid = 'lotte' + date + t.code + serial;
+  return oid.length > 30 ? oid.slice(0, 30) : oid;
+}
+
 // 排序函數：按 SKU 字母序 + 件數小到大 ──
 function sortPalletsBySKUandQty(pallets) {
   let sorted = JSON.parse(JSON.stringify(pallets));
@@ -536,8 +555,11 @@ function sortPalletsBySKUandQty(pallets) {
     if(skuCmp !== 0) return skuCmp;
     return a.qtyPcs - b.qtyPcs;
   });
-  sorted.forEach((p, idx) => {
-    p.orderId = '20260622-' + String(idx + 1).padStart(3, '0');
+  const tripCounters = {};
+  sorted.forEach((p) => {
+    tripCounters[p.trip] = (tripCounters[p.trip] || 0) + 1;
+    const serial = String(tripCounters[p.trip]).padStart(3, '0');
+    p.orderId = buildOrderId(p.trip, serial);
   });
   return sorted;
 }
@@ -574,7 +596,7 @@ function generate(){
         <div class="fk sk-srcloc" data-fk="srcloc">來源儲位 ${p.srcLoc}　效期 ${p.expDate}</div>
         <div class="sk-divider"></div>
         <div class="fk sk-orderlbl" data-fk="orderlbl">入庫單號</div>
-        <div class="fk sk-order" data-fk="order">${p.sourceId}</div>
+        <div class="fk sk-order" data-fk="order">${p.orderId}</div>
         <div class="fk sk-bar" data-fk="orderbar"><svg id="ob-${p.no}" style="width:100%;height:100%"></svg></div>
         <div class="sk-mid">
           <div class="fk sk-qr" data-fk="qr"><div id="qr-${p.no}"></div><div class="cap">掃我讀源ID</div></div>
@@ -584,12 +606,12 @@ function generate(){
             <div class="fk sk-bar" data-fk="destbar"><svg id="lb-${p.no}" style="width:100%;height:100%"></svg></div>
           </div>
         </div>
-        <div class="fk sk-footer" data-fk="footer">來源單號 ${p.sourceId}　移倉日 06/22</div>
+        <div class="fk sk-footer" data-fk="footer">來源單號 ${p.sourceId}　移倉日 ${(parseTrip(p.trip).mmdd||'').replace(/(\d{2})(\d{2})/,'$1/$2')||'06/23'}</div>
       </div>`;
     container.appendChild(st);
 
     setTimeout(()=>{
-      try{JsBarcode('#ob-'+p.no,p.sourceId,{format:'CODE128',width:1.6,height:42.5,displayValue:false,margin:0});}catch(e){}
+      try{JsBarcode('#ob-'+p.no,p.orderId,{format:'CODE128',width:1.6,height:42.5,displayValue:false,margin:0});}catch(e){}
       if(dest!=='—'){ try{JsBarcode('#lb-'+p.no,dest,{format:'CODE128',width:1.4,height:42.5,displayValue:false,margin:0});}catch(e){} }
       try{
         const photoUrl = PHOTO_PAGE_URL.includes('YOUR_GITHUB')
