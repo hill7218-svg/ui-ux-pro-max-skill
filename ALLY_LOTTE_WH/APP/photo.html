@@ -180,7 +180,7 @@ html, body {
 
   <!-- 棧板資訊 -->
   <div class="info-panel" id="infoPanel">
-    <div class="info-row"><span class="info-label">板號 ID</span><span class="info-value" id="palletId">— 掃描 QR Code 後顯示 —</span></div>
+    <div class="info-row"><span class="info-label">入庫單號</span><span class="info-value" id="palletId">— 掃描 QR Code 後顯示 —</span></div>
     <div class="info-row"><span class="info-label">商品</span><span class="info-value" id="palletSku">—</span></div>
     <div class="info-row"><span class="info-label">名稱</span><span class="info-value" id="palletName">—</span></div>
     <div class="info-row"><span class="info-label">數量</span><span class="info-value" id="palletQty">—</span></div>
@@ -249,19 +249,20 @@ const CONFIG = {
 
 // 狀態：scan | confirm | photo | done
 let STATE = 'scan';
-const APP = { sourceId: null, stream: null, uploadCount: 0 };
+// 【鎖定規範】QR = 入庫單號(orderId)。orderId 同時用於：檔名、Sheet 記錄、畫面顯示、查商品數量。
+const APP = { orderId: null, stream: null, uploadCount: 0 };
 let scanRAF = null;
 let scanLocked = false;   // 防止 QR 重複觸發
 let palletCache = null;   // 從 GAS 讀到的全部棧板資料
 
 // ============ 啟動 ============
 window.addEventListener('DOMContentLoaded', async () => {
-  // 先看 URL 有沒有 ?id= (URL QR 舊模式相容)
+  // 先看 URL 有沒有 ?id= (URL QR 直開模式)
   const urlId = new URLSearchParams(window.location.search).get('id');
   await startCamera();
 
   if (urlId) {
-    APP.sourceId = urlId;
+    APP.orderId = urlId;
     showPalletId(urlId);
     fetchPalletCache().then(() => fillPalletInfo(urlId));
     goConfirm();
@@ -275,18 +276,19 @@ window.addEventListener('DOMContentLoaded', async () => {
 async function confirmManualId() {
   const val = document.getElementById('manualIdInput').value.trim();
   if (!val) { showMessage('⚠️ 請輸入棧板 ID', 'error'); return; }
-  APP.sourceId = val;
+  APP.orderId = val;
   APP.uploadCount = 0;
 
   // 隱藏輸入面板，顯示相機 UI
   document.getElementById('idInputPanel').style.display = 'none';
   document.getElementById('video').style.display = 'block';
   document.getElementById('infoPanel').style.display = 'block';
-  document.getElementById('palletId').textContent = APP.sourceId;
+  document.getElementById('palletId').textContent = APP.orderId;
   document.getElementById('status').textContent = '準備中...';
 
-  await initCamera();
-  fetchPalletInfo();
+  await startCamera();
+  fetchPalletCache().then(() => fillPalletInfo(APP.orderId));
+  goConfirm();
 }
 
 // ============ 相機 ============
@@ -385,7 +387,7 @@ function setupTapFocus() {
 // ============ 狀態切換 ============
 function goScan() {
   STATE = 'scan';
-  APP.sourceId = null;
+  APP.orderId = null;
   APP.uploadCount = 0;
   scanLocked = false;
 
@@ -484,17 +486,16 @@ function stopScanLoop() {
 
 function onQRFound(text) {
   scanLocked = true;
-  // 相容兩種格式：純 sourceId 或完整 URL（?id=...）
-  let sourceId = text;
+  // 【鎖定規範】QR = 入庫單號。相容純文字或 URL(?id=入庫單號)
+  let orderId = text;
   try {
-    const u = new URL(text);
-    const p = u.searchParams.get('id');
-    if (p) sourceId = p;
+    const pid = new URL(text).searchParams.get('id');
+    if (pid) orderId = pid;
   } catch (_) {}
 
-  APP.sourceId = sourceId;
-  showPalletId(sourceId);
-  fillPalletInfo(sourceId);
+  APP.orderId = orderId;
+  showPalletId(orderId);
+  fillPalletInfo(orderId);
   goConfirm();
 }
 
@@ -509,15 +510,16 @@ async function fetchPalletCache() {
   } catch (_) {}
 }
 
-function fillPalletInfo(sourceId) {
+function fillPalletInfo(key) {
   if (!palletCache) return;
   const headers = palletCache[0].map(h => String(h).trim());
   const col = n => headers.indexOf(n);
-  const idIdx = col('sourceId');
+  // 比對欄優先 orderId(入庫單號)，表裡沒有則退回 sourceId(儲位)
+  const idIdx = col('orderId') !== -1 ? col('orderId') : col('sourceId');
   if (idIdx === -1) return;
   for (let i = 1; i < palletCache.length; i++) {
     const row = palletCache[i];
-    if (String(row[idIdx]) === String(sourceId)) {
+    if (String(row[idIdx]) === String(key)) {
       const get = n => { const c = col(n); return c === -1 ? '' : row[c]; };
       document.getElementById('palletSku').textContent  = get('sku')  || '—';
       document.getElementById('palletName').textContent = get('name') || '—';
@@ -581,7 +583,8 @@ async function uploadPhoto(dataUrl) {
   showMsg('<span class="spinner"></span>上傳中...', 'loading');
   const count = APP.uploadCount + 1;
   const ts = new Date();
-  const filename = `${APP.sourceId}_${count}_${fmtStamp(ts)}.jpg`;
+  // 檔名：入庫單號_序號_拍攝時間（沿用 6/22 邏輯，identifier 改為入庫單號）
+  const filename = `${APP.orderId}_${count}_${fmtStamp(ts)}.jpg`;
 
   const res = await fetch(CONFIG.webAppUrl, {
     method: 'POST',
@@ -608,7 +611,7 @@ async function appendLog(ts, count, fileUrl) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
       action: 'append', tab: CONFIG.logTab,
-      rows: [[ts.toISOString(), APP.sourceId, count, fileUrl, '成功', opTime]]
+      rows: [[ts.toISOString(), APP.orderId, count, fileUrl, '成功', opTime]]
     })
   });
 }
