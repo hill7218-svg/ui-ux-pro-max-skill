@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>📷 照相驗收</title>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
@@ -254,6 +254,7 @@ const APP = { orderId: null, stream: null, uploadCount: 0 };
 let scanRAF = null;
 let scanLocked = false;   // 防止 QR 重複觸發
 let palletCache = null;   // 從 GAS 讀到的全部棧板資料
+let zxingReader = null;   // ZXing 掃描器
 
 // ============ 啟動 ============
 window.addEventListener('DOMContentLoaded', async () => {
@@ -457,50 +458,49 @@ function goDone(count) {
 // ============ QR 掃描迴圈 ============
 function startScanLoop() {
   stopScanLoop();
+  if (!window.ZXing) {
+    showMsg('⏳ ZXing 庫載入中，請稍候...', 'loading');
+    setTimeout(startScanLoop, 500);
+    return;
+  }
+
   const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-  let scanAttempts = 0;
+  if (!zxingReader) {
+    try {
+      zxingReader = new ZXing.BrowserMultiFormatReader();
+    } catch (e) {
+      showMsg('❌ ZXing 初始化失敗', 'error');
+      return;
+    }
+  }
 
   function tick() {
     if (STATE !== 'scan' || scanLocked) return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-      // 多層次掃描策略（針對大 QR Code）
-      let qr = null;
-
-      // 1. 標準掃描
-      qr = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'attemptBoth'
-      });
-
-      // 2. 如果失敗，嘗試增強對比度（大 QR Code 可能需要）
-      if (!qr || !qr.data) {
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i+1], b = data[i+2];
-          const lum = 0.299*r + 0.587*g + 0.114*b;
-          const threshold = 128;
-          const val = lum > threshold ? 255 : 0;
-          data[i] = data[i+1] = data[i+2] = val;
+      try {
+        // 用 ZXing 掃描視頻幀
+        const result = zxingReader.decodeFromCanvas(getVideoCanvas(video));
+        if (result && result.text) {
+          onQRFound(result.text);
+          return;
         }
-        qr = jsQR(data, imageData.width, imageData.height);
+      } catch (e) {
+        // ZXing 掃不到時會拋出異常，這是正常的，繼續掃
       }
-
-      if (qr && qr.data) {
-        onQRFound(qr.data);
-        return;
-      }
-
-      scanAttempts++;
     }
     scanRAF = requestAnimationFrame(tick);
   }
   scanRAF = requestAnimationFrame(tick);
+}
+
+// 輔助函數：從 video 生成 canvas
+function getVideoCanvas(video) {
+  const canvas = document.getElementById('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  return canvas;
 }
 
 function stopScanLoop() {
