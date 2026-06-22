@@ -215,13 +215,31 @@ html, body {
 </div>
 
 <!-- 手動輸入 modal（備用） -->
-<div id="manualModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:none;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:12px;padding:24px 20px;width:100%;max-width:400px">
-    <h3 style="color:#0D1B3E;margin-bottom:8px">⌨️ 手動輸入棧板 ID</h3>
-    <p style="color:#666;font-size:12px;margin-bottom:16px">請輸入或貼上棧板 ID（可用條碼 App 掃一維條碼後貼上）</p>
-    <input id="manualInput" type="text" placeholder="LOTTE-20260622-..."
-      style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:12px;font-family:monospace"
-      autocomplete="off" spellcheck="false" />
+<div id="manualModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:12px;padding:24px 20px;width:100%;max-width:420px">
+    <h3 style="color:#0D1B3E;margin-bottom:8px">⌨️ 輸入後四碼</h3>
+    <p style="color:#666;font-size:12px;margin-bottom:16px">選擇車次，輸入流水號後四碼</p>
+
+    <!-- 車次選擇 -->
+    <div style="margin-bottom:12px">
+      <label style="display:block;color:#6B7A99;font-size:12px;font-weight:700;margin-bottom:6px">車次</label>
+      <select id="tripSelect" style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;font-family:monospace">
+        <option value="AIRCON">恆溫（AIRCON）</option>
+        <option value="">常溫（-）</option>
+      </select>
+    </div>
+
+    <!-- 後四碼輸入 -->
+    <div style="margin-bottom:16px">
+      <label style="display:block;color:#6B7A99;font-size:12px;font-weight:700;margin-bottom:6px">流水號（後四碼）</label>
+      <input id="manualInput" type="text" placeholder="0001" inputmode="numeric"
+        style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;text-align:center;font-family:monospace;font-size:20px;letter-spacing:4px"
+        autocomplete="off" spellcheck="false" maxlength="4" />
+      <div style="font-size:11px;color:#888;margin-top:6px;text-align:center">
+        組合：lotte20260623<span id="tripPreview">0623AIRCON</span>-<span id="seriesPreview">0001</span>
+      </div>
+    </div>
+
     <div style="display:flex;gap:10px">
       <button class="btn btn-outline" style="flex:1" onclick="closeManual()">取消</button>
       <button class="btn btn-primary" style="flex:1" onclick="confirmManual()">確認</button>
@@ -695,6 +713,8 @@ function manualIdMode() {
   const modal = document.getElementById('manualModal');
   modal.style.display = 'flex';
   document.getElementById('manualInput').value = '';
+  document.getElementById('tripSelect').value = 'AIRCON';
+  updatePreview();
   document.getElementById('manualInput').focus();
 }
 
@@ -703,16 +723,32 @@ function closeManual() {
   if (STATE === 'scan') startScanLoop();
 }
 
-function confirmManual() {
-  const val = document.getElementById('manualInput').value.trim();
-  if (!val) { alert('請輸入棧板 ID'); return; }
-  document.getElementById('manualModal').style.display = 'none';
-  onQRFound(val);
+function updatePreview() {
+  const trip = document.getElementById('tripSelect').value;
+  const tripCode = trip === 'AIRCON' ? '0623AIRCON' : '0623-';
+  const series = document.getElementById('manualInput').value.padStart(4, '0') || '0001';
+  document.getElementById('tripPreview').textContent = tripCode;
+  document.getElementById('seriesPreview').textContent = series;
 }
 
+function confirmManual() {
+  const series = document.getElementById('manualInput').value.trim();
+  if (!series || series.length !== 4 || isNaN(series)) {
+    alert('請輸入四位數字流水號');
+    return;
+  }
+  const trip = document.getElementById('tripSelect').value;
+  const tripCode = trip === 'AIRCON' ? '0623AIRCON' : '0623-';
+  const fullId = `lotte20260623${tripCode}-${series}`;
+  document.getElementById('manualModal').style.display = 'none';
+  onQRFound(fullId);
+}
+
+document.getElementById('manualInput')?.addEventListener('input', updatePreview);
 document.getElementById('manualInput')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') confirmManual();
 });
+document.getElementById('tripSelect')?.addEventListener('change', updatePreview);
 
 // ============ 工具 ============
 function showBtns(activeId) {
