@@ -63,8 +63,8 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
 .stats b{color:#0D1B3E;font-size:18px}
 
 /* 貼紙 125mm，欄位以 data-fk 包裝，支援 translate 位移 + 字體倍數 */
-.sticker{width:125mm;height:125mm;border:1px dashed #ccc;display:inline-block;margin:5px;padding:7.5mm;background:#fff;page-break-inside:avoid;break-inside:avoid;position:relative;overflow:hidden}
-.sticker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(125mm,1fr));gap:10px;margin-top:8px}
+.sticker{width:100mm;height:170mm;border:1px dashed #ccc;display:inline-block;margin:5px;padding:6mm;background:#fff;page-break-inside:avoid;break-inside:avoid;position:relative;overflow:hidden}
+.sticker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100mm,1fr));gap:10px;margin-top:8px}
 .sk-content{display:flex;flex-direction:column;height:100%}
 .fk{will-change:transform}
 .fk.dragging{outline:2px dashed #007B6F;cursor:move}
@@ -640,7 +640,7 @@ const WMS_VENDOR = {
   vwh: 'A47'                 // 虛擬倉
 };
 
-const WMS_HEADERS = ['廠商統編(必填)','廠商聯絡人(必填)','聯絡人電話(必填)','日期(必填)(yyyy/mm/dd)','時段(必填，9=0900~1000、10=1000~1100)','採購單號(選填)','來源單號','主檔備註','商品貨號(QC) (必填)','商品名稱(必填)','數量(必填)','製造日期(yyyy/mm/dd)','有效日期(yyyy/mm/dd)','批號','商品條碼','群品(良品/不良品)(必填)','明細備註','入倉單號(選填)','虛擬倉','庫存等級屬性','版本號','原因代碼'];
+const WMS_HEADERS = ['廠商統編(必填)','廠商聯絡人(必填)','聯絡人電話(必填)','日期(必填)(yyyy/mm/dd)','時段(必填，9=0900~1000、10=1000~1100)','採購單號(選填)','來源單號','主檔備註','商品貨號(QC) (必填)','商品名稱(必填)','數量(必填)','製造日期(yyyy/mm/dd)','有效日期(yyyy/mm/dd)','批號','商品條碼','群品(良品/不良品)(必填)','明細備註','入倉單號(選填)','虛擬倉','庫存等級屬性','版本號','原因代碼','儲位'];
 
 // 把 Excel 序列號(如 46466) 轉成 yyyy/mm/dd；已是字串日期則原樣返回
 function fmtExpDate(v) {
@@ -691,7 +691,8 @@ function palletToWmsRow(p) {
     WMS_VENDOR.vwh,             // 虛擬倉
     '',                         // 庫存等級屬性
     '',                         // 版本號
-    ''                          // 原因代碼
+    '',                         // 原因代碼
+    p.sourceId                  // 儲位
   ];
 }
 
