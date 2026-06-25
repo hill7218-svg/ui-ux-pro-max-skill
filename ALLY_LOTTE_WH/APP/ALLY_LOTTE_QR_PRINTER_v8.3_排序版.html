@@ -140,49 +140,66 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
 
     <h2>🏢 儲位配置</h2>
     <div class="config-box">
-      <h3>儲位走道選擇</h3>
+      <h3>配置模式</h3>
       <div class="config-row full">
         <div class="radio-group">
-          <label><input type="radio" name="aisle" value="BA" onchange="updateAisleConfig()"> BA</label>
-          <label><input type="radio" name="aisle" value="BB" onchange="updateAisleConfig()"> BB</label>
-          <label><input type="radio" name="aisle" value="BC" onchange="updateAisleConfig()"> BC</label>
-          <label><input type="radio" name="aisle" value="BD" onchange="updateAisleConfig()"> BD</label>
-          <label><input type="radio" name="aisle" value="BE" onchange="updateAisleConfig()"> BE</label>
-          <label><input type="radio" name="aisle" value="BF" onchange="updateAisleConfig()"> BF</label>
-          <label><input type="radio" name="aisle" value="BG" onchange="updateAisleConfig()"> BG</label>
-          <label><input type="radio" name="aisle" value="BH" onchange="updateAisleConfig()"> BH</label>
-          <label><input type="radio" name="aisle" value="BI" onchange="updateAisleConfig()" checked> BI</label>
-          <label><input type="radio" name="aisle" value="BJ" onchange="updateAisleConfig()"> BJ</label>
-          <label><input type="radio" name="aisle" value="BK" onchange="updateAisleConfig()"> BK</label>
-          <label><input type="radio" name="aisle" value="BL" onchange="updateAisleConfig()"> BL</label>
-          <label><input type="radio" name="aisle" value="BM" onchange="updateAisleConfig()"> BM</label>
-          <label><input type="radio" name="aisle" value="BN" onchange="updateAisleConfig()"> BN</label>
-          <label><input type="radio" name="aisle" value="BO" onchange="updateAisleConfig()"> BO</label>
-          <label><input type="radio" name="aisle" value="BP" onchange="updateAisleConfig()"> BP</label>
+          <label><input type="radio" name="configMode" value="preset" onchange="updateConfigMode()" checked> 🔄 預設（BI→BJ→BK 自動配發）</label>
+          <label><input type="radio" name="configMode" value="manual" onchange="updateConfigMode()"> 🔧 手動選擇</label>
         </div>
       </div>
 
-      <h3 style="margin-top:10px">儲位編號範圍</h3>
-      <div class="config-row">
-        <div><label class="config-label">開始編號</label>
-          <input type="number" id="startLoc" class="setup-input" value="12" min="1" max="999"></div>
-        <div><label class="config-label">結束編號</label>
-          <input type="number" id="endLoc" class="setup-input" value="244" min="1" max="999"></div>
-      </div>
-      <div class="config-hint">⚠️ 僅配發尾數 2/3/4 的儲位（如 012,013,014,022,023,024…），自動跳過尾數 0/1/5~9。預設 012~244 共 72 格。</div>
+      <div id="manualConfig" style="display:none">
+        <h3 style="margin-top:10px">儲位走道選擇</h3>
+        <div class="config-row full">
+          <div class="radio-group">
+            <label><input type="radio" name="aisle" value="BA" onchange="updateAisleConfig()"> BA</label>
+            <label><input type="radio" name="aisle" value="BB" onchange="updateAisleConfig()"> BB</label>
+            <label><input type="radio" name="aisle" value="BC" onchange="updateAisleConfig()"> BC</label>
+            <label><input type="radio" name="aisle" value="BD" onchange="updateAisleConfig()"> BD</label>
+            <label><input type="radio" name="aisle" value="BE" onchange="updateAisleConfig()"> BE</label>
+            <label><input type="radio" name="aisle" value="BF" onchange="updateAisleConfig()"> BF</label>
+            <label><input type="radio" name="aisle" value="BG" onchange="updateAisleConfig()"> BG</label>
+            <label><input type="radio" name="aisle" value="BH" onchange="updateAisleConfig()"> BH</label>
+            <label><input type="radio" name="aisle" value="BI" onchange="updateAisleConfig()" checked> BI</label>
+            <label><input type="radio" name="aisle" value="BJ" onchange="updateAisleConfig()"> BJ</label>
+            <label><input type="radio" name="aisle" value="BK" onchange="updateAisleConfig()"> BK</label>
+            <label><input type="radio" name="aisle" value="BL" onchange="updateAisleConfig()"> BL</label>
+            <label><input type="radio" name="aisle" value="BM" onchange="updateAisleConfig()"> BM</label>
+            <label><input type="radio" name="aisle" value="BN" onchange="updateAisleConfig()"> BN</label>
+            <label><input type="radio" name="aisle" value="BO" onchange="updateAisleConfig()"> BO</label>
+            <label><input type="radio" name="aisle" value="BP" onchange="updateAisleConfig()"> BP</label>
+          </div>
+        </div>
 
-      <h3 style="margin-top:10px">排序方向</h3>
-      <div class="config-row full">
-        <div class="radio-group">
-          <label><input type="radio" name="sortOrder" value="asc" onchange="updateAisleConfig()" checked> 小到大 (012 → 244)</label>
-          <label><input type="radio" name="sortOrder" value="desc" onchange="updateAisleConfig()"> 大到小 (244 → 012)</label>
+        <h3 style="margin-top:10px">儲位編號範圍</h3>
+        <div class="config-row">
+          <div><label class="config-label">開始編號</label>
+            <input type="number" id="startLoc" class="setup-input" value="12" min="1" max="999"></div>
+          <div><label class="config-label">結束編號</label>
+            <input type="number" id="endLoc" class="setup-input" value="244" min="1" max="999"></div>
+        </div>
+        <div class="config-hint">⚠️ 僅配發尾數 2/3/4 的儲位（如 012,013,014,022,023,024…），自動跳過尾數 0/1/5~9。預設 012~244 共 72 格。</div>
+
+        <h3 style="margin-top:10px">排序方向</h3>
+        <div class="config-row full">
+          <div class="radio-group">
+            <label><input type="radio" name="sortOrder" value="asc" onchange="updateAisleConfig()" checked> 小到大 (012 → 244)</label>
+            <label><input type="radio" name="sortOrder" value="desc" onchange="updateAisleConfig()"> 大到小 (244 → 012)</label>
+          </div>
+        </div>
+
+        <div class="btnrow">
+          <button class="btn green" onclick="applyManualStorageConfig()">✓ 套用手動配置</button>
         </div>
       </div>
 
-      <div class="btnrow">
-        <button class="btn green" onclick="applyStorageConfig()">✓ 套用儲位配置</button>
+      <div id="presetInfo" style="padding:8px;background:#e8f5e9;border-left:3px solid #4caf50;border-radius:3px;margin-top:8px;color:#2e7d32;font-size:11px">
+        ✓ 預設模式：自動使用 <strong>BI→BJ→BK</strong> 依序配發<br>
+        • 每個走道 012~244 共 72 格<br>
+        • 無需手動設定，導入即自動套用
       </div>
-      <div id="configMsg" class="config-hint"></div>
+
+      <div id="configMsg" class="config-hint" style="margin-top:8px"></div>
     </div>
 
     <h2>✋ 自由排版</h2>
@@ -207,7 +224,7 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
   <!-- 預覽 -->
   <div class="main">
     <h1>🏷️ 板標列印器 v8.3</h1>
-    <div class="subtitle">可調排版 · 國際條碼/箱件數預設+50% · QR=入庫單號 · Air-con無儍位 · Regular自動BI配發</div>
+    <div class="subtitle">可調排版 · 國際條碼/箱件數預設+50% · QR=入庫單號 · 自動BI→BJ→BK配發</div>
     <div class="stats">
       <span>內嵌 <b id="totalData">0</b> 板</span>
       <span>本次 <b id="genCount">0</b> 張</span>
@@ -342,9 +359,10 @@ function attachDrag(st){
 
 // ── 儲位配置狀態（必須在初始化 IIFE 之前宣告，否則 loadStorageConfig 會踩到 TDZ）──
 let storageConfig = {
-  enabled: false,
+  enabled: true,
+  mode: 'preset',  // 'preset' (BI→BJ→BK) | 'manual' (user selected)
   aisle: 'BI',
-  startNum: 1,
+  startNum: 12,
   endNum: 244,
   sortOrder: 'asc',
   locations: []
@@ -454,9 +472,13 @@ function loadStorageConfig() {
       storageConfig = JSON.parse(saved);
       if (!Array.isArray(storageConfig.locations)) storageConfig.locations = [];
       updateConfigUI();
+    } else {
+      // 第一次使用時，直接套用預設 BI→BJ→BK 模式
+      applyPresetStorageConfig();
     }
   } catch (e) {
     console.warn('儲位配置載入失敗，使用預設值', e);
+    applyPresetStorageConfig();
   }
 }
 
@@ -472,7 +494,25 @@ function updateConfigUI() {
   document.getElementById('endLoc').value = String(storageConfig.endNum).padStart(3, '0');
 }
 
-// UI 変更時更新配置
+// 配置模式切換
+function updateConfigMode() {
+  const mode = document.querySelector('input[name="configMode"]:checked').value;
+  const manualDiv = document.getElementById('manualConfig');
+  const presetDiv = document.getElementById('presetInfo');
+
+  storageConfig.mode = mode;
+
+  if (mode === 'preset') {
+    manualDiv.style.display = 'none';
+    presetDiv.style.display = 'block';
+    applyPresetStorageConfig();
+  } else {
+    manualDiv.style.display = 'block';
+    presetDiv.style.display = 'none';
+  }
+}
+
+// UI 變更時更新配置
 function updateAisleConfig() {
   const aisle = document.querySelector('input[name="aisle"]:checked').value;
   const sortOrder = document.querySelector('input[name="sortOrder"]:checked').value;
@@ -499,8 +539,34 @@ function generateStorageLocations(aisle, startNum, endNum, sortOrder) {
   return locs;
 }
 
-// 套用儲位配置
-function applyStorageConfig() {
+// 套用預設儲位配置（BI→BJ→BK 序列，每走道 72 格）
+function applyPresetStorageConfig() {
+  const startNum = 12;  // 固定從 012 開始
+  const endNum = 244;   // 固定到 244
+  const aisles = ['BI', 'BJ', 'BK'];
+  let allLocs = [];
+
+  // 依序生成 BI、BJ、BK 的儲位
+  for (const aisle of aisles) {
+    const aisleLocs = generateStorageLocations(aisle, startNum, endNum, 'asc');
+    allLocs = allLocs.concat(aisleLocs);
+  }
+
+  storageConfig.enabled = true;
+  storageConfig.mode = 'preset';
+  storageConfig.locations = allLocs;
+
+  // 保存到 localStorage
+  localStorage.setItem('storageConfig', JSON.stringify(storageConfig));
+
+  const locCount = allLocs.length;
+  const first = allLocs[0] || '—';
+  const last = allLocs[locCount - 1] || '—';
+  document.getElementById('configMsg').textContent = `✓ 預設配置已套用：共 ${locCount} 個儲位（BI→BJ→BK）：${first} … ${last}`;
+}
+
+// 套用手動儲位配置
+function applyManualStorageConfig() {
   const startNum = parseInt(document.getElementById('startLoc').value) || 1;
   const endNum = parseInt(document.getElementById('endLoc').value) || 244;
   const aisle = document.querySelector('input[name="aisle"]:checked').value;
@@ -512,6 +578,7 @@ function applyStorageConfig() {
   }
 
   storageConfig.enabled = true;
+  storageConfig.mode = 'manual';
   storageConfig.aisle = aisle;
   storageConfig.startNum = startNum;
   storageConfig.endNum = endNum;
