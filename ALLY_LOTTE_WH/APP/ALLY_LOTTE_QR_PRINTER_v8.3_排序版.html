@@ -673,7 +673,7 @@ function generate(){
           <div class="fk sk-qr" data-fk="qr"><div id="qr-${p.no}"></div><div class="cap">掃我讀入庫單號</div></div>
           <div class="sk-destbox">
             <div class="fk sk-destlbl" data-fk="destlbl">上架儲位</div>
-            <div class="fk sk-dest" data-fk="dest">${dest}</div>
+            <div class="fk sk-dest" data-fk="dest">${p.destLoc||'—'}</div>
             <div class="fk sk-bar" data-fk="destbar"><svg id="lb-${p.no}" style="width:100%;height:100%"></svg></div>
           </div>
         </div>
@@ -683,7 +683,7 @@ function generate(){
 
     setTimeout(()=>{
       try{JsBarcode('#ob-'+p.no,p.orderId,{format:'CODE128',width:1.6,height:42.5,displayValue:false,margin:0});}catch(e){}
-      if(dest!=='—'){ try{JsBarcode('#lb-'+p.no,dest,{format:'CODE128',width:1.4,height:42.5,displayValue:false,margin:0});}catch(e){} }
+      if(p.destLoc && p.destLoc!=='—'){ try{JsBarcode('#lb-'+p.no,p.destLoc,{format:'CODE128',width:1.4,height:42.5,displayValue:false,margin:0});}catch(e){} }
       try{
         // 【鎖定規範】QR = 入庫單號(orderId)，不綁其他參數
         const photoUrl = PHOTO_PAGE_URL.includes('YOUR_GITHUB')
@@ -769,8 +769,16 @@ function palletToWmsRow(p) {
 }
 
 function wmsFilenameBase(trip) {
-  const t = (trip === 'ALL') ? '全部187板' : trip.replace(/\//g, '');
-  return '入庫單_' + t + '_2026-06-22';
+  const t = (trip === 'ALL') ? '全部' : trip.replace(/\//g, '');
+  // 根據 trip 解析日期，或用系統日期
+  let dateStr = '2026-06-26';  // 預設
+  if (trip && trip !== 'ALL') {
+    const m = trip.match(/(\d{1,2})\/(\d{1,2})/);
+    if (m) {
+      dateStr = `2026-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+    }
+  }
+  return '入庫單_' + t + '_' + dateStr;
 }
 
 // ── 主要：匯出入庫單 XLSX（WMS 可直接匯入）──
