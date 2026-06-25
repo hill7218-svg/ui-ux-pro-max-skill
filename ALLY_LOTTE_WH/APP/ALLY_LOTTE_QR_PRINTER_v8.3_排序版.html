@@ -400,7 +400,7 @@ async function importDataFile(){
       return;
     }
 
-    // 驗證必要欄位
+    // 驗證必要欄位（orderId 為選填：若有則保留，無則自動生成）
     const required = ['sourceId','sku','name','qtyBox','qtyPcs','srcLoc','trip','expDate','ean'];
     const headers = Object.keys(data[0]||{});
     const missing = required.filter(f=>!headers.includes(f));
@@ -408,6 +408,9 @@ async function importDataFile(){
       showImportMsg(`❌ 缺少欄位：${missing.join(', ')}`,'error');
       return;
     }
+    // 提示使用者檔案類型
+    const hasOrderId = headers.includes('orderId');
+    console.log(`✅ 輸入檔${hasOrderId ? '含 orderId（將保留）' : '無 orderId（將自動生成）'}`);
 
     // 轉換成 PALLET_DATA 格式（自動補 no）
     PALLET_DATA = data.map((r,i)=>({
@@ -628,9 +631,12 @@ function sortPalletsBySKUandQty(pallets) {
   });
   const tripCounters = {};
   sorted.forEach((p) => {
-    tripCounters[p.trip] = (tripCounters[p.trip] || 0) + 1;
-    const serial = String(tripCounters[p.trip]).padStart(3, '0');
-    p.orderId = buildOrderId(p.trip, serial);
+    // 若輸入檔已有 orderId，保留原值；否則自動生成
+    if (!p.orderId || p.orderId.trim() === '') {
+      tripCounters[p.trip] = (tripCounters[p.trip] || 0) + 1;
+      const serial = String(tripCounters[p.trip]).padStart(3, '0');
+      p.orderId = buildOrderId(p.trip, serial);
+    }
   });
   return sorted;
 }
