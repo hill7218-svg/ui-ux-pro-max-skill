@@ -63,7 +63,7 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
 .stats b{color:#0D1B3E;font-size:18px}
 
 /* 貼紙 125mm，欄位以 data-fk 包裝，支援 translate 位移 + 字體倍數 */
-.sticker{width:100mm;height:170mm;border:1px dashed #ccc;display:inline-block;margin:5px;padding:6mm;background:#fff;page-break-inside:avoid;break-inside:avoid;position:relative;overflow:hidden}
+.sticker{width:100mm;height:100mm;border:1px dashed #ccc;display:inline-block;margin:5px;padding:4mm;background:#fff;page-break-inside:avoid;break-inside:avoid;position:relative;overflow:hidden}
 .sticker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100mm,1fr));gap:10px;margin-top:8px}
 .sk-content{display:flex;flex-direction:column;height:100%}
 .fk{will-change:transform}
@@ -224,7 +224,7 @@ h2{color:#0D1B3E;font-size:16px;margin:14px 0 10px}
   <!-- 預覽 -->
   <div class="main">
     <h1>🏷️ 板標列印器 v8.3</h1>
-    <div class="subtitle">可調排版 · 國際條碼/箱件數預設+50% · QR=入庫單號 · 自動BI→BJ→BK配發</div>
+    <div class="subtitle">100×100mm · 可調排版 · QR=入庫單號(lotte20260627-XXXX) · 自動BI→BJ→BK配發</div>
     <div class="stats">
       <span>內嵌 <b id="totalData">0</b> 板</span>
       <span>本次 <b id="genCount">0</b> 張</span>
@@ -252,11 +252,11 @@ const FIELDS = [
   {key:'srcloc',  label:'來源儲位/效期',     base:12.5,  type:'text'},
   {key:'orderlbl',label:'「入庫單號」標題',  base:12.5,  type:'text'},
   {key:'order',   label:'入庫單號(源ID)',    base:16.25, type:'text'},
-  {key:'orderbar',label:'入庫單號條碼',      base:42.5,  type:'bar'},
-  {key:'qr',      label:'QR Code',           base:142,   type:'qr'},
+  {key:'orderbar',label:'入庫單號條碼',      base:20,    type:'bar'},
+  {key:'qr',      label:'QR Code',           base:88,    type:'qr'},
   {key:'destlbl', label:'「上架儲位」標題',  base:13.75, type:'text'},
   {key:'dest',    label:'上架儲位',          base:32.5,  type:'text'},
-  {key:'destbar', label:'上架儲位條碼',      base:42.5,  type:'bar'},
+  {key:'destbar', label:'上架儲位條碼',      base:20,    type:'bar'},
   {key:'footer',  label:'底部來源單號',      base:12.5,  type:'text'},
 ];
 
@@ -598,24 +598,24 @@ function applyManualStorageConfig() {
   document.getElementById('configMsg').textContent = `✓ 已配置 ${locCount} 個儲位（僅尾數2/3/4）：${first} → ${last} (${sortOrder === 'asc' ? '小到大' : '大到小'})`;
 }
 
-// 解析趟次取得移倉月日（回傳 {mmdd, code}）
-// 例： "6/23-4" -> {mmdd:"0623", code:"0623-4"}；"6/23空調-1" -> {mmdd:"0623", code:"0623AIRCON-1"}
-// 註：CODE128 條碼無法編碼中文，空調/恆溫一律轉成 AIRCON
+// 解析趟次取得移倉月日（回傳 {mmdd, suffix}）
+// 例： "6/27-1" -> {mmdd:"0627", suffix:"-1"}；"6/27空調-1" -> {mmdd:"0627", suffix:"aircon-1"}
+// 入庫單號格式：lotte20260627-1001（常溫）、lotte20260627aircon-1001（恆溫）
 function parseTrip(trip) {
   const m = String(trip || '').match(/(\d{1,2})\/(\d{1,2})(.*)$/);
   if (m) {
     const mm = m[1].padStart(2, '0'), dd = m[2].padStart(2, '0');
-    const rest = (m[3] || '').replace(/空調|恆溫/g, 'AIRCON');
-    return { mmdd: mm + dd, code: mm + dd + rest };
+    const suffix = (m[3] || '').replace(/空調|恆溫/g, 'aircon');
+    return { mmdd: mm + dd, suffix: suffix };
   }
-  return { mmdd: '', code: String(trip || '').replace(/空調|恆溫/g, 'AIRCON').replace(/\s+/g, '') };
+  return { mmdd: '', suffix: String(trip || '').replace(/空調|恆溫/g, 'aircon').replace(/\s+/g, '') };
 }
 
-// 入庫單號：lotte + 20260623 + 趟次(0623-4) + 流水號(每趟次重編)，限制 30 字內
+// 入庫單號：lotte + YYYYMMDD + 趟次後綴 + 3碼流水號，限制 30 字內
+// 例：trip="6/27-1", serial="001" → "lotte20260627-1001"
 function buildOrderId(trip, serial) {
   const t = parseTrip(trip);
-  const date = '2026' + (t.mmdd || '');
-  let oid = 'lotte' + date + t.code + serial;
+  let oid = 'lotte2026' + t.mmdd + t.suffix + serial;
   // CODE128 僅支援 ASCII，移除殘留非 ASCII 字元避免條碼無法產生
   oid = oid.replace(/[^\x20-\x7E]/g, '');
   return oid.length > 30 ? oid.slice(0, 30) : oid;
@@ -688,14 +688,14 @@ function generate(){
     container.appendChild(st);
 
     setTimeout(()=>{
-      try{JsBarcode('#ob-'+p.no,p.orderId,{format:'CODE128',width:1.6,height:42.5,displayValue:false,margin:0});}catch(e){}
-      if(p.destLoc && p.destLoc!=='—'){ try{JsBarcode('#lb-'+p.no,p.destLoc,{format:'CODE128',width:1.4,height:42.5,displayValue:false,margin:0});}catch(e){} }
+      try{JsBarcode('#ob-'+p.no,p.orderId,{format:'CODE128',width:1.4,height:20,displayValue:false,margin:0});}catch(e){}
+      if(p.destLoc && p.destLoc!=='—'){ try{JsBarcode('#lb-'+p.no,p.destLoc,{format:'CODE128',width:1.2,height:20,displayValue:false,margin:0});}catch(e){} }
       try{
         // 【鎖定規範】QR = 入庫單號(orderId)，不綁其他參數
         const photoUrl = PHOTO_PAGE_URL.includes('YOUR_GITHUB')
           ? p.orderId
           : `${PHOTO_PAGE_URL}?id=${encodeURIComponent(p.orderId)}`;
-        new QRCode(document.getElementById('qr-'+p.no),{text:photoUrl,width:142,height:142,correctLevel:QRCode.CorrectLevel.M});
+        new QRCode(document.getElementById('qr-'+p.no),{text:photoUrl,width:88,height:88,correctLevel:QRCode.CorrectLevel.M});
       }catch(e){}
       applyLayout();
     },p.no*8);
