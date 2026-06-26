@@ -776,7 +776,7 @@ function palletToWmsRow(p) {
     WMS_VENDOR.date,            // 日期
     WMS_VENDOR.slot,            // 時段
     '',                         // 採購單號(選填)
-    p.sourceId,                 // 來源單號
+    p.orderId || p.sourceId,    // 來源單號＝貼紙入庫單號(orderId, 如 lotte20260627-5001)
     '',                         // 主檔備註
     p.sku,                      // 商品貨號
     p.name || '',               // 商品名稱
