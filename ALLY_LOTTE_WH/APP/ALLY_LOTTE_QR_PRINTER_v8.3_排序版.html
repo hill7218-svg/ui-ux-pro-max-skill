@@ -413,22 +413,25 @@ async function importDataFile(){
     console.log(`✅ 輸入檔${hasOrderId ? '含 orderId（將保留）' : '無 orderId（將自動生成）'}`);
 
     // 轉換成 PALLET_DATA 格式（自動補 no）
+    // ★ 保留檔案內既有的 orderId / destLoc（轉換檔已含跨走道配發，不再覆蓋）
     PALLET_DATA = data.map((r,i)=>({
       no: i+1,
-      orderId: '',  // 排序時重編
+      orderId: (r.orderId||'').trim(),   // 有值則保留，無則排序時自動生成
       sourceId: r.sourceId,
       sku: r.sku,
       name: r.name,
       qtyBox: parseInt(r.qtyBox)||0,
       qtyPcs: parseInt(r.qtyPcs)||0,
       srcLoc: r.srcLoc,
-      destLoc: '',
+      destLoc: (r.destLoc||'').trim(),   // 有值則保留檔案配發，無則用預設配置
       trip: r.trip,
       expDate: r.expDate,
       ean: r.ean
     }));
 
-    showImportMsg(`✅ 已匯入 ${PALLET_DATA.length} 筆資料`,'success');
+    const importedLoc = PALLET_DATA.filter(p=>p.destLoc).length;
+    const msgExtra = importedLoc>0 ? `（已含 ${importedLoc} 筆配發儲位，將沿用）` : '';
+    showImportMsg(`✅ 已匯入 ${PALLET_DATA.length} 筆資料${msgExtra}`,'success');
     document.getElementById('dataImport').value='';
 
     // 刷新統計和下拉
@@ -652,10 +655,22 @@ function generate(){
   // ★ 新增：排序功能（按 SKU + 件數）
   list = sortPalletsBySKUandQty(list);
 
-  // ★ 新增：儲位配置自動分配
+  // ★ 儲位配置自動分配
+  // 優先沿用匯入檔已配好的 destLoc（轉換檔已跨走道配發、無重複）；
+  // 僅對「沒有配發儲位」的板子用內建預設依序補位，且跨車次連續不重頭。
   if (storageConfig.enabled && storageConfig.locations.length > 0) {
-    list.forEach((p, idx) => {
-      p.destLoc = storageConfig.locations[idx % storageConfig.locations.length];
+    // 收集本次清單中「已被檔案佔用」的儲位，避免預設補位撞位
+    const usedLocs = new Set(list.filter(p=>p.destLoc).map(p=>p.destLoc));
+    let cur = 0;
+    list.forEach((p) => {
+      if (p.destLoc) return;  // 檔案已配 → 保留
+      // 從預設序列找下一個還沒被用到的儲位
+      while (cur < storageConfig.locations.length && usedLocs.has(storageConfig.locations[cur])) cur++;
+      if (cur < storageConfig.locations.length) {
+        p.destLoc = storageConfig.locations[cur];
+        usedLocs.add(p.destLoc);
+        cur++;
+      }
     });
   }
 
@@ -739,8 +754,15 @@ function getSortedPallets() {
   const trip = document.getElementById('tripSelect').value;
   let pool = (trip === 'ALL') ? PALLET_DATA.slice() : PALLET_DATA.filter(p => p.trip === trip);
   let sorted = sortPalletsBySKUandQty(pool);
+  // 同 generate()：沿用檔案既有 destLoc，僅對未配發者用預設連續補位、不撞位
   if (storageConfig.enabled && storageConfig.locations.length > 0) {
-    sorted.forEach((p, idx) => { p.destLoc = storageConfig.locations[idx % storageConfig.locations.length]; });
+    const usedLocs = new Set(sorted.filter(p=>p.destLoc).map(p=>p.destLoc));
+    let cur = 0;
+    sorted.forEach((p) => {
+      if (p.destLoc) return;
+      while (cur < storageConfig.locations.length && usedLocs.has(storageConfig.locations[cur])) cur++;
+      if (cur < storageConfig.locations.length) { p.destLoc = storageConfig.locations[cur]; usedLocs.add(p.destLoc); cur++; }
+    });
   }
   return { trip: trip, sorted: sorted };
 }
