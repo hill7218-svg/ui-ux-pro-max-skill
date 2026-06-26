@@ -721,7 +721,7 @@ function generate(){
   toggleEdit();
 }
 
-// ── WMS 入倉資訊 匯入格式（22 欄，與「入倉資訊」官方範本一致）──
+// ── WMS 入倉資訊 匯入格式（23 欄：22 欄官方範本 + 最後儲位欄）──
 // 可在此調整廠商固定欄位
 const WMS_VENDOR = {
   taxId: '27712880',         // 廠商統編
@@ -767,7 +767,7 @@ function getSortedPallets() {
   return { trip: trip, sorted: sorted };
 }
 
-// 每板 → WMS 22 欄一列（數量預設用「件數 qtyPcs」，與官方範本量級一致）
+// 每板 → WMS 23 欄一列（含最後一欄儲位，數量預設用「件數 qtyPcs」）
 function palletToWmsRow(p) {
   return [
     WMS_VENDOR.taxId,            // 廠商統編
@@ -792,7 +792,7 @@ function palletToWmsRow(p) {
     '',                         // 庫存等級屬性
     '',                         // 版本號
     '',                         // 原因代碼
-    p.sourceId                  // 儲位
+    p.destLoc || ''             // 儲位（配發位置，無則空白）
   ];
 }
 
@@ -830,7 +830,7 @@ function exportOmsXLSX_sorted() {
   showMsg('⬇ 已匯出 XLSX（' + sorted.length + ' 筆，WMS入倉資訊格式，數量=件數）');
 }
 
-// ── 備用：匯出 CSV（UTF-8 BOM + 逗號，Excel 不亂碼，同 WMS 22 欄）──
+// ── 備用：匯出 CSV（UTF-8 BOM + 逗號，Excel 不亂碼，同 WMS 23 欄含儲位）──
 function exportOmsCSV_sorted() {
   const { trip, sorted } = getSortedPallets();
   if (sorted.length === 0) { showMsg('⚠️ 此行次無資料'); return; }
